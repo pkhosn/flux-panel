@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from "@heroui/button";
 
 import { Logo } from '@/components/icons';
+import { ThemeToggle } from '@/components/theme-toggle';
 import { siteConfig } from '@/config/site';
 
 export default function H5SimpleLayout({
@@ -48,6 +49,7 @@ export default function H5SimpleLayout({
         </div>
 
         <div className="flex items-center gap-2">
+          <ThemeToggle />
         </div>
       </header>
 

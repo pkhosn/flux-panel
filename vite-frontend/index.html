@@ -6,10 +6,12 @@
     
     <title>flux-panel</title>
     <script>
-      // 防止暗黑模式闪烁：在页面加载前立即应用系统主题
+      // 防止暗黑模式闪烁：在页面加载前立即应用用户主题（无配置时跟随系统）
       (function() {
-        // 立即检测系统主题并应用
-        const isDarkMode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const savedTheme = localStorage.getItem('theme-mode');
+        const isDarkMode = savedTheme
+          ? savedTheme === 'dark'
+          : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
         
         // 立即设置主题类，避免闪烁
         if (isDarkMode) {
@@ -18,19 +20,6 @@
         } else {
           document.documentElement.classList.remove('dark');
           document.documentElement.style.colorScheme = 'light';
-        }
-        
-        // 监听系统主题变化
-        if (window.matchMedia) {
-          window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(e) {
-            if (e.matches) {
-              document.documentElement.classList.add('dark');
-              document.documentElement.style.colorScheme = 'dark';
-            } else {
-              document.documentElement.classList.remove('dark');
-              document.documentElement.style.colorScheme = 'light';
-            }
-          });
         }
         
         // 检测H5模式并设置标记，避免布局切换时的闪屏

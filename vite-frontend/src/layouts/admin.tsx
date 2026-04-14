@@ -7,6 +7,7 @@ import { Input } from "@heroui/input";
 import { toast } from 'react-hot-toast';
 
 import { Logo } from '@/components/icons';
+import { ThemeToggle } from '@/components/theme-toggle';
 import { updatePassword } from '@/api';
 import { safeLogout } from '@/utils/logout';
 import { siteConfig } from '@/config/site';
@@ -344,6 +345,7 @@ export default function AdminLayout({
           </div>
 
           <div className="flex items-center gap-3">
+            <ThemeToggle />
             {/* 用户菜单 */}
              <Dropdown placement="bottom-end">
                <DropdownTrigger>

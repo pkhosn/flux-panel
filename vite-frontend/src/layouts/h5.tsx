@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 import { Logo } from '@/components/icons';
+import { ThemeToggle } from '@/components/theme-toggle';
 import { siteConfig } from '@/config/site';
 
 interface TabItem {
@@ -119,6 +120,7 @@ export default function H5Layout({
         </div>
 
         <div className="flex items-center gap-2">
+          <ThemeToggle />
         </div>
       </header>
 
