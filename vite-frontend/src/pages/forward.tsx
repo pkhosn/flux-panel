@@ -158,12 +158,16 @@ export default function ForwardPage() {
   // 模态框状态
   const [modalOpen, setModalOpen] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [batchDeleteModalOpen, setBatchDeleteModalOpen] = useState(false);
   const [addressModalOpen, setAddressModalOpen] = useState(false);
   const [diagnosisModalOpen, setDiagnosisModalOpen] = useState(false);
   const [isEdit, setIsEdit] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [batchDeleteLoading, setBatchDeleteLoading] = useState(false);
   const [diagnosisLoading, setDiagnosisLoading] = useState(false);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedForwardIds, setSelectedForwardIds] = useState<number[]>([]);
   const [forwardToDelete, setForwardToDelete] = useState<Forward | null>(null);
   const [currentDiagnosisForward, setCurrentDiagnosisForward] = useState<Forward | null>(null);
   const [diagnosisResult, setDiagnosisResult] = useState<DiagnosisResult | null>(null);
@@ -207,6 +211,11 @@ export default function ForwardPage() {
 
   // 切换显示模式并保存到localStorage
   const handleViewModeChange = () => {
+    if (selectionMode) {
+      setSelectionMode(false);
+      setSelectedForwardIds([]);
+    }
+
     const newMode = viewMode === 'grouped' ? 'direct' : 'grouped';
     setViewMode(newMode);
     try {
@@ -504,6 +513,98 @@ export default function ForwardPage() {
       toast.error('删除失败');
     } finally {
       setDeleteLoading(false);
+    }
+  };
+
+  const getVisibleForwards = (): Forward[] => {
+    if (viewMode === 'grouped') {
+      const grouped = groupForwardsByUserAndTunnel();
+      return grouped.flatMap(userGroup =>
+        userGroup.tunnelGroups.flatMap(tunnelGroup => tunnelGroup.forwards)
+      );
+    }
+    return getSortedForwards();
+  };
+
+  const toggleSelectionMode = () => {
+    if (selectionMode) {
+      setSelectionMode(false);
+      setSelectedForwardIds([]);
+      return;
+    }
+    setSelectionMode(true);
+  };
+
+  const toggleForwardSelection = (forwardId: number) => {
+    setSelectedForwardIds(prev =>
+      prev.includes(forwardId)
+        ? prev.filter(id => id !== forwardId)
+        : [...prev, forwardId]
+    );
+  };
+
+  const selectAllVisibleForwards = () => {
+    const visibleIds = getVisibleForwards().map(forward => forward.id);
+    setSelectedForwardIds(visibleIds);
+  };
+
+  const clearSelectedForwards = () => {
+    setSelectedForwardIds([]);
+  };
+
+  const handleBatchDelete = () => {
+    if (selectedForwardIds.length === 0) {
+      toast.error('请先选择要删除的转发');
+      return;
+    }
+    setBatchDeleteModalOpen(true);
+  };
+
+  const confirmBatchDelete = async () => {
+    if (selectedForwardIds.length === 0) return;
+
+    setBatchDeleteLoading(true);
+    try {
+      const nameById = new Map(forwards.map(forward => [forward.id, forward.name]));
+      let successCount = 0;
+      let forceCount = 0;
+      const failedItems: string[] = [];
+
+      for (const id of selectedForwardIds) {
+        try {
+          const res = await deleteForward(id);
+          if (res.code === 0) {
+            successCount += 1;
+            continue;
+          }
+
+          const forceRes = await forceDeleteForward(id);
+          if (forceRes.code === 0) {
+            forceCount += 1;
+            continue;
+          }
+
+          failedItems.push(`${nameById.get(id) || `ID:${id}`}: ${forceRes.msg || res.msg || '删除失败'}`);
+        } catch (error) {
+          failedItems.push(`${nameById.get(id) || `ID:${id}`}: 网络错误`);
+        }
+      }
+
+      const deletedCount = successCount + forceCount;
+      if (deletedCount > 0) {
+        toast.success(`批量删除完成：删除 ${deletedCount} 条，失败 ${failedItems.length} 条`);
+      }
+      if (failedItems.length > 0) {
+        const preview = failedItems.slice(0, 3).join('\n');
+        toast.error(`部分删除失败（${failedItems.length}条）\n${preview}`);
+      }
+
+      setBatchDeleteModalOpen(false);
+      setSelectionMode(false);
+      setSelectedForwardIds([]);
+      loadData(false);
+    } finally {
+      setBatchDeleteLoading(false);
     }
   };
 
@@ -1194,17 +1295,33 @@ export default function ForwardPage() {
   const renderForwardCard = (forward: Forward, listeners?: any) => {
     const statusDisplay = getStatusDisplay(forward.status);
     const strategyDisplay = getStrategyDisplay(forward.strategy);
+    const isSelected = selectedForwardIds.includes(forward.id);
     
     return (
-      <Card key={forward.id} className="group shadow-sm border border-divider hover:shadow-md transition-shadow duration-200">
+      <Card
+        key={forward.id}
+        className={`group shadow-sm border hover:shadow-md transition-shadow duration-200 ${
+          selectionMode && isSelected ? 'border-primary ring-2 ring-primary/30' : 'border-divider'
+        }`}
+      >
         <CardHeader className="pb-2">
           <div className="flex justify-between items-start w-full">
-            <div className="flex-1 min-w-0">
+            <div className="flex-1 min-w-0 flex items-start gap-2">
+              {selectionMode && (
+                <input
+                  type="checkbox"
+                  className="mt-1 h-4 w-4 cursor-pointer"
+                  checked={isSelected}
+                  onChange={() => toggleForwardSelection(forward.id)}
+                />
+              )}
+              <div className="min-w-0">
               <h3 className="font-semibold text-foreground truncate text-sm">{forward.name}</h3>
               <p className="text-xs text-default-500 truncate">{forward.tunnelName}</p>
+              </div>
             </div>
             <div className="flex items-center gap-1.5 ml-2">
-              {viewMode === 'direct' && (
+              {viewMode === 'direct' && !selectionMode && listeners && (
                 <div 
                   className={`cursor-grab active:cursor-grabbing p-2 text-default-400 hover:text-default-600 transition-colors touch-manipulation ${
                     isMobile 
@@ -1224,7 +1341,7 @@ export default function ForwardPage() {
                 size="sm"
                 isSelected={forward.serviceRunning}
                 onValueChange={() => handleServiceToggle(forward)}
-                isDisabled={forward.status !== 1 && forward.status !== 0}
+                isDisabled={selectionMode || (forward.status !== 1 && forward.status !== 0)}
               />
               <Chip 
                 color={statusDisplay.color as any} 
@@ -1310,6 +1427,7 @@ export default function ForwardPage() {
               variant="flat"
               color="primary"
               onPress={() => handleEdit(forward)}
+              isDisabled={selectionMode}
               className="flex-1 min-h-8"
               startContent={
                 <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
@@ -1324,6 +1442,7 @@ export default function ForwardPage() {
               variant="flat"
               color="warning"
               onPress={() => handleDiagnose(forward)}
+              isDisabled={selectionMode}
               className="flex-1 min-h-8"
               startContent={
                 <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
@@ -1338,6 +1457,7 @@ export default function ForwardPage() {
               variant="flat"
               color="danger"
               onPress={() => handleDelete(forward)}
+              isDisabled={selectionMode}
               className="flex-1 min-h-8"
               startContent={
                 <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
@@ -1368,6 +1488,14 @@ export default function ForwardPage() {
   }
 
   const userGroups = groupForwardsByUserAndTunnel();
+  const visibleForwards = viewMode === 'grouped'
+    ? userGroups.flatMap(userGroup =>
+      userGroup.tunnelGroups.flatMap(tunnelGroup => tunnelGroup.forwards)
+    )
+    : getSortedForwards();
+  const visibleForwardIds = visibleForwards.map(forward => forward.id);
+  const allVisibleSelected = visibleForwardIds.length > 0
+    && visibleForwardIds.every(id => selectedForwardIds.includes(id));
 
   return (
     
@@ -1397,6 +1525,47 @@ export default function ForwardPage() {
                 </svg>
               )}
             </Button>
+
+            <Button
+              size="sm"
+              variant="flat"
+              color={selectionMode ? 'secondary' : 'default'}
+              onPress={toggleSelectionMode}
+            >
+              {selectionMode ? '退出多选' : '多选'}
+            </Button>
+
+            {selectionMode && (
+              <>
+                <Button
+                  size="sm"
+                  variant="flat"
+                  color="default"
+                  onPress={allVisibleSelected ? clearSelectedForwards : selectAllVisibleForwards}
+                  isDisabled={visibleForwardIds.length === 0}
+                >
+                  {allVisibleSelected ? '取消全选' : '全选'}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="flat"
+                  color="default"
+                  onPress={clearSelectedForwards}
+                  isDisabled={selectedForwardIds.length === 0}
+                >
+                  清空选择
+                </Button>
+                <Button
+                  size="sm"
+                  variant="flat"
+                  color="danger"
+                  onPress={handleBatchDelete}
+                  isDisabled={selectedForwardIds.length === 0}
+                >
+                  批量删除（{selectedForwardIds.length}）
+                </Button>
+              </>
+            )}
             
             {/* 导入按钮 */}
             <Button
@@ -1404,6 +1573,7 @@ export default function ForwardPage() {
               variant="flat"
               color="warning"
               onPress={handleImport}
+              isDisabled={selectionMode}
             >
               导入
             </Button>
@@ -1415,6 +1585,7 @@ export default function ForwardPage() {
               color="success"
               onPress={handleExport}
               isLoading={exportLoading}
+              isDisabled={selectionMode}
           
             >
               导出
@@ -1425,6 +1596,7 @@ export default function ForwardPage() {
               variant="flat"
               color="primary"
               onPress={handleAdd}
+              isDisabled={selectionMode}
              
             >
               新增
@@ -1522,25 +1694,35 @@ export default function ForwardPage() {
         ) : (
           /* 直接显示模式 */
           forwards.length > 0 ? (
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleDragEnd}
-              onDragStart={() => {}} // 添加空的 onDragStart 处理器
-            >
-              <SortableContext
-                items={getSortedForwards().map(f => f.id || 0).filter(id => id > 0)}
-                strategy={rectSortingStrategy}
+            selectionMode ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+                {getSortedForwards().map((forward) => (
+                  forward && forward.id ? (
+                    <div key={forward.id}>{renderForwardCard(forward, undefined)}</div>
+                  ) : null
+                ))}
+              </div>
+            ) : (
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+                onDragStart={() => {}} // 添加空的 onDragStart 处理器
               >
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
-                  {getSortedForwards().map((forward) => (
-                    forward && forward.id ? (
-                      <SortableForwardCard key={forward.id} forward={forward} />
-                    ) : null
-                  ))}
-                </div>
-              </SortableContext>
-            </DndContext>
+                <SortableContext
+                  items={getSortedForwards().map(f => f.id || 0).filter(id => id > 0)}
+                  strategy={rectSortingStrategy}
+                >
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+                    {getSortedForwards().map((forward) => (
+                      forward && forward.id ? (
+                        <SortableForwardCard key={forward.id} forward={forward} />
+                      ) : null
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
+            )
           ) : (
             /* 空状态 */
             <Card className="shadow-sm border border-gray-200 dark:border-gray-700">
@@ -1717,6 +1899,46 @@ export default function ForwardPage() {
                     isLoading={deleteLoading}
                   >
                     确认删除
+                  </Button>
+                </ModalFooter>
+              </>
+            )}
+          </ModalContent>
+        </Modal>
+
+        {/* 批量删除确认模态框 */}
+        <Modal
+          isOpen={batchDeleteModalOpen}
+          onOpenChange={setBatchDeleteModalOpen}
+          size="2xl"
+          scrollBehavior="outside"
+          backdrop="blur"
+          placement="center"
+        >
+          <ModalContent>
+            {(onClose) => (
+              <>
+                <ModalHeader className="flex flex-col gap-1">
+                  <h2 className="text-lg font-bold text-danger">确认批量删除</h2>
+                </ModalHeader>
+                <ModalBody>
+                  <p className="text-default-600">
+                    确定要删除已选择的 <span className="font-semibold text-foreground">{selectedForwardIds.length}</span> 条转发吗？
+                  </p>
+                  <p className="text-small text-default-500 mt-2">
+                    系统会先执行常规删除，失败时自动尝试强制删除。此操作无法撤销。
+                  </p>
+                </ModalBody>
+                <ModalFooter>
+                  <Button variant="light" onPress={onClose}>
+                    取消
+                  </Button>
+                  <Button
+                    color="danger"
+                    onPress={confirmBatchDelete}
+                    isLoading={batchDeleteLoading}
+                  >
+                    确认批量删除
                   </Button>
                 </ModalFooter>
               </>
