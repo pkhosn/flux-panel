@@ -89,4 +89,4 @@ curl -L https://raw.githubusercontent.com/pkhosn/flux-panel/refs/heads/beta/inst
 | TRC20      | `TYh2L3xxXpuJhAcBWnt3yiiADiCSJLgUm7`                                  |
 | Aptos      | `0xf2f9fb14749457748506a8281628d556e8540d1eb586d202cd8b02b99d369ef8`  |
 
-[![Star History Chart](https://api.star-history.com/svg?repos=bqlpfy/flux-panel&type=Date)](https://www.star-history.com/#bqlpfy/flux-panel&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=pkhosn/flux-panel&type=Date)](https://www.star-history.com/#pkhosn/flux-panel&Date)
