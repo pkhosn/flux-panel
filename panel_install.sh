@@ -8,8 +8,11 @@ export LC_ALL=C
 
 
 # 全局下载地址配置
-DOCKER_COMPOSEV4_URL="https://github.com/pkhosn/flux-panel/releases/download/2.0.7-beta/docker-compose-v4.yml"
-DOCKER_COMPOSEV6_URL="https://github.com/pkhosn/flux-panel/releases/download/2.0.7-beta/docker-compose-v6.yml"
+REPO_OWNER="pkhosn"
+REPO_NAME="flux-panel"
+REPO_BRANCH="beta"
+DOCKER_COMPOSEV4_URL="https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/refs/heads/${REPO_BRANCH}/docker-compose-v4.yml"
+DOCKER_COMPOSEV6_URL="https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/refs/heads/${REPO_BRANCH}/docker-compose-v6.yml"
 
 COUNTRY=$(curl -s https://ipinfo.io/country)
 if [ "$COUNTRY" = "CN" ]; then
@@ -204,8 +207,8 @@ FRONTEND_PORT=$FRONTEND_PORT
 BACKEND_PORT=$BACKEND_PORT
 EOF
 
-  echo "🚀 启动 docker 服务..."
-  $DOCKER_CMD up -d
+  echo "🚀 构建并启动 docker 服务..."
+  $DOCKER_CMD up -d --build
 
   echo "🎉 部署完成"
   echo "🌐 访问地址: http://服务器IP:$FRONTEND_PORT"
@@ -245,11 +248,8 @@ update_panel() {
   # 然后再完全停止
   $DOCKER_CMD down
 
-  echo "⬇️ 拉取最新镜像..."
-  $DOCKER_CMD pull
-
-  echo "🚀 启动更新后的服务..."
-  $DOCKER_CMD up -d
+  echo "🏗️ 构建并启动更新后的服务..."
+  $DOCKER_CMD up -d --build
 
   # 等待服务启动
   echo "⏳ 等待服务启动..."
