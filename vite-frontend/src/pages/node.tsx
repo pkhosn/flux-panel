@@ -21,6 +21,7 @@ import {
   deleteNode,
   getNodeInstallCommand
 } from "@/api";
+import { copyText } from "@/utils/clipboard";
 
 interface Node {
   id: number;
@@ -513,8 +514,15 @@ export default function NodePage() {
       const res = await getNodeInstallCommand(node.id);
       if (res.code === 0 && res.data) {
         try {
-          await navigator.clipboard.writeText(res.data);
-          toast.success('安装命令已复制到剪贴板');
+          const copied = await copyText(res.data);
+          if (copied) {
+            toast.success('安装命令已复制到剪贴板');
+          } else {
+            // 复制失败，显示安装命令模态框
+            setInstallCommand(res.data);
+            setCurrentNodeName(node.name);
+            setInstallCommandModal(true);
+          }
         } catch (copyError) {
           // 复制失败，显示安装命令模态框
           setInstallCommand(res.data);
@@ -536,9 +544,13 @@ export default function NodePage() {
   // 手动复制安装命令
   const handleManualCopy = async () => {
     try {
-      await navigator.clipboard.writeText(installCommand);
-      toast.success('安装命令已复制到剪贴板');
-      setInstallCommandModal(false);
+      const copied = await copyText(installCommand);
+      if (copied) {
+        toast.success('安装命令已复制到剪贴板');
+        setInstallCommandModal(false);
+      } else {
+        toast.error('复制失败，请手动选择文本复制');
+      }
     } catch (error) {
       toast.error('复制失败，请手动选择文本复制');
     }

@@ -45,6 +45,7 @@ import {
   updateForwardOrder
 } from "@/api";
 import { JwtUtil } from "@/utils/jwt";
+import { copyText } from "@/utils/clipboard";
 
 interface Forward {
   id: number;
@@ -896,7 +897,11 @@ export default function ForwardPage() {
   // 复制到剪贴板
   const copyToClipboard = async (text: string, label: string = '内容') => {
     try {
-      await navigator.clipboard.writeText(text);
+      const copied = await copyText(text);
+      if (!copied) {
+        toast.error('复制失败');
+        return;
+      }
       toast.success(`已复制${label}`);
     } catch (error) {
       toast.error('复制失败');

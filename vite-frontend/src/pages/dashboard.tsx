@@ -7,6 +7,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 
 
 import { getUserPackageInfo } from "@/api";
+import { copyText } from "@/utils/clipboard";
 
 interface UserInfo {
   flow: number;
@@ -562,7 +563,11 @@ export default function DashboardPage() {
 
   const copyToClipboard = async (text: string) => {
     try {
-      await navigator.clipboard.writeText(text);
+      const copied = await copyText(text);
+      if (!copied) {
+        toast.error('复制失败');
+        return;
+      }
       toast.success(`已复制`);
     } catch (error) {
       toast.error('复制失败');
