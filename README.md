@@ -1,92 +1,116 @@
-# flux-panel转发面板 哆啦A梦转发面板
+# flux-panel
 
-# 赞助商
-<p align="center">
-  <a href="https://vps.town" style="margin: 0 20px; text-align:center;">
-    <img src="./doc/vpstown.png" width="300">
-  </a>
+基于 `gost` 的转发管理面板，支持多用户、多隧道、转发管理、限速与流量统计。
 
-  <a href="https://whmcs.as211392.com" style="margin: 0 20px; text-align:center;">
-    <img src="./doc/as211392.png" width="300">
-  </a>
-</p>
+## 最新部署教程（自有仓库版）
 
+当前部署链路已切换到你的仓库 `pkhosn/flux-panel`，不依赖上游 `bqlpfy` 仓库。
 
-本项目基于 [go-gost/gost](https://github.com/go-gost/gost) 和 [go-gost/x](https://github.com/go-gost/x) 两个开源库，实现了转发面板。
----
-## 特性
+### 1) 面板端安装
 
-- 支持按 **隧道账号级别** 管理流量转发数量，可用于用户/隧道配额控制
-- 支持 **TCP** 和 **UDP** 协议的转发
-- 支持两种转发模式：**端口转发** 与 **隧道转发**
-- 可针对 **指定用户的指定隧道进行限速** 设置
-- 支持配置 **单向或双向流量计费方式**，灵活适配不同计费模型
-- 提供灵活的转发策略配置，适用于多种网络场景
-
-
-## 部署流程
----
-### Docker Compose部署
-#### 快速部署
-面板端(稳定版)：
-```bash
-curl -L https://raw.githubusercontent.com/pkhosn/flux-panel/refs/heads/main/panel_install.sh -o panel_install.sh && chmod +x panel_install.sh && ./panel_install.sh
-```
-节点端(稳定版)：
-```bash
-curl -L https://raw.githubusercontent.com/pkhosn/flux-panel/refs/heads/main/install.sh -o install.sh && chmod +x install.sh && ./install.sh
-
-```
-
-面板端(开发版)：
 ```bash
 curl -L https://raw.githubusercontent.com/pkhosn/flux-panel/refs/heads/beta/panel_install.sh -o panel_install.sh && chmod +x panel_install.sh && ./panel_install.sh
 ```
-节点端(开发版)：
-```bash
-curl -L https://raw.githubusercontent.com/pkhosn/flux-panel/refs/heads/beta/install.sh -o install.sh && chmod +x install.sh && ./install.sh
 
+执行后按提示输入：
+- 前端端口（默认 `6366`）
+- 后端端口（默认 `6365`）
+
+脚本会自动：
+- 选择 v4/v6 compose
+- 生成 `.env`
+- `docker compose up -d --build` 构建并启动
+
+默认管理员账号：
+- 用户名：`admin_user`
+- 密码：`admin_user`
+
+首次登录请立即修改默认密码。
+
+### 2) 面板端更新
+
+在面板部署目录再次运行：
+
+```bash
+./panel_install.sh
 ```
 
-#### 默认管理员账号
+菜单选择 `2. 更新面板` 即可。  
+更新流程会自动重新拉取最新 compose 并执行 `up -d --build`。
 
-- **账号**: admin_user
-- **密码**: admin_user
+### 3) 面板端卸载
 
-> ⚠️ 首次登录后请立即修改默认密码！
+在面板部署目录运行：
 
+```bash
+./panel_install.sh
+```
 
-## 免责声明
+菜单选择 `3. 卸载面板`。
 
-本项目仅供个人学习与研究使用，基于开源项目进行二次开发。  
+### 4) 节点端安装（flux_agent）
 
-使用本项目所带来的任何风险均由使用者自行承担，包括但不限于：  
+```bash
+curl -L https://raw.githubusercontent.com/pkhosn/flux-panel/refs/heads/beta/install.sh -o install.sh && chmod +x install.sh && ./install.sh
+```
 
-- 配置不当或使用错误导致的服务异常或不可用；  
-- 使用本项目引发的网络攻击、封禁、滥用等行为；  
-- 服务器因使用本项目被入侵、渗透、滥用导致的数据泄露、资源消耗或损失；  
-- 因违反当地法律法规所产生的任何法律责任。  
+可选非交互参数：
 
-本项目为开源的流量转发工具，仅限合法、合规用途。  
-使用者必须确保其使用行为符合所在国家或地区的法律法规。  
+```bash
+./install.sh -a <面板地址:端口> -s <节点密钥>
+```
 
-**作者不对因使用本项目导致的任何法律责任、经济损失或其他后果承担责任。**  
-**禁止将本项目用于任何违法或未经授权的行为，包括但不限于网络攻击、数据窃取、非法访问等。**  
+例如：
 
-如不同意上述条款，请立即停止使用本项目。  
+```bash
+./install.sh -a 1.2.3.4:6365 -s your_secret
+```
 
-作者对因使用本项目所造成的任何直接或间接损失概不负责，亦不提供任何形式的担保、承诺或技术支持。  
+### 5) 节点端更新/卸载
 
+在节点机器运行：
 
-请务必在合法、合规、安全的前提下使用本项目。  
+```bash
+./install.sh
+```
 
----
-## ⭐ 喝杯咖啡！（USDT）
+菜单选择：
+- `2. 更新`
+- `3. 卸载`
 
-| 网络       | 地址                                                                 |
-|------------|----------------------------------------------------------------------|
-| BNB(BEP20) | `0x755492c03728851bbf855daa28a1e089f9aca4d1`                          |
-| TRC20      | `TYh2L3xxXpuJhAcBWnt3yiiADiCSJLgUm7`                                  |
-| Aptos      | `0xf2f9fb14749457748506a8281628d556e8540d1eb586d202cd8b02b99d369ef8`  |
+## 常用排查
 
-[![Star History Chart](https://api.star-history.com/svg?repos=pkhosn/flux-panel&type=Date)](https://www.star-history.com/#pkhosn/flux-panel&Date)
+查看容器状态：
+
+```bash
+docker ps
+```
+
+查看面板后端日志：
+
+```bash
+docker logs -f springboot-backend
+```
+
+查看面板前端日志：
+
+```bash
+docker logs -f vite-frontend
+```
+
+查看节点服务状态：
+
+```bash
+systemctl status flux_agent
+```
+
+查看节点服务日志：
+
+```bash
+journalctl -u flux_agent -f
+```
+
+## 说明
+
+- 本项目仅供合法合规场景使用。
+- 使用前请确认符合当地法律法规。
