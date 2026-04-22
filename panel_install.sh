@@ -160,6 +160,9 @@ generate_random() {
 
 # 删除脚本自身
 delete_self() {
+  if [[ "${AUTO_DELETE_SCRIPT:-0}" != "1" ]]; then
+    return 0
+  fi
   echo ""
   echo "🗑️ 操作已完成，正在清理脚本文件..."
   SCRIPT_PATH="$(readlink -f "$0" 2>/dev/null || realpath "$0" 2>/dev/null || echo "$0")"
@@ -322,7 +325,7 @@ main() {
   # 显示交互式菜单
   while true; do
     show_menu
-    read -p "请输入选项 (1-5): " choice
+    read -p "请输入选项 (1-4): " choice
 
     case $choice in
       1)
@@ -346,7 +349,7 @@ main() {
         exit 0
         ;;
       *)
-        echo "❌ 无效选项，请输入 1-5"
+        echo "❌ 无效选项，请输入 1-4"
         echo ""
         ;;
     esac

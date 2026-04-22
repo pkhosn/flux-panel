@@ -48,6 +48,9 @@ show_menu() {
 
 # 删除脚本自身
 delete_self() {
+  if [[ "${AUTO_DELETE_SCRIPT:-0}" != "1" ]]; then
+    return 0
+  fi
   echo ""
   echo "🗑️ 操作已完成，正在清理脚本文件..."
   SCRIPT_PATH="$(readlink -f "$0" 2>/dev/null || realpath "$0" 2>/dev/null || echo "$0")"
