@@ -150,7 +150,9 @@ show_menu() {
   echo "1. 安装面板"
   echo "2. 更新面板"
   echo "3. 卸载面板"
-  echo "4. 退出"
+  echo "4. 导出备份"
+  echo "5. 导入备份"
+  echo "6. 退出"
   echo "==============================================="
 }
 
@@ -319,13 +321,143 @@ uninstall_panel() {
   echo "✅ 卸载完成"
 }
 
+# 导出备份
+export_backup() {
+  echo "📦 开始导出备份..."
+  check_docker
+
+  BACKUP_DIR="${PWD}"
+  TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
+  BACKUP_FILE="${BACKUP_DIR}/flux-panel-backup-${TIMESTAMP}.tar.gz"
+  TMP_DIR="$(mktemp -d)"
+
+  mkdir -p "${TMP_DIR}/volumes/sqlite_data" "${TMP_DIR}/volumes/backend_logs"
+
+  # 备份关键文件
+  [[ -f "docker-compose.yml" ]] && cp -f docker-compose.yml "${TMP_DIR}/" || true
+  [[ -f ".env" ]] && cp -f .env "${TMP_DIR}/" || true
+
+  # 备份 sqlite_data volume
+  if docker volume inspect sqlite_data >/dev/null 2>&1; then
+    docker run --rm \
+      -v sqlite_data:/from \
+      -v "${TMP_DIR}/volumes/sqlite_data":/to \
+      alpine:3.20 sh -c "cp -a /from/. /to/ 2>/dev/null || true"
+  else
+    echo "⚠️ 未找到 volume: sqlite_data，跳过"
+  fi
+
+  # 备份 backend_logs volume
+  if docker volume inspect backend_logs >/dev/null 2>&1; then
+    docker run --rm \
+      -v backend_logs:/from \
+      -v "${TMP_DIR}/volumes/backend_logs":/to \
+      alpine:3.20 sh -c "cp -a /from/. /to/ 2>/dev/null || true"
+  else
+    echo "⚠️ 未找到 volume: backend_logs，跳过"
+  fi
+
+  cat > "${TMP_DIR}/manifest.txt" <<EOF
+backup_time=${TIMESTAMP}
+repo=${REPO_OWNER}/${REPO_NAME}
+branch=${REPO_BRANCH}
+host=$(hostname)
+pwd=${PWD}
+EOF
+
+  tar -czf "${BACKUP_FILE}" -C "${TMP_DIR}" .
+  rm -rf "${TMP_DIR}"
+
+  echo "✅ 备份导出完成: ${BACKUP_FILE}"
+  echo "📌 备份包含: docker-compose.yml / .env / sqlite_data / backend_logs"
+}
+
+# 导入备份
+import_backup() {
+  echo "📥 开始导入备份..."
+  check_docker
+
+  read -p "请输入备份文件路径（.tar.gz）: " BACKUP_FILE
+  if [[ -z "${BACKUP_FILE}" || ! -f "${BACKUP_FILE}" ]]; then
+    echo "❌ 备份文件不存在"
+    return 1
+  fi
+
+  TMP_DIR="$(mktemp -d)"
+  tar -xzf "${BACKUP_FILE}" -C "${TMP_DIR}"
+
+  if [[ ! -f "${TMP_DIR}/docker-compose.yml" ]]; then
+    echo "⚠️ 备份中未包含 docker-compose.yml，将继续使用当前目录配置"
+  fi
+
+  read -p "⚠️ 导入会覆盖当前数据卷，确认继续？(y/N): " confirm
+  if [[ "${confirm}" != "y" && "${confirm}" != "Y" ]]; then
+    rm -rf "${TMP_DIR}"
+    echo "❌ 取消导入"
+    return 0
+  fi
+
+  # 先优雅停止再 down
+  docker stop -t 30 springboot-backend 2>/dev/null || true
+  docker stop -t 10 vite-frontend 2>/dev/null || true
+  sleep 3
+  $DOCKER_CMD down || true
+
+  # 恢复配置文件
+  [[ -f "${TMP_DIR}/docker-compose.yml" ]] && cp -f "${TMP_DIR}/docker-compose.yml" ./docker-compose.yml
+  [[ -f "${TMP_DIR}/.env" ]] && cp -f "${TMP_DIR}/.env" ./.env
+
+  # 确保 volumes 存在
+  docker volume create sqlite_data >/dev/null
+  docker volume create backend_logs >/dev/null
+
+  # 清空并恢复 sqlite_data
+  docker run --rm -v sqlite_data:/to alpine:3.20 sh -c "rm -rf /to/* /to/.[!.]* /to/..?* 2>/dev/null || true"
+  if [[ -d "${TMP_DIR}/volumes/sqlite_data" ]]; then
+    docker run --rm \
+      -v "${TMP_DIR}/volumes/sqlite_data":/from \
+      -v sqlite_data:/to \
+      alpine:3.20 sh -c "cp -a /from/. /to/ 2>/dev/null || true"
+  fi
+
+  # 清空并恢复 backend_logs
+  docker run --rm -v backend_logs:/to alpine:3.20 sh -c "rm -rf /to/* /to/.[!.]* /to/..?* 2>/dev/null || true"
+  if [[ -d "${TMP_DIR}/volumes/backend_logs" ]]; then
+    docker run --rm \
+      -v "${TMP_DIR}/volumes/backend_logs":/from \
+      -v backend_logs:/to \
+      alpine:3.20 sh -c "cp -a /from/. /to/ 2>/dev/null || true"
+  fi
+
+  rm -rf "${TMP_DIR}"
+
+  echo "🚀 启动服务..."
+  $DOCKER_CMD up -d --build
+
+  echo "🔍 检查后端服务状态..."
+  for i in {1..90}; do
+    if docker ps --format "{{.Names}}" | grep -q "^springboot-backend$"; then
+      BACKEND_HEALTH=$(docker inspect -f '{{.State.Health.Status}}' springboot-backend 2>/dev/null || echo "unknown")
+      if [[ "${BACKEND_HEALTH}" == "healthy" ]]; then
+        echo "✅ 导入完成，后端服务健康"
+        return 0
+      fi
+    fi
+    if [ $i -eq 90 ]; then
+      echo "❌ 导入后服务启动超时，请检查日志"
+      return 1
+    fi
+    sleep 1
+  done
+}
+
 # 主逻辑
 main() {
 
   # 显示交互式菜单
   while true; do
     show_menu
-    read -p "请输入选项 (1-4): " choice
+    read -p "请输入选项 (1-6): " choice
 
     case $choice in
       1)
@@ -344,12 +476,22 @@ main() {
         exit 0
         ;;
       4)
+        export_backup
+        delete_self
+        exit 0
+        ;;
+      5)
+        import_backup
+        delete_self
+        exit 0
+        ;;
+      6)
         echo "👋 退出脚本"
         delete_self
         exit 0
         ;;
       *)
-        echo "❌ 无效选项，请输入 1-4"
+        echo "❌ 无效选项，请输入 1-6"
         echo ""
         ;;
     esac

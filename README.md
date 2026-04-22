@@ -4,8 +4,6 @@
 
 ## 最新部署教程（自有仓库版）
 
-当前部署链路已切换到你的仓库 `pkhosn/flux-panel`，不依赖上游 `bqlpfy` 仓库。
-
 ### 1) 面板端安装
 
 ```bash
@@ -47,6 +45,67 @@ curl -L https://raw.githubusercontent.com/pkhosn/flux-panel/refs/heads/beta/pane
 ```
 
 菜单选择 `3. 卸载面板`。
+
+## 导入导出
+
+已在 `panel_install.sh` 中提供菜单功能：
+- `4. 导出备份`
+- `5. 导入备份`
+
+### 导出备份
+
+在面板部署目录运行：
+
+```bash
+./panel_install.sh
+```
+
+选择 `4. 导出备份`。  
+会在当前目录生成：
+
+```bash
+flux-panel-backup-YYYYmmdd-HHMMSS.tar.gz
+```
+
+### 导入备份
+
+在目标机器的面板部署目录运行：
+
+```bash
+./panel_install.sh
+```
+
+选择 `5. 导入备份`，输入备份包路径并确认。
+
+### 备份实际包含内容
+
+- `docker-compose.yml`（若导出时当前目录存在）
+- `.env`（若导出时当前目录存在）
+- Docker Volume: `sqlite_data`（核心数据库）
+- Docker Volume: `backend_logs`（日志）
+
+### 无法通过该方式完全恢复的内容
+
+以下内容不在当前备份包内，需额外处理：
+
+- 服务器系统级配置：防火墙规则、内核参数、系统用户与权限、时区等
+- Docker daemon 配置（如 `/etc/docker/daemon.json`）
+- 反向代理/证书配置（如 Nginx、Caddy、TLS 证书）
+- 节点机 `flux_agent` 的系统服务与配置（节点端需单独备份/恢复）
+- 非默认路径下你手工新增的自定义文件（除非你自行纳入备份）
+
+### 导入后建议执行的额外动作
+
+1. 检查容器状态：`docker ps`
+2. 检查后端健康：`docker inspect -f '{{.State.Health.Status}}' springboot-backend`
+3. 登录面板确认：用户、隧道、转发、限速规则是否完整
+4. 若有反代域名，验证外部访问与证书状态
+5. 在节点机器确认 `flux_agent` 服务状态并重连
+
+### 版本建议
+
+- 建议在相同主版本间导入（避免跨大版本结构差异）。
+- 若你修改过 compose 或 volume 名称，请先校验脚本中的默认卷名是否匹配。
 
 ### 4) 节点端安装（flux_agent）
 
