@@ -4,11 +4,21 @@
 
 ## 最新部署教程（自有仓库版）
 
-### 1) 面板端安装
+### 快速安装脚本
+
+面板端：
 
 ```bash
 curl -L https://raw.githubusercontent.com/pkhosn/flux-panel/refs/heads/beta/panel_install.sh -o panel_install.sh && chmod +x panel_install.sh && ./panel_install.sh
 ```
+
+节点端：
+
+```bash
+curl -L https://raw.githubusercontent.com/pkhosn/flux-panel/refs/heads/beta/install.sh -o install.sh && chmod +x install.sh && ./install.sh
+```
+
+### 1) 面板端安装
 
 执行后按提示输入：
 - 前端端口（默认 `6366`）
@@ -112,6 +122,20 @@ flux-panel-backup-YYYYmmdd-HHMMSS.tar.gz
 ```bash
 curl -L https://raw.githubusercontent.com/pkhosn/flux-panel/refs/heads/beta/install.sh -o install.sh && chmod +x install.sh && ./install.sh
 ```
+
+说明（重新安装行为）：
+- 会停止旧服务并替换旧二进制 `flux_agent`
+- 会重写 `config.json`（按你新输入的面板地址和密钥）
+- 默认保留 `gost.json`
+- 不会自动完整清空整个 `/etc/flux_agent` 目录
+
+如果你要“彻底清旧配置后重装”，请先执行：
+
+```bash
+./install.sh
+```
+
+菜单选 `3. 卸载` 后，再执行一次安装。
 
 可选非交互参数：
 
