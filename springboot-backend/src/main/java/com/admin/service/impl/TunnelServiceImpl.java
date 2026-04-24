@@ -369,32 +369,60 @@ public class TunnelServiceImpl extends ServiceImpl<TunnelMapper, Tunnel> impleme
     public R deleteTunnel(Long id) {
         Tunnel tunnel = this.getById(id);
         if (tunnel == null) return R.err("隧道不存在");
+        List<ChainTunnel> chainTunnels = chainTunnelService.list(new QueryWrapper<ChainTunnel>().eq("tunnel_id", id));
+
         List<Forward> forwardList = forwardService.list(new QueryWrapper<Forward>().eq("tunnel_id", id));
         for (Forward forward : forwardList) {
-            forwardService.deleteForward(forward.getId());
+            try {
+                R deleteResult = forwardService.deleteForward(forward.getId());
+                if (deleteResult.getCode() != 0) {
+                    // 常规删除失败时自动回退强制删除，避免删除隧道需要重复点击
+                    forwardService.forceDeleteForward(forward.getId());
+                }
+            } catch (Exception ex) {
+                // 节点侧删除异常时回退强制删除，保障本地配置可一次性清理
+                try {
+                    forwardService.forceDeleteForward(forward.getId());
+                } catch (Exception ignored) {
+                }
+            }
+        }
+
+        // 防御性清理，避免残留关联数据影响隧道主记录删除
+        List<Long> forwardIds = forwardList.stream().map(Forward::getId).toList();
+        if (!forwardIds.isEmpty()) {
+            forwardPortService.remove(new QueryWrapper<ForwardPort>().in("forward_id", forwardIds));
         }
         forwardService.remove(new QueryWrapper<Forward>().eq("tunnel_id", id));
         userTunnelService.remove(new QueryWrapper<UserTunnel>().eq("tunnel_id", id));
-        this.removeById(id);
 
-        List<ChainTunnel> chainTunnels = chainTunnelService.list(new QueryWrapper<ChainTunnel>().eq("tunnel_id", id));
+        // 先删 chain_tunnel，再删 tunnel，避免外键导致 removeById 失败但接口仍返回成功
+        chainTunnelService.remove(new QueryWrapper<ChainTunnel>().eq("tunnel_id", id));
+        boolean removed = this.removeById(id);
+        if (!removed) {
+            return R.err("隧道删除失败，请重试");
+        }
+
+        // 节点侧资源清理采用尽力而为，不影响数据库删除结果
         for (ChainTunnel chainTunnel : chainTunnels) {
-            if (chainTunnel.getChainType() == 1){ // 入口
-                GostUtil.DeleteChains(chainTunnel.getNodeId(), "chains_" + chainTunnel.getTunnelId());
-            }
-            else if (chainTunnel.getChainType() == 2){ // 链
-                GostUtil.DeleteChains(chainTunnel.getNodeId(), "chains_" + chainTunnel.getTunnelId());
-                JSONArray services = new JSONArray();
-                services.add(chainTunnel.getTunnelId() + "_tls");
-                GostUtil.DeleteService(chainTunnel.getNodeId(), services);
-            }
-            else { // 出口
-                JSONArray services = new JSONArray();
-                services.add(chainTunnel.getTunnelId() + "_tls");
-                GostUtil.DeleteService(chainTunnel.getNodeId(), services);
+            try {
+                if (chainTunnel.getChainType() == 1){ // 入口
+                    GostUtil.DeleteChains(chainTunnel.getNodeId(), "chains_" + chainTunnel.getTunnelId());
+                }
+                else if (chainTunnel.getChainType() == 2){ // 链
+                    GostUtil.DeleteChains(chainTunnel.getNodeId(), "chains_" + chainTunnel.getTunnelId());
+                    JSONArray services = new JSONArray();
+                    services.add(chainTunnel.getTunnelId() + "_tls");
+                    GostUtil.DeleteService(chainTunnel.getNodeId(), services);
+                }
+                else { // 出口
+                    JSONArray services = new JSONArray();
+                    services.add(chainTunnel.getTunnelId() + "_tls");
+                    GostUtil.DeleteService(chainTunnel.getNodeId(), services);
+                }
+            } catch (Exception ignored) {
             }
         }
-        chainTunnelService.remove(new QueryWrapper<ChainTunnel>().eq("tunnel_id", id));
         return R.ok();
     }
 

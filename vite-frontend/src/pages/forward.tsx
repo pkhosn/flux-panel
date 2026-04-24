@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardBody, CardHeader } from "@heroui/card";
 import { Button } from "@heroui/button";
 import { Input } from "@heroui/input";
@@ -180,6 +180,7 @@ export default function ForwardPage() {
   const [exportData, setExportData] = useState('');
   const [exportLoading, setExportLoading] = useState(false);
   const [selectedTunnelForExport, setSelectedTunnelForExport] = useState<number | null>(null);
+  const exportTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   
   // 导入相关状态
   const [importModalOpen, setImportModalOpen] = useState(false);
@@ -987,7 +988,42 @@ export default function ForwardPage() {
 
   // 复制导出数据
   const copyExportData = async () => {
-    await copyToClipboard(exportData, '转发数据');
+    const content = exportData?.trim();
+    if (!content) {
+      toast.error('暂无可复制的导出数据');
+      return;
+    }
+
+    let copied = false;
+
+    // 导出数据优先从可见文本框复制，兼容性比隐藏 textarea 更好
+    const exportTextarea = exportTextareaRef.current;
+    if (exportTextarea) {
+      try {
+        exportTextarea.focus();
+        exportTextarea.select();
+        exportTextarea.setSelectionRange(0, exportTextarea.value.length);
+        copied = document.execCommand('copy');
+      } catch (error) {
+        copied = false;
+      }
+    }
+
+    if (!copied) {
+      copied = await copyText(content);
+    }
+
+    if (copied) {
+      toast.success('已复制转发数据');
+      return;
+    }
+
+    if (exportTextarea) {
+      exportTextarea.focus();
+      exportTextarea.select();
+      exportTextarea.setSelectionRange(0, exportTextarea.value.length);
+    }
+    toast.error('自动复制失败，已选中文本，请手动复制');
   };
 
   // 导入转发数据
@@ -2082,6 +2118,8 @@ export default function ForwardPage() {
                 {exportData && (
                   <div className="relative">
                     <Textarea
+                      id="forward-export-data"
+                      ref={exportTextareaRef}
                       value={exportData}
                       readOnly
                       variant="bordered"
