@@ -1,14 +1,27 @@
 package com.admin.common.dto;
 
 import lombok.Data;
-import javax.validation.constraints.NotNull;
 import javax.validation.constraints.Min;
+import javax.validation.constraints.NotNull;
 
 @Data
 public class UserTunnelUpdateDto {
     
-    @NotNull(message = "用户隧道权限ID不能为空")
+    /**
+     * 用户隧道权限ID（可选）
+     * 允许通过 id 或 userId+tunnelId 定位记录，提升接口兼容性
+     */
     private Integer id;
+
+    /**
+     * 用户ID（可选，和 tunnelId 搭配作为备用定位条件）
+     */
+    private Integer userId;
+
+    /**
+     * 隧道ID（可选，和 userId 搭配作为备用定位条件）
+     */
+    private Integer tunnelId;
     
     @NotNull(message = "流量限制不能为空")
     @Min(value = 0, message = "流量限制不能小于0")

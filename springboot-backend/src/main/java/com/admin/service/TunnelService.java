@@ -28,7 +28,7 @@ public interface TunnelService extends IService<Tunnel> {
      * 获取隧道列表
      * @return 结果
      */
-    R getAllTunnels();
+    R getAllTunnels(boolean includeUserOwned);
 
     /**
      * 更新隧道（只允许修改名称、流量计费、端口范围）

@@ -35,4 +35,8 @@ public class Tunnel extends BaseEntity {
     private BigDecimal trafficRatio;
 
     private String inIp;
+
+    private Integer ownerUserId;
+
+    private Integer createdByRole;
 }

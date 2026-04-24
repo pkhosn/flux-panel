@@ -65,6 +65,6 @@ public class SpeedLimitController extends BaseController {
     @RequireRole
     @PostMapping("/tunnels")
     public R getTunnels() {
-        return tunnelService.getAllTunnels();
+        return tunnelService.getAllTunnels(false);
     }
 }

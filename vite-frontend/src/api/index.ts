@@ -25,10 +25,14 @@ export const getUserPackageInfo = () => Network.post("/user/package");
 
 // 节点CRUD操作 - 全部使用POST请求
 export const createNode = (data: any) => Network.post("/node/create", data);
-export const getNodeList = () => Network.post("/node/list");
+export const getNodeList = (data: any = {}) => Network.post("/node/list", data);
 export const updateNode = (data: any) => Network.post("/node/update", data);
 export const deleteNode = (id: number) => Network.post("/node/delete", { id });
 export const getNodeInstallCommand = (id: number) => Network.post("/node/install", { id });
+export const assignUserNodePermission = (data: any) => Network.post("/node/user/assign", data);
+export const getUserNodePermissionList = (data: any) => Network.post("/node/user/list", data);
+export const updateUserNodePermission = (data: any) => Network.post("/node/user/update", data);
+export const removeUserNodePermission = (data: any) => Network.post("/node/user/remove", data);
 export const checkNodeStatus = (nodeId?: number) => {
   const params = nodeId ? { nodeId } : {};
   return Network.post("/node/check-status", params);
@@ -36,7 +40,7 @@ export const checkNodeStatus = (nodeId?: number) => {
 
 // 隧道CRUD操作 - 全部使用POST请求
 export const createTunnel = (data: any) => Network.post("/tunnel/create", data);
-export const getTunnelList = () => Network.post("/tunnel/list");
+export const getTunnelList = (data: any = {}) => Network.post("/tunnel/list", data);
 export const getTunnelById = (id: number) => Network.post("/tunnel/get", { id });
 export const updateTunnel = (data: any) => Network.post("/tunnel/update", data);
 export const deleteTunnel = (id: number) => Network.post("/tunnel/delete", { id });

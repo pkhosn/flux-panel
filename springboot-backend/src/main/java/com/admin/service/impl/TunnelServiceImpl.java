@@ -52,9 +52,17 @@ public class TunnelServiceImpl extends ServiceImpl<TunnelMapper, Tunnel> impleme
     @Resource
     ForwardPortService forwardPortService;
 
+    @Resource
+    UserService userService;
+
+    @Resource
+    UserNodePermissionService userNodePermissionService;
+
 
     @Override
     public R createTunnel(TunnelDto tunnelDto) {
+        Integer roleId = JwtUtil.getRoleIdFromToken();
+        Integer userId = JwtUtil.getUserIdFromToken();
 
         int count = this.count(new QueryWrapper<Tunnel>().eq("name", tunnelDto.getName()));
         if (count > 0) return R.err("隧道名称重复");
@@ -110,11 +118,19 @@ public class TunnelServiceImpl extends ServiceImpl<TunnelMapper, Tunnel> impleme
         for (Node node : list) {
             if (node.getStatus() != 1) return R.err("部分节点不在线");
         }
+        if (roleId != 0) {
+            R permissionCheck = validateTunnelNodePermissions(tunnelDto, userId);
+            if (permissionCheck.getCode() != 0) {
+                return permissionCheck;
+            }
+        }
 
 
         Tunnel tunnel = new Tunnel();
         BeanUtils.copyProperties(tunnelDto, tunnel);
         tunnel.setStatus(1);
+        tunnel.setOwnerUserId(roleId == 0 ? null : userId);
+        tunnel.setCreatedByRole(roleId);
         long currentTime = System.currentTimeMillis();
         tunnel.setCreatedTime(currentTime);
         tunnel.setUpdatedTime(currentTime);
@@ -248,13 +264,27 @@ public class TunnelServiceImpl extends ServiceImpl<TunnelMapper, Tunnel> impleme
             }
 
         }
+        if (roleId != 0) {
+            autoGrantTunnelPermission(userId, tunnel.getId().intValue());
+        }
         return R.ok();
     }
 
 
     @Override
-    public R getAllTunnels() {
-        List<Tunnel> tunnelList = this.list();
+    public R getAllTunnels(boolean includeUserOwned) {
+        Integer roleId = JwtUtil.getRoleIdFromToken();
+        Integer userId = JwtUtil.getUserIdFromToken();
+        List<Tunnel> tunnelList;
+        if (roleId == 0) {
+            QueryWrapper<Tunnel> queryWrapper = new QueryWrapper<>();
+            if (!includeUserOwned) {
+                queryWrapper.isNull("owner_user_id");
+            }
+            tunnelList = this.list(queryWrapper);
+        } else {
+            tunnelList = this.list(new QueryWrapper<Tunnel>().eq("owner_user_id", userId));
+        }
         
         // 查询所有隧道的ChainTunnel信息
         List<Long> tunnelIds = tunnelList.stream()
@@ -325,6 +355,17 @@ public class TunnelServiceImpl extends ServiceImpl<TunnelMapper, Tunnel> impleme
     public R updateTunnel(TunnelUpdateDto tunnelUpdateDto) {
         Tunnel existingTunnel = this.getById(tunnelUpdateDto.getId());
         if (existingTunnel == null) return R.err("隧道不存在");
+        Integer roleId = JwtUtil.getRoleIdFromToken();
+        Integer userId = JwtUtil.getUserIdFromToken();
+        if (!canManageTunnel(existingTunnel, roleId, userId)) {
+            return R.err("仅可编辑自己创建的隧道");
+        }
+        if (roleId != 0) {
+            R permissionCheck = validateTunnelNodePermissions(convertToTunnelDtoForCheck(tunnelUpdateDto), userId);
+            if (permissionCheck.getCode() != 0) {
+                return permissionCheck;
+            }
+        }
 
         List<ChainTunnel> oldChainTunnels = chainTunnelService.list(
                 new QueryWrapper<ChainTunnel>().eq("tunnel_id", existingTunnel.getId())
@@ -369,6 +410,11 @@ public class TunnelServiceImpl extends ServiceImpl<TunnelMapper, Tunnel> impleme
     public R deleteTunnel(Long id) {
         Tunnel tunnel = this.getById(id);
         if (tunnel == null) return R.err("隧道不存在");
+        Integer roleId = JwtUtil.getRoleIdFromToken();
+        Integer userId = JwtUtil.getUserIdFromToken();
+        if (!canManageTunnel(tunnel, roleId, userId)) {
+            return R.err("仅可删除自己创建的隧道");
+        }
         List<ChainTunnel> chainTunnels = chainTunnelService.list(new QueryWrapper<ChainTunnel>().eq("tunnel_id", id));
 
         List<Forward> forwardList = forwardService.list(new QueryWrapper<Forward>().eq("tunnel_id", id));
@@ -458,6 +504,11 @@ public class TunnelServiceImpl extends ServiceImpl<TunnelMapper, Tunnel> impleme
         Tunnel tunnel = this.getById(tunnelId);
         if (tunnel == null) {
             return R.err("隧道不存在");
+        }
+        Integer roleId = JwtUtil.getRoleIdFromToken();
+        Integer userId = JwtUtil.getUserIdFromToken();
+        if (!canManageTunnel(tunnel, roleId, userId)) {
+            return R.err("仅可诊断自己创建的隧道");
         }
 
         List<ChainTunnel> chainTunnels = chainTunnelService.list(
@@ -1151,6 +1202,96 @@ public class TunnelServiceImpl extends ServiceImpl<TunnelMapper, Tunnel> impleme
             result.setPacketLoss(100.0);
             return result;
         }
+    }
+
+    private boolean canManageTunnel(Tunnel tunnel, Integer roleId, Integer userId) {
+        if (roleId == 0) {
+            return true;
+        }
+        return Objects.equals(tunnel.getOwnerUserId(), userId);
+    }
+
+    private TunnelDto convertToTunnelDtoForCheck(TunnelUpdateDto updateDto) {
+        TunnelDto dto = new TunnelDto();
+        dto.setName(updateDto.getName());
+        dto.setInNodeId(updateDto.getInNodeId());
+        dto.setChainNodes(updateDto.getChainNodes());
+        dto.setOutNodeId(updateDto.getOutNodeId());
+        dto.setType(updateDto.getOutNodeId() == null || updateDto.getOutNodeId().isEmpty() ? 1 : 2);
+        dto.setFlow(updateDto.getFlow());
+        dto.setTrafficRatio(updateDto.getTrafficRatio());
+        dto.setInIp(updateDto.getInIp());
+        return dto;
+    }
+
+    private R validateTunnelNodePermissions(TunnelDto tunnelDto, Integer userId) {
+        Map<Integer, UserNodePermission> permissionMap = userNodePermissionService.getUserNodePermissionMap(userId);
+
+        List<Long> inNodeIds = tunnelDto.getInNodeId() == null
+                ? java.util.Collections.emptyList()
+                : tunnelDto.getInNodeId().stream().map(ChainTunnel::getNodeId).toList();
+        for (Long nodeId : inNodeIds) {
+            if (!hasNodePermission(permissionMap, nodeId, userId, true)) {
+                return R.err("入口节点权限不足，节点ID: " + nodeId);
+            }
+        }
+
+        List<Long> outNodeIds = new ArrayList<>();
+        if (tunnelDto.getOutNodeId() != null) {
+            outNodeIds.addAll(tunnelDto.getOutNodeId().stream().map(ChainTunnel::getNodeId).toList());
+        }
+        if (tunnelDto.getChainNodes() != null) {
+            outNodeIds.addAll(tunnelDto.getChainNodes().stream()
+                    .flatMap(List::stream)
+                    .map(ChainTunnel::getNodeId)
+                    .toList());
+        }
+        for (Long nodeId : outNodeIds) {
+            if (!hasNodePermission(permissionMap, nodeId, userId, false)) {
+                return R.err("出口节点权限不足，节点ID: " + nodeId);
+            }
+        }
+        return R.ok();
+    }
+
+    private boolean hasNodePermission(Map<Integer, UserNodePermission> permissionMap, Long nodeId, Integer userId, boolean checkIn) {
+        Node node = nodeService.getById(nodeId);
+        if (node == null) {
+            return false;
+        }
+        if (Objects.equals(node.getOwnerUserId(), userId)) {
+            return true;
+        }
+        UserNodePermission permission = permissionMap.get(nodeId.intValue());
+        if (permission == null) {
+            return false;
+        }
+        return checkIn ? permission.getAllowIn() == 1 : permission.getAllowOut() == 1;
+    }
+
+    private void autoGrantTunnelPermission(Integer userId, Integer tunnelId) {
+        UserTunnel existing = userTunnelService.getOne(new QueryWrapper<UserTunnel>()
+                .eq("user_id", userId)
+                .eq("tunnel_id", tunnelId)
+                .last("limit 1"));
+        if (existing != null) {
+            existing.setStatus(1);
+            userTunnelService.updateById(existing);
+            return;
+        }
+        User user = userService.getById(userId);
+        UserTunnel userTunnel = new UserTunnel();
+        userTunnel.setUserId(userId);
+        userTunnel.setTunnelId(tunnelId);
+        userTunnel.setFlow(99999L);
+        userTunnel.setNum(99999);
+        userTunnel.setInFlow(0L);
+        userTunnel.setOutFlow(0L);
+        userTunnel.setFlowResetTime(0L);
+        userTunnel.setExpTime(user != null && user.getExpTime() != null ? user.getExpTime() : 4102444800000L);
+        userTunnel.setSpeedId(null);
+        userTunnel.setStatus(1);
+        userTunnelService.save(userTunnel);
     }
 
 

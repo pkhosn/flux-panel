@@ -48,6 +48,8 @@ interface Node {
   id: number;
   name: string;
   status: number; // 1: 在线, 0: 离线
+  allowIn?: boolean;
+  allowOut?: boolean;
 }
 
 interface TunnelForm {
@@ -88,6 +90,8 @@ export default function TunnelPage() {
   const [loading, setLoading] = useState(true);
   const [tunnels, setTunnels] = useState<Tunnel[]>([]);
   const [nodes, setNodes] = useState<Node[]>([]);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [showUserOwnedTunnels, setShowUserOwnedTunnels] = useState(false);
   
   // 模态框状态
   const [modalOpen, setModalOpen] = useState(false);
@@ -118,15 +122,25 @@ export default function TunnelPage() {
   const [errors, setErrors] = useState<{[key: string]: string}>({});
 
   useEffect(() => {
-    loadData();
+    let adminFlag = localStorage.getItem('admin') === 'true';
+    if (localStorage.getItem('admin') === null) {
+      const roleId = parseInt(localStorage.getItem('role_id') || '1', 10);
+      adminFlag = roleId === 0;
+      localStorage.setItem('admin', adminFlag.toString());
+    }
+    setIsAdmin(adminFlag);
   }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [showUserOwnedTunnels, isAdmin]);
 
   // 加载所有数据
   const loadData = async () => {
     setLoading(true);
     try {
       const [tunnelsRes, nodesRes] = await Promise.all([
-        getTunnelList(),
+        getTunnelList({ includeUserOwned: isAdmin && showUserOwnedTunnels }),
         getNodeList()
       ]);
       
@@ -162,6 +176,15 @@ export default function TunnelPage() {
     if (!form.inNodeId || form.inNodeId.length === 0) {
       newErrors.inNodeId = '请至少选择一个入口节点';
     } else {
+      if (!isAdmin) {
+        const unauthorizedNodes = form.inNodeId.filter(item => {
+          const node = nodes.find(n => n.id === item.nodeId);
+          return node && node.allowIn === false;
+        });
+        if (unauthorizedNodes.length > 0) {
+          newErrors.inNodeId = '包含无入口权限的节点';
+        }
+      }
       // 验证所有选择的节点都在线
       const offlineNodes = form.inNodeId.filter(item => {
         const node = nodes.find(n => n.id === item.nodeId);
@@ -181,6 +204,15 @@ export default function TunnelPage() {
       if (!form.outNodeId || form.outNodeId.length === 0) {
         newErrors.outNodeId = '请至少选择一个出口节点';
       } else {
+        if (!isAdmin) {
+          const unauthorizedNodes = form.outNodeId.filter(item => {
+            const node = nodes.find(n => n.id === item.nodeId);
+            return node && node.allowOut === false;
+          });
+          if (unauthorizedNodes.length > 0) {
+            newErrors.outNodeId = '包含无出口权限的节点';
+          }
+        }
         // 验证所有选择的节点都在线
         const offlineNodes = form.outNodeId.filter(item => {
           const node = nodes.find(n => n.id === item.nodeId);
@@ -196,6 +228,17 @@ export default function TunnelPage() {
         const overlap = inNodeIds.filter(id => outNodeIds.includes(id));
         if (overlap.length > 0) {
           newErrors.outNodeId = '隧道转发模式下，入口和出口不能有相同节点';
+        }
+      }
+      if (!isAdmin && form.chainNodes?.length) {
+        const unauthorizedChainNodes = form.chainNodes
+          .flatMap(group => group)
+          .filter(item => {
+            const node = nodes.find(n => n.id === item.nodeId);
+            return node && node.allowOut === false;
+          });
+        if (unauthorizedChainNodes.length > 0) {
+          newErrors.outNodeId = '转发链包含无出口权限的节点';
         }
       }
     }
@@ -340,6 +383,9 @@ export default function TunnelPage() {
   const getSelectedChainNodeIds = (): number[] => {
     return (form.chainNodes || []).flatMap(group => group.map(node => node.nodeId));
   };
+
+  const availableInNodes = nodes.filter(node => isAdmin || node.allowIn !== false);
+  const availableOutNodes = nodes.filter(node => isAdmin || node.allowOut !== false);
 
   // 获取转发链分组（已经是二维数组）
   const getChainGroups = (): ChainTunnel[][] => {
@@ -499,7 +545,17 @@ export default function TunnelPage() {
       <div className="px-3 lg:px-6 py-8">
         {/* 页面头部 */}
         <div className="flex items-center justify-between mb-6">
-        <div className="flex-1">
+        <div className="flex-1 flex items-center gap-2">
+          {isAdmin && (
+            <Button
+              size="sm"
+              variant={showUserOwnedTunnels ? "solid" : "flat"}
+              color="secondary"
+              onPress={() => setShowUserOwnedTunnels(prev => !prev)}
+            >
+              {showUserOwnedTunnels ? '显示中：全部隧道' : '默认：仅管理员隧道'}
+            </Button>
+          )}
         </div>
 
         <Button
@@ -790,7 +846,7 @@ export default function TunnelPage() {
                          selectionMode="multiple"
                          selectedKeys={form.inNodeId.map(ct => ct.nodeId.toString())}
                          disabledKeys={[
-                           ...nodes.filter(node => node.status !== 1).map(node => node.id.toString()),
+                           ...availableInNodes.filter(node => node.status !== 1).map(node => node.id.toString()),
                            ...(form.outNodeId || []).map(ct => ct.nodeId.toString()),
                            ...getSelectedChainNodeIds().map(id => id.toString())
                          ]}
@@ -807,7 +863,7 @@ export default function TunnelPage() {
                          errorMessage={errors.inNodeId}
                          variant="bordered"
                        >
-                        {nodes.map((node) => (
+                        {availableInNodes.map((node) => (
                           <SelectItem 
                             key={node.id}
                             textValue={`${node.name}`}
@@ -903,7 +959,7 @@ export default function TunnelPage() {
                                         selectionMode="multiple"
                                         selectedKeys={groupNodes.filter(ct => ct.nodeId !== -1).map(ct => ct.nodeId.toString())}
                                         disabledKeys={[
-                                          ...nodes.filter(node => node.status !== 1).map(node => node.id.toString()),
+                                          ...availableOutNodes.filter(node => node.status !== 1).map(node => node.id.toString()),
                                           ...form.inNodeId.map(ct => ct.nodeId.toString()),
                                           ...(form.outNodeId || []).map(ct => ct.nodeId.toString()),
                                           // 排除其他跳数已选的节点
@@ -934,7 +990,7 @@ export default function TunnelPage() {
                                           value: "text-sm"
                                         }}
                                       >
-                                        {nodes.map((node) => (
+                                        {availableOutNodes.map((node) => (
                                           <SelectItem 
                                             key={node.id}
                                             textValue={`${node.name}`}
@@ -1052,7 +1108,7 @@ export default function TunnelPage() {
                               selectionMode="multiple"
                               selectedKeys={form.outNodeId ? form.outNodeId.filter(ct => ct.nodeId !== -1).map(ct => ct.nodeId.toString()) : []}
                               disabledKeys={[
-                                ...nodes.filter(node => node.status !== 1).map(node => node.id.toString()),
+                                ...availableOutNodes.filter(node => node.status !== 1).map(node => node.id.toString()),
                                 ...form.inNodeId.map(ct => ct.nodeId.toString()),
                                 ...getSelectedChainNodeIds().map(id => id.toString())
                               ]}
@@ -1082,7 +1138,7 @@ export default function TunnelPage() {
                                 value: "text-sm"
                               }}
                             >
-                              {nodes.map((node) => (
+                              {availableOutNodes.map((node) => (
                                 <SelectItem 
                                   key={node.id}
                                   textValue={`${node.name}`}

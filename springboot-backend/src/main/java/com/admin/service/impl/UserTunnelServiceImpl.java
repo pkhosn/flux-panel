@@ -76,8 +76,20 @@ public class UserTunnelServiceImpl extends ServiceImpl<UserTunnelMapper, UserTun
 
     @Override
     public R updateUserTunnel(UserTunnelUpdateDto updateDto) {
-        UserTunnel userTunnel = this.getById(updateDto.getId());
-        if (userTunnel == null) return R.err("隧道不存在");
+        UserTunnel userTunnel = null;
+        if (updateDto.getId() != null) {
+            userTunnel = this.getById(updateDto.getId());
+        }
+        if (userTunnel == null && updateDto.getUserId() != null && updateDto.getTunnelId() != null) {
+            userTunnel = this.getOne(new QueryWrapper<UserTunnel>()
+                    .eq("user_id", updateDto.getUserId())
+                    .eq("tunnel_id", updateDto.getTunnelId())
+                    .last("limit 1"));
+        }
+        if (userTunnel == null) {
+            return R.err("未找到对应的用户隧道权限记录");
+        }
+
         boolean speedChanged = hasSpeedChanged(userTunnel.getSpeedId(), updateDto.getSpeedId());
         userTunnel.setFlow(updateDto.getFlow());
         userTunnel.setNum(updateDto.getNum());
@@ -85,7 +97,11 @@ public class UserTunnelServiceImpl extends ServiceImpl<UserTunnelMapper, UserTun
         updateOptionalProperty(userTunnel::setExpTime, updateDto.getExpTime());
         updateOptionalProperty(userTunnel::setStatus, updateDto.getStatus());
         userTunnel.setSpeedId(updateDto.getSpeedId());
-        this.updateById(userTunnel);
+        boolean updated = this.updateById(userTunnel);
+        if (!updated) {
+            return R.err("用户隧道权限更新失败");
+        }
+
         if (speedChanged) {
             List<Forward> forwardList = forwardService.list(new QueryWrapper<Forward>().eq("user_id", userTunnel.getUserId()).eq("tunnel_id", userTunnel.getTunnelId()));
             for (Forward forward : forwardList) {
@@ -98,7 +114,7 @@ public class UserTunnelServiceImpl extends ServiceImpl<UserTunnelMapper, UserTun
                 forwardService.updateForward(forwardUpdateDto);
             }
         }
-        return R.err("用户隧道权限更新失败");
+        return R.ok("用户隧道权限更新成功");
     }
 
     private <T> void updateOptionalProperty(java.util.function.Consumer<T> setter, T value) {

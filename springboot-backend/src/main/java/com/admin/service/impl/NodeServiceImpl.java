@@ -6,6 +6,7 @@ import com.admin.common.dto.GostDto;
 import com.admin.common.dto.NodeDto;
 import com.admin.common.dto.NodeUpdateDto;
 import com.admin.common.lang.R;
+import com.admin.common.utils.JwtUtil;
 import com.admin.common.utils.GostUtil;
 import com.admin.common.utils.WebSocketServer;
 import com.admin.entity.*;
@@ -22,7 +23,10 @@ import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.regex.Pattern;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -41,28 +45,71 @@ public class NodeServiceImpl extends ServiceImpl<NodeMapper, Node> implements No
     @Resource
     ChainTunnelService chainTunnelService;
 
+    @Resource
+    UserNodePermissionService userNodePermissionService;
 
     @Override
     public R createNode(NodeDto nodeDto) {
         validatePortRange(nodeDto.getPort());
+        Integer roleId = JwtUtil.getRoleIdFromToken();
+        Integer userId = JwtUtil.getUserIdFromToken();
         Node node = new Node();
         node.setSecret(IdUtil.simpleUUID());
         node.setStatus(0);
         node.setPort(nodeDto.getPort());
         node.setName(nodeDto.getName());
         node.setServerIp(nodeDto.getServerIp());
+        node.setOwnerUserId(roleId == 0 ? null : userId);
+        node.setCreatedByRole(roleId);
         long currentTime = System.currentTimeMillis();
         node.setCreatedTime(currentTime);
         node.setUpdatedTime(currentTime);
         node.setInterfaceName(nodeDto.getInterfaceName());
         this.save(node);
+        if (roleId != 0) {
+            userNodePermissionService.grantNodeOwnerPermissions(userId, node.getId());
+        }
         return R.ok();
     }
 
     @Override
     public R getAllNodes() {
-        List<Node> nodeList = this.list(new QueryWrapper<Node>().orderByDesc("status"));
-        nodeList.forEach(node -> node.setSecret(null));
+        Integer roleId = JwtUtil.getRoleIdFromToken();
+        Integer userId = JwtUtil.getUserIdFromToken();
+        List<Node> nodeList;
+        Map<Integer, UserNodePermission> permissionMap = java.util.Collections.emptyMap();
+
+        if (roleId == 0) {
+            nodeList = this.list(new QueryWrapper<Node>().orderByDesc("status"));
+        } else {
+            permissionMap = userNodePermissionService.getUserNodePermissionMap(userId);
+            Set<Integer> permittedIds = permissionMap.keySet();
+            QueryWrapper<Node> queryWrapper = new QueryWrapper<>();
+            if (permittedIds.isEmpty()) {
+                queryWrapper.eq("owner_user_id", userId);
+            } else {
+                queryWrapper.and(w -> w.eq("owner_user_id", userId).or().in("id", permittedIds));
+            }
+            queryWrapper.orderByDesc("status");
+            nodeList = this.list(queryWrapper);
+        }
+
+        Map<Integer, UserNodePermission> finalPermissionMap = permissionMap;
+        Integer finalRoleId = roleId;
+        Integer finalUserId = userId;
+        nodeList.forEach(node -> {
+            node.setSecret(null);
+            boolean owner = finalUserId != null && Objects.equals(node.getOwnerUserId(), finalUserId);
+            node.setManageable(finalRoleId == 0 || owner);
+            if (finalRoleId == 0 || owner) {
+                node.setAllowIn(true);
+                node.setAllowOut(true);
+            } else {
+                UserNodePermission permission = finalPermissionMap.get(node.getId().intValue());
+                node.setAllowIn(permission != null && permission.getAllowIn() == 1);
+                node.setAllowOut(permission != null && permission.getAllowOut() == 1);
+            }
+        });
         return R.ok(nodeList);
     }
 
@@ -71,6 +118,11 @@ public class NodeServiceImpl extends ServiceImpl<NodeMapper, Node> implements No
         Node node = this.getById(nodeUpdateDto.getId());
         if (node == null) {
             return R.err("节点不存在");
+        }
+        Integer roleId = JwtUtil.getRoleIdFromToken();
+        Integer userId = JwtUtil.getUserIdFromToken();
+        if (roleId != 0 && !Objects.equals(node.getOwnerUserId(), userId)) {
+            return R.err("仅可编辑自己创建的节点");
         }
 
         boolean online = node.getStatus() != null && node.getStatus() == 1;
@@ -107,11 +159,17 @@ public class NodeServiceImpl extends ServiceImpl<NodeMapper, Node> implements No
         if (node == null) {
             return R.err("节点不存在");
         }
+        Integer roleId = JwtUtil.getRoleIdFromToken();
+        Integer userId = JwtUtil.getUserIdFromToken();
+        if (roleId != 0 && !Objects.equals(node.getOwnerUserId(), userId)) {
+            return R.err("仅可删除自己创建的节点");
+        }
 
         List<ChainTunnel> list = chainTunnelService.list(new QueryWrapper<ChainTunnel>().eq("node_id", id).groupBy("tunnel_id"));
         for (ChainTunnel tunnel : list) {
             tunnelService.deleteTunnel(tunnel.getTunnelId());
         }
+        userNodePermissionService.remove(new QueryWrapper<UserNodePermission>().eq("node_id", id.intValue()));
         this.removeById(id);
         return R.ok();
     }
@@ -122,6 +180,11 @@ public class NodeServiceImpl extends ServiceImpl<NodeMapper, Node> implements No
         Node node = this.getById(id);
         if (node == null) {
             return R.err("节点不存在");
+        }
+        Integer roleId = JwtUtil.getRoleIdFromToken();
+        Integer userId = JwtUtil.getUserIdFromToken();
+        if (roleId != 0 && !Objects.equals(node.getOwnerUserId(), userId)) {
+            return R.err("仅可查看自己创建节点的安装命令");
         }
         ViteConfig viteConfig = viteConfigService.getOne(new QueryWrapper<ViteConfig>().eq("name", "ip"));
         if (viteConfig == null) return R.err("请先前往网站配置中设置ip");

@@ -41,12 +41,17 @@ import {
   updateUser,
   deleteUser,
   getTunnelList,
+  getNodeList,
   assignUserTunnel,
   getUserTunnelList,
   removeUserTunnel,
   updateUserTunnel,
   getSpeedLimitList,
-  resetUserFlow
+  resetUserFlow,
+  assignUserNodePermission,
+  getUserNodePermissionList,
+  updateUserNodePermission,
+  removeUserNodePermission
 } from '@/api';
 import { SearchIcon, EditIcon, DeleteIcon, UserIcon, SettingsIcon } from '@/components/icons';
 import { parseDate } from "@internationalized/date";
@@ -101,6 +106,15 @@ const calculateTunnelUsedFlow = (tunnel: UserTunnel): number => {
   // 后端已按计费类型处理流量，前端直接使用入站+出站总和
   return inFlow + outFlow;
 };
+
+interface UserNodePermission {
+  id: string;
+  userId: number;
+  nodeId: number;
+  nodeName: string;
+  allowIn: number;
+  allowOut: number;
+}
 
 export default function UserPage() {
   // 状态管理
@@ -169,12 +183,25 @@ export default function UserPage() {
 
   // 其他数据
   const [tunnels, setTunnels] = useState<Tunnel[]>([]);
+  const [nodes, setNodes] = useState<any[]>([]);
   const [speedLimits, setSpeedLimits] = useState<SpeedLimit[]>([]);
+
+  // 节点权限管理状态
+  const { isOpen: isNodeModalOpen, onOpen: onNodeModalOpen, onClose: onNodeModalClose } = useDisclosure();
+  const [nodePermissions, setNodePermissions] = useState<UserNodePermission[]>([]);
+  const [nodePermissionLoading, setNodePermissionLoading] = useState(false);
+  const [nodePermissionForm, setNodePermissionForm] = useState({
+    nodeId: null as number | null,
+    allowIn: 1,
+    allowOut: 1
+  });
+  const [nodeAssignLoading, setNodeAssignLoading] = useState(false);
 
   // 生命周期
   useEffect(() => {
     loadUsers();
     loadTunnels();
+    loadNodes();
     loadSpeedLimits();
   }, [pagination.current, pagination.size, searchKeyword]);
 
@@ -212,6 +239,17 @@ export default function UserPage() {
     }
   };
 
+  const loadNodes = async () => {
+    try {
+      const response = await getNodeList();
+      if (response.code === 0) {
+        setNodes(response.data || []);
+      }
+    } catch (error) {
+      console.error('获取节点列表失败:', error);
+    }
+  };
+
   const loadSpeedLimits = async () => {
     try {
       const response = await getSpeedLimitList();
@@ -236,6 +274,22 @@ export default function UserPage() {
       toast.error('获取隧道权限列表失败');
     } finally {
       setTunnelListLoading(false);
+    }
+  };
+
+  const loadUserNodePermissions = async (userId: number) => {
+    setNodePermissionLoading(true);
+    try {
+      const response = await getUserNodePermissionList({ userId });
+      if (response.code === 0) {
+        setNodePermissions(response.data || []);
+      } else {
+        toast.error(response.msg || '获取节点权限列表失败');
+      }
+    } catch (error) {
+      toast.error('获取节点权限列表失败');
+    } finally {
+      setNodePermissionLoading(false);
     }
   };
 
@@ -346,6 +400,17 @@ export default function UserPage() {
     loadUserTunnels(user.id);
   };
 
+  const handleManageNodes = (user: User) => {
+    setCurrentUser(user);
+    setNodePermissionForm({
+      nodeId: null,
+      allowIn: 1,
+      allowOut: 1
+    });
+    onNodeModalOpen();
+    loadUserNodePermissions(user.id);
+  };
+
   const handleAssignTunnel = async () => {
     if (!tunnelForm.tunnelId || !tunnelForm.expTime || !currentUser) {
       toast.error('请填写完整信息');
@@ -400,6 +465,8 @@ export default function UserPage() {
     try {
       const response = await updateUserTunnel({
         id: editTunnelForm.id,
+        userId: editTunnelForm.userId,
+        tunnelId: editTunnelForm.tunnelId,
         flow: editTunnelForm.flow,
         num: editTunnelForm.num,
         expTime: editTunnelForm.expTime,
@@ -513,9 +580,88 @@ export default function UserPage() {
     }
   };
 
+  const handleAssignNodePermission = async () => {
+    if (!currentUser || !nodePermissionForm.nodeId) {
+      toast.error('请先选择节点');
+      return;
+    }
+    if (nodePermissionForm.allowIn === 0 && nodePermissionForm.allowOut === 0) {
+      toast.error('入口或出口至少开启一项');
+      return;
+    }
+    setNodeAssignLoading(true);
+    try {
+      const response = await assignUserNodePermission({
+        userId: currentUser.id,
+        nodeId: nodePermissionForm.nodeId,
+        allowIn: nodePermissionForm.allowIn,
+        allowOut: nodePermissionForm.allowOut
+      });
+      if (response.code === 0) {
+        toast.success('节点权限分配成功');
+        setNodePermissionForm({
+          nodeId: null,
+          allowIn: 1,
+          allowOut: 1
+        });
+        loadUserNodePermissions(currentUser.id);
+      } else {
+        toast.error(response.msg || '分配失败');
+      }
+    } catch (error) {
+      toast.error('分配失败');
+    } finally {
+      setNodeAssignLoading(false);
+    }
+  };
+
+  const handleToggleNodePermission = async (item: UserNodePermission, field: 'allowIn' | 'allowOut', value: number) => {
+    const newAllowIn = field === 'allowIn' ? value : item.allowIn;
+    const newAllowOut = field === 'allowOut' ? value : item.allowOut;
+    if (newAllowIn === 0 && newAllowOut === 0) {
+      toast.error('入口或出口至少开启一项');
+      return;
+    }
+    try {
+      const response = await updateUserNodePermission({
+        id: item.id,
+        allowIn: newAllowIn,
+        allowOut: newAllowOut
+      });
+      if (response.code === 0) {
+        if (currentUser) {
+          loadUserNodePermissions(currentUser.id);
+        }
+      } else {
+        toast.error(response.msg || '更新失败');
+      }
+    } catch (error) {
+      toast.error('更新失败');
+    }
+  };
+
+  const handleRemoveNodePermission = async (id: string) => {
+    try {
+      const response = await removeUserNodePermission({ id });
+      if (response.code === 0) {
+        toast.success('删除成功');
+        if (currentUser) {
+          loadUserNodePermissions(currentUser.id);
+        }
+      } else {
+        toast.error(response.msg || '删除失败');
+      }
+    } catch (error) {
+      toast.error('删除失败');
+    }
+  };
+
   // 过滤数据
   const availableTunnels = tunnels.filter(
     tunnel => !userTunnels.some(ut => ut.tunnelId === tunnel.id)
+  );
+  const availableNodes = nodes.filter(
+    node => !nodePermissions.some(permission => permission.nodeId === node.id)
   );
 
   const availableSpeedLimits = speedLimits.filter(
@@ -719,7 +865,17 @@ export default function UserPage() {
                         className="flex-1 min-h-8"
                         startContent={<SettingsIcon className="w-3 h-3" />}
                       >
-                        权限
+                        隧道权
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="flat"
+                        color="secondary"
+                        onPress={() => handleManageNodes(user)}
+                        className="flex-1 min-h-8"
+                        startContent={<SettingsIcon className="w-3 h-3" />}
+                      >
+                        节点权
                       </Button>
                       <Button
                         size="sm"
@@ -1086,10 +1242,152 @@ export default function UserPage() {
                   </TableBody>
                 </Table>
               </div>
+
             </div>
           </ModalBody>
           <ModalFooter>
             <Button onPress={onTunnelModalClose}>
+              关闭
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* 节点权限管理模态框 */}
+      <Modal
+        isOpen={isNodeModalOpen}
+        onClose={onNodeModalClose}
+        size="2xl"
+        scrollBehavior="outside"
+        backdrop="blur"
+        placement="center"
+        isDismissable={false}
+      >
+        <ModalContent>
+          <ModalHeader>
+            用户 {currentUser?.user} 的节点权限管理
+          </ModalHeader>
+          <ModalBody>
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-lg font-semibold mb-4">分配新节点权限</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <Select
+                    label="选择节点"
+                    selectedKeys={nodePermissionForm.nodeId ? [nodePermissionForm.nodeId.toString()] : []}
+                    onSelectionChange={(keys) => {
+                      const value = Array.from(keys)[0] as string;
+                      setNodePermissionForm(prev => ({ ...prev, nodeId: Number(value) || null }));
+                    }}
+                  >
+                    {availableNodes.map((node) => (
+                      <SelectItem key={node.id.toString()} textValue={node.name}>
+                        {node.name}
+                      </SelectItem>
+                    ))}
+                  </Select>
+                  <Select
+                    label="入口权限"
+                    selectedKeys={[nodePermissionForm.allowIn.toString()]}
+                    onSelectionChange={(keys) => {
+                      const value = Array.from(keys)[0] as string;
+                      setNodePermissionForm(prev => ({ ...prev, allowIn: Number(value) }));
+                    }}
+                  >
+                    <SelectItem key="1">允许</SelectItem>
+                    <SelectItem key="0">禁止</SelectItem>
+                  </Select>
+                  <Select
+                    label="出口权限"
+                    selectedKeys={[nodePermissionForm.allowOut.toString()]}
+                    onSelectionChange={(keys) => {
+                      const value = Array.from(keys)[0] as string;
+                      setNodePermissionForm(prev => ({ ...prev, allowOut: Number(value) }));
+                    }}
+                  >
+                    <SelectItem key="1">允许</SelectItem>
+                    <SelectItem key="0">禁止</SelectItem>
+                  </Select>
+                </div>
+                <Button
+                  color="primary"
+                  className="mt-4"
+                  onPress={handleAssignNodePermission}
+                  isLoading={nodeAssignLoading}
+                >
+                  分配节点权限
+                </Button>
+              </div>
+
+              <div>
+                <h3 className="text-lg font-semibold mb-4">已有节点权限</h3>
+                <Table
+                  aria-label="用户节点权限列表"
+                  classNames={{
+                    wrapper: "shadow-none",
+                    th: "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 font-medium"
+                  }}
+                >
+                  <TableHeader>
+                    <TableColumn>节点名称</TableColumn>
+                    <TableColumn>入口权限</TableColumn>
+                    <TableColumn>出口权限</TableColumn>
+                    <TableColumn>操作</TableColumn>
+                  </TableHeader>
+                  <TableBody
+                    items={nodePermissions}
+                    isLoading={nodePermissionLoading}
+                    loadingContent={<Spinner />}
+                    emptyContent="暂无节点权限"
+                  >
+                    {(item) => (
+                      <TableRow key={item.id}>
+                        <TableCell>{item.nodeName}</TableCell>
+                        <TableCell>
+                          <Select
+                            size="sm"
+                            selectedKeys={[item.allowIn.toString()]}
+                            onSelectionChange={(keys) => {
+                              const value = Array.from(keys)[0] as string;
+                              handleToggleNodePermission(item, 'allowIn', Number(value));
+                            }}
+                          >
+                            <SelectItem key="1">允许</SelectItem>
+                            <SelectItem key="0">禁止</SelectItem>
+                          </Select>
+                        </TableCell>
+                        <TableCell>
+                          <Select
+                            size="sm"
+                            selectedKeys={[item.allowOut.toString()]}
+                            onSelectionChange={(keys) => {
+                              const value = Array.from(keys)[0] as string;
+                              handleToggleNodePermission(item, 'allowOut', Number(value));
+                            }}
+                          >
+                            <SelectItem key="1">允许</SelectItem>
+                            <SelectItem key="0">禁止</SelectItem>
+                          </Select>
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            size="sm"
+                            color="danger"
+                            variant="flat"
+                            onPress={() => handleRemoveNodePermission(item.id)}
+                          >
+                            删除
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          </ModalBody>
+          <ModalFooter>
+            <Button onPress={onNodeModalClose}>
               关闭
             </Button>
           </ModalFooter>

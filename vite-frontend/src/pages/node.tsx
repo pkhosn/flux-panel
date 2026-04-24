@@ -47,6 +47,9 @@ interface Node {
     uptime: number;
   } | null;
   copyLoading?: boolean;
+  manageable?: boolean;
+  allowIn?: boolean;
+  allowOut?: boolean;
 }
 
 interface NodeForm {
@@ -673,6 +676,9 @@ export default function NodePage() {
                   <div className="flex justify-between items-start w-full">
                     <div className="flex-1 min-w-0">
                       <h3 className="font-semibold text-foreground truncate text-sm">{node.name}</h3>
+                      {node.manageable === false && (
+                        <p className="text-[11px] text-default-500">只读授权节点</p>
+                      )}
                     </div>
                     <div className="flex items-center gap-1.5 ml-2">
                       <Chip 
@@ -811,6 +817,7 @@ export default function NodePage() {
                         color="success"
                         onPress={() => handleCopyInstallCommand(node)}
                         isLoading={node.copyLoading}
+                        isDisabled={node.manageable === false}
                         className="flex-1 min-h-8"
                       >
                         安装
@@ -820,6 +827,7 @@ export default function NodePage() {
                         variant="flat"
                         color="primary"
                         onPress={() => handleEdit(node)}
+                        isDisabled={node.manageable === false}
                         className="flex-1 min-h-8"
                       >
                         编辑
@@ -829,6 +837,7 @@ export default function NodePage() {
                         variant="flat"
                         color="danger"
                         onPress={() => handleDelete(node)}
+                        isDisabled={node.manageable === false}
                         className="flex-1 min-h-8"
                       >
                         删除

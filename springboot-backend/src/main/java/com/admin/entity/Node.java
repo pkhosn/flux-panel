@@ -1,6 +1,7 @@
 package com.admin.entity;
 
 import java.io.Serializable;
+import com.baomidou.mybatisplus.annotation.TableField;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
@@ -39,5 +40,18 @@ public class Node extends BaseEntity {
     private String tcpListenAddr;
 
     private String udpListenAddr;
+
+    private Integer ownerUserId;
+
+    private Integer createdByRole;
+
+    @TableField(exist = false)
+    private Boolean manageable;
+
+    @TableField(exist = false)
+    private Boolean allowIn;
+
+    @TableField(exist = false)
+    private Boolean allowOut;
 
 }

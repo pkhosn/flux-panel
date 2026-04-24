@@ -23,4 +23,7 @@ public class BaseController {
     @Autowired
     ViteConfigService viteConfigService;
 
+    @Autowired
+    UserNodePermissionService userNodePermissionService;
+
 }

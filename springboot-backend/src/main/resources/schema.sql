@@ -38,6 +38,8 @@ CREATE TABLE IF NOT EXISTS node (
   created_time INTEGER NOT NULL,
   updated_time INTEGER,
   status INTEGER NOT NULL,
+  owner_user_id INTEGER,
+  created_by_role INTEGER NOT NULL DEFAULT 0,
   tcp_listen_addr VARCHAR(100) NOT NULL DEFAULT '[::]',
   udp_listen_addr VARCHAR(100) NOT NULL DEFAULT '[::]'
 );
@@ -72,6 +74,8 @@ CREATE TABLE IF NOT EXISTS tunnel (
   created_time INTEGER NOT NULL,
   updated_time INTEGER NOT NULL,
   status INTEGER NOT NULL,
+  owner_user_id INTEGER,
+  created_by_role INTEGER NOT NULL DEFAULT 0,
   in_ip TEXT
 );
 
@@ -117,10 +121,21 @@ CREATE TABLE IF NOT EXISTS user_tunnel (
   status INTEGER NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS user_node_permission (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  node_id INTEGER NOT NULL,
+  allow_in INTEGER NOT NULL DEFAULT 0,
+  allow_out INTEGER NOT NULL DEFAULT 0,
+  created_time INTEGER NOT NULL,
+  updated_time INTEGER,
+  status INTEGER NOT NULL DEFAULT 1,
+  UNIQUE(user_id, node_id)
+);
+
 CREATE TABLE IF NOT EXISTS vite_config (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name VARCHAR(200) NOT NULL UNIQUE,
   value VARCHAR(200) NOT NULL,
   time INTEGER NOT NULL
 );
-
