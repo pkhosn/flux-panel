@@ -68,6 +68,16 @@ export default function AdminLayout({
       )
     },
     {
+      path: '/billing',
+      label: '购买充值',
+      icon: (
+        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+          <path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z" />
+          <path fillRule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM8 13a1 1 0 000 2h4a1 1 0 100-2H8z" clipRule="evenodd" />
+        </svg>
+      )
+    },
+    {
       path: '/tunnel',
       label: '隧道管理',
       icon: (
@@ -101,6 +111,26 @@ export default function AdminLayout({
       icon: (
         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
           <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
+        </svg>
+      ),
+      adminOnly: true
+    },
+    {
+      path: '/plan',
+      label: '套餐管理',
+      icon: (
+        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+          <path d="M4 3a1 1 0 00-1 1v3h14V4a1 1 0 00-1-1H4zM3 9v7a1 1 0 001 1h12a1 1 0 001-1V9H3z" />
+        </svg>
+      ),
+      adminOnly: true
+    },
+    {
+      path: '/redeem',
+      label: '兑换码管理',
+      icon: (
+        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+          <path fillRule="evenodd" d="M3 5a2 2 0 012-2h2.586a2 2 0 001.414-.586l.414-.414a2 2 0 012.828 0l.414.414A2 2 0 0014.071 3H15a2 2 0 012 2v2.586a2 2 0 00.586 1.414l.414.414a2 2 0 010 2.828l-.414.414A2 2 0 0017 14.071V15a2 2 0 01-2 2h-.929a2 2 0 00-1.415.586l-.414.414a2 2 0 01-2.828 0l-.414-.414A2 2 0 007.586 17H5a2 2 0 01-2-2v-2.929a2 2 0 00-.586-1.415l-.414-.414a2 2 0 010-2.828l.414-.414A2 2 0 003 6.586V5z" clipRule="evenodd" />
         </svg>
       ),
       adminOnly: true
@@ -310,7 +340,7 @@ export default function AdminLayout({
             <p className="text-xs text-gray-400 dark:text-gray-500">
               Powered by{' '}
               <a 
-                href="https://github.com/pkhosn/flux-panel" 
+                href="https://github.com/bqlpfy/flux-panel" 
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="text-gray-500 dark:text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"

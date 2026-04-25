@@ -9,7 +9,7 @@ import { isWebViewFunc } from '@/utils/panel';
 import { siteConfig } from '@/config/site';
 import { title } from "@/components/primitives";
 import DefaultLayout from "@/layouts/default";
-import { login, LoginData, checkCaptcha } from "@/api";
+import { login, LoginData, RegisterData, register, checkCaptcha } from "@/api";
 import "@/utils/tac.css";
 import "@/utils/tac.min.js";
 import bgImage from "@/images/bg.jpg";
@@ -18,6 +18,7 @@ import bgImage from "@/images/bg.jpg";
 interface LoginForm {
   username: string;
   password: string;
+  confirmPassword: string;
   captchaId: string;
 }
 
@@ -42,9 +43,11 @@ interface CaptchaStyle {
 }
 
 export default function IndexPage() {
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [form, setForm] = useState<LoginForm>({
     username: "",
     password: "",
+    confirmPassword: "",
     captchaId: "",
   });
   const [loading, setLoading] = useState(false);
@@ -81,6 +84,13 @@ export default function IndexPage() {
       newErrors.password = '密码长度至少6位';
     }
 
+    if (authMode === 'register') {
+      if (!form.confirmPassword.trim()) {
+        newErrors.confirmPassword = '请确认密码';
+      } else if (form.confirmPassword !== form.password) {
+        newErrors.confirmPassword = '两次输入密码不一致';
+      }
+    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -122,7 +132,7 @@ export default function IndexPage() {
 
           setShowCaptcha(false);
           tac.destroyWindow();
-          performLogin();
+          performAuth();
         },
         validFail: (_: any, _captcha: any, tac: any) => {
           tac.reloadCaptcha();
@@ -163,20 +173,27 @@ export default function IndexPage() {
   };
 
   // 执行登录请求
-  const performLogin = async () => {
+  const performAuth = async () => {
 
 
     try {
-      const loginData: LoginData = {
-        username: form.username.trim(),
-        password: form.password,
-        captchaId: form.captchaId,
-      };
-
-      const response = await login(loginData);
+      const username = form.username.trim();
+      const password = form.password;
+      const captchaId = form.captchaId;
+      const payload = { username, password, captchaId };
+      const response = authMode === 'login'
+        ? await login(payload as LoginData)
+        : await register(payload as RegisterData);
       
       if (response.code !== 0) {
-        toast.error(response.msg || "登录失败");
+        toast.error(response.msg || (authMode === 'login' ? "登录失败" : "注册失败"));
+        return;
+      }
+
+      if (authMode === 'register') {
+        toast.success('注册成功，请登录');
+        setAuthMode('login');
+        setForm((prev) => ({ ...prev, password: '', confirmPassword: '', captchaId: '' }));
         return;
       }
 
@@ -202,14 +219,14 @@ export default function IndexPage() {
       navigate("/dashboard");
 
     } catch (error) {
-      console.error('登录错误:', error);
-      toast.error("网络错误，请稍后重试");
+      console.error(authMode === 'login' ? '登录错误:' : '注册错误:', error);
+      toast.error(authMode === 'login' ? "网络错误，请稍后重试" : "注册失败，请稍后重试");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleLogin = async () => {
+  const handleSubmit = async () => {
     if (!validateForm()) return;
 
     setLoading(true);
@@ -226,8 +243,8 @@ export default function IndexPage() {
 
       // 根据返回值决定是否显示验证码
       if (checkResponse.data === 0) {
-        // 不需要验证码，直接登录
-        await performLogin();
+        // 不需要验证码，直接执行
+        await performAuth();
       } else {
         // 需要验证码，显示验证码弹层
         setShowCaptcha(true);
@@ -246,7 +263,7 @@ export default function IndexPage() {
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !loading) {
-      handleLogin();
+      handleSubmit();
     }
   };
 
@@ -256,8 +273,10 @@ export default function IndexPage() {
         <div className="w-full max-w-md px-4 sm:px-0">
           <Card className="w-full">
             <CardHeader className="pb-0 pt-6 px-6 flex-col items-center">
-              <h1 className={title({ size: "sm" })}>登陆</h1>
-              <p className="text-small text-default-500 mt-2">请输入您的账号信息</p>
+              <h1 className={title({ size: "sm" })}>{authMode === 'login' ? '登录' : '注册'}</h1>
+              <p className="text-small text-default-500 mt-2">
+                {authMode === 'login' ? '请输入您的账号信息' : '创建一个新账号'}
+              </p>
             </CardHeader>
             <CardBody className="px-6 py-6">
               <div className="flex flex-col gap-4">
@@ -283,18 +302,46 @@ export default function IndexPage() {
                   variant="bordered"
                   isDisabled={loading}
                   isInvalid={!!errors.password}
+                  errorMessage={errors.password}
                 />
+                {authMode === 'register' && (
+                  <Input
+                    label="确认密码"
+                    placeholder="请再次输入密码"
+                    type="password"
+                    value={form.confirmPassword}
+                    onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
+                    onKeyDown={handleKeyPress}
+                    variant="bordered"
+                    isDisabled={loading}
+                    isInvalid={!!errors.confirmPassword}
+                    errorMessage={errors.confirmPassword}
+                  />
+                )}
 
                 
                 <Button
                   color="primary"
                   size="lg"
-                  onClick={handleLogin}
+                  onClick={handleSubmit}
                   isLoading={loading}
                   disabled={loading}
                   className="mt-2"
                 >
-                  {loading ? (showCaptcha ? "验证中..." : "登录中...") : "登录"}
+                  {loading
+                    ? (showCaptcha ? "验证中..." : (authMode === 'login' ? "登录中..." : "注册中..."))
+                    : (authMode === 'login' ? "登录" : "注册")}
+                </Button>
+                <Button
+                  variant="light"
+                  onClick={() => {
+                    setAuthMode((prev) => prev === 'login' ? 'register' : 'login');
+                    setErrors({});
+                    setForm((prev) => ({ ...prev, password: '', confirmPassword: '', captchaId: '' }));
+                  }}
+                  isDisabled={loading}
+                >
+                  {authMode === 'login' ? '没有账号？去注册' : '已有账号？去登录'}
                 </Button>
               </div>
             </CardBody>
@@ -308,7 +355,7 @@ export default function IndexPage() {
                <p className="text-xs text-gray-400 dark:text-gray-500">
                  Powered by{' '}
                  <a 
-                   href="https://github.com/pkhosn/flux-panel" 
+                   href="https://github.com/bqlpfy/flux-panel" 
                    target="_blank" 
                    rel="noopener noreferrer"
                    className="text-gray-500 dark:text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
