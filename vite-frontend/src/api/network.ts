@@ -57,10 +57,7 @@ function handleTokenExpired() {
 
 // 检查响应是否为token失效
 function isTokenExpired(response: ApiResponse) {
-  return response && response.code === 401 && 
-         (response.msg === '未登录或token已过期' || 
-          response.msg === '无效的token或token已过期' ||
-          response.msg === '无法获取用户权限信息');
+  return response && response.code === 401;
 }
 
 const Network = {

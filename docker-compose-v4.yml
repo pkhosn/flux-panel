@@ -3,7 +3,7 @@ services:
     build:
       context: https://github.com/pkhosn/flux-panel.git#beta:springboot-backend
       dockerfile: Dockerfile
-    image: pkhosn/springboot-backend:2.0.7-beta
+    image: pkhosn/springboot-backend:2.0.8-beta
     container_name: springboot-backend
     restart: unless-stopped
     environment:
@@ -31,7 +31,7 @@ services:
     build:
       context: https://github.com/pkhosn/flux-panel.git#beta:vite-frontend
       dockerfile: Dockerfile
-    image: pkhosn/vite-frontend:2.0.7-beta
+    image: pkhosn/vite-frontend:2.0.8-beta
     container_name: vite-frontend
     restart: unless-stopped
     ports:
