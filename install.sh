@@ -19,17 +19,128 @@ get_architecture() {
 # 构建下载地址
 build_download_url() {
     local ARCH=$(get_architecture)
-    echo "https://github.com/pkhosn/flux-panel/releases/download/2.0.8-beta/gost-${ARCH}"
+    echo "https://github.com/pkhosn/flux-panel/releases/latest/download/gost-${ARCH}"
 }
 
 # 下载地址
 DOWNLOAD_URL=$(build_download_url)
+SOURCE_TARBALL_URL="https://codeload.github.com/pkhosn/flux-panel/tar.gz/refs/heads/beta"
 INSTALL_DIR="/etc/flux_agent"
 COUNTRY=$(curl -s https://ipinfo.io/country)
 if [ "$COUNTRY" = "CN" ]; then
     # 拼接 URL
     DOWNLOAD_URL="https://ghfast.top/${DOWNLOAD_URL}"
 fi
+
+is_elf_binary() {
+  local target_file="$1"
+  [[ -s "$target_file" ]] || return 1
+  local magic
+  magic="$(head -c 4 "$target_file" | od -An -tx1 | tr -d ' \n')"
+  [[ "$magic" == "7f454c46" ]]
+}
+
+ensure_go_installed() {
+  if command -v go >/dev/null 2>&1; then
+    return 0
+  fi
+
+  echo "🧩 未检测到 Go，尝试自动安装..."
+  if [[ -f /etc/os-release ]]; then
+    . /etc/os-release
+  fi
+
+  case "${ID:-}" in
+    ubuntu|debian)
+      apt update && apt install -y golang-go
+      ;;
+    centos|rhel|fedora)
+      if command -v dnf >/dev/null 2>&1; then
+        dnf install -y golang
+      else
+        yum install -y golang
+      fi
+      ;;
+    alpine)
+      apk add --no-cache go
+      ;;
+    arch|manjaro)
+      pacman -Sy --noconfirm go
+      ;;
+    *)
+      echo "❌ 自动安装 Go 失败：暂不支持该系统，请手动安装 Go 后重试。"
+      return 1
+      ;;
+  esac
+
+  command -v go >/dev/null 2>&1
+}
+
+build_flux_agent_from_source() {
+  local output_path="$1"
+  local arch
+  arch="$(get_architecture)"
+  local tmp_dir
+  tmp_dir="$(mktemp -d)"
+  local tar_path="$tmp_dir/flux-panel-beta.tar.gz"
+
+  echo "🛠️ 回退为源码编译 flux_agent (${arch})..."
+  curl -fL "$SOURCE_TARBALL_URL" -o "$tar_path" || {
+    echo "❌ 下载源码失败。"
+    rm -rf "$tmp_dir"
+    return 1
+  }
+
+  tar -xzf "$tar_path" -C "$tmp_dir" || {
+    echo "❌ 解压源码失败。"
+    rm -rf "$tmp_dir"
+    return 1
+  }
+
+  ensure_go_installed || {
+    rm -rf "$tmp_dir"
+    return 1
+  }
+
+  local src_dir
+  src_dir="$(find "$tmp_dir" -maxdepth 2 -type d -name go-gost | head -n 1)"
+  if [[ -z "$src_dir" ]]; then
+    echo "❌ 未找到 go-gost 源码目录。"
+    rm -rf "$tmp_dir"
+    return 1
+  fi
+
+  (
+    cd "$src_dir" || exit 1
+    CGO_ENABLED=0 GOOS=linux GOARCH="$arch" go build -ldflags="-s -w" -o "$output_path"
+  ) || {
+    echo "❌ 编译 flux_agent 失败。"
+    rm -rf "$tmp_dir"
+    return 1
+  }
+
+  rm -rf "$tmp_dir"
+  return 0
+}
+
+fetch_flux_agent_binary() {
+  local output_path="$1"
+  echo "⬇️ 下载 flux_agent 中..."
+
+  # 先尝试 release 资产（可能不存在），失败则回退源码编译
+  if ! curl -fL "$DOWNLOAD_URL" -o "$output_path"; then
+    echo "⚠️ release 资产下载失败，改为源码编译。"
+    build_flux_agent_from_source "$output_path" || return 1
+  fi
+
+  if ! is_elf_binary "$output_path"; then
+    echo "⚠️ 下载文件不是有效 ELF 二进制，改为源码编译。"
+    build_flux_agent_from_source "$output_path" || return 1
+  fi
+
+  chmod +x "$output_path"
+  return 0
+}
 
 
 
@@ -177,18 +288,15 @@ install_flux_agent() {
   # 删除旧文件
   [[ -f "$INSTALL_DIR/flux_agent" ]] && echo "🧹 删除旧文件 flux_agent" && rm -f "$INSTALL_DIR/flux_agent"
 
-  # 下载 flux_agent
-  echo "⬇️ 下载 flux_agent 中..."
-  curl -L "$DOWNLOAD_URL" -o "$INSTALL_DIR/flux_agent"
-  if [[ ! -f "$INSTALL_DIR/flux_agent" || ! -s "$INSTALL_DIR/flux_agent" ]]; then
-    echo "❌ 下载失败，请检查网络或下载链接。"
+  # 下载或编译 flux_agent
+  if ! fetch_flux_agent_binary "$INSTALL_DIR/flux_agent"; then
+    echo "❌ 安装失败：无法获取有效的 flux_agent 二进制。"
     exit 1
   fi
-  chmod +x "$INSTALL_DIR/flux_agent"
-  echo "✅ 下载完成"
+  echo "✅ flux_agent 已就绪"
 
   # 打印版本
-  echo "🔎 flux_agent 版本：$($INSTALL_DIR/flux_agent -V)"
+  echo "🔎 flux_agent 版本：$($INSTALL_DIR/flux_agent -V 2>/dev/null || echo 'unknown')"
 
   # 写入 config.json (安装时总是创建新的)
   CONFIG_FILE="$INSTALL_DIR/config.json"
@@ -256,16 +364,14 @@ update_flux_agent() {
     return 1
   fi
   
-  echo "📥 使用下载地址: $DOWNLOAD_URL"
+  echo "📥 优先下载地址: $DOWNLOAD_URL"
   
   # 检查并安装 tcpkill
   check_and_install_tcpkill
   
-  # 先下载新版本
-  echo "⬇️ 下载最新版本..."
-  curl -L "$DOWNLOAD_URL" -o "$INSTALL_DIR/flux_agent.new"
-  if [[ ! -f "$INSTALL_DIR/flux_agent.new" || ! -s "$INSTALL_DIR/flux_agent.new" ]]; then
-    echo "❌ 下载失败。"
+  # 先下载或编译新版本
+  if ! fetch_flux_agent_binary "$INSTALL_DIR/flux_agent.new"; then
+    echo "❌ 更新失败：无法获取有效的 flux_agent 二进制。"
     return 1
   fi
 
@@ -280,7 +386,7 @@ update_flux_agent() {
   chmod +x "$INSTALL_DIR/flux_agent"
   
   # 打印版本
-  echo "🔎 新版本：$($INSTALL_DIR/flux_agent -V)"
+  echo "🔎 新版本：$($INSTALL_DIR/flux_agent -V 2>/dev/null || echo 'unknown')"
 
   # 重启服务
   echo "🔄 重启服务..."
