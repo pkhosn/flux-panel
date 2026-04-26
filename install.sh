@@ -19,7 +19,8 @@ get_architecture() {
 # 构建下载地址
 build_download_url() {
     local ARCH=$(get_architecture)
-    echo "https://github.com/pkhosn/flux-panel/releases/latest/download/gost-${ARCH}"
+    local RELEASE_TAG="2.0.10-beta"
+    echo "https://github.com/pkhosn/flux-panel/releases/download/${RELEASE_TAG}/gost-${ARCH}"
 }
 
 # 下载地址
@@ -42,10 +43,20 @@ is_elf_binary() {
 
 ensure_go_installed() {
   if command -v go >/dev/null 2>&1; then
-    return 0
+    local current_go
+    current_go="$(go version 2>/dev/null | awk '{print $3}' | sed 's/^go//')"
+    local major minor
+    major="$(echo "$current_go" | awk -F. '{print $1}')"
+    minor="$(echo "$current_go" | awk -F. '{print $2}')"
+    if [[ -n "$major" && -n "$minor" ]]; then
+      if (( major > 1 || (major == 1 && minor >= 21) )); then
+        return 0
+      fi
+    fi
+    echo "⚠️ 检测到 Go 版本过低: ${current_go:-unknown}，需要升级到 1.21+"
   fi
 
-  echo "🧩 未检测到 Go，尝试自动安装..."
+  echo "🧩 开始安装/升级 Go..."
   if [[ -f /etc/os-release ]]; then
     . /etc/os-release
   fi
@@ -97,11 +108,6 @@ build_flux_agent_from_source() {
     return 1
   }
 
-  ensure_go_installed || {
-    rm -rf "$tmp_dir"
-    return 1
-  }
-
   local src_dir
   src_dir="$(find "$tmp_dir" -maxdepth 2 -type d -name go-gost | head -n 1)"
   if [[ -z "$src_dir" ]]; then
@@ -109,6 +115,23 @@ build_flux_agent_from_source() {
     rm -rf "$tmp_dir"
     return 1
   fi
+
+  # 优先使用 Docker 构建，避免宿主机 Go 版本过低
+  if command -v docker >/dev/null 2>&1; then
+    if docker run --rm -v "$src_dir:/src" -w /src golang:1.23 sh -lc \
+      "CGO_ENABLED=0 GOOS=linux GOARCH=$arch /usr/local/go/bin/go build -ldflags='-s -w' -o /src/flux_agent" >/dev/null 2>&1; then
+      cp "$src_dir/flux_agent" "$output_path"
+      rm -f "$src_dir/flux_agent"
+      rm -rf "$tmp_dir"
+      return 0
+    fi
+    echo "⚠️ Docker 编译失败，尝试使用本机 Go 编译..."
+  fi
+
+  ensure_go_installed || {
+    rm -rf "$tmp_dir"
+    return 1
+  }
 
   (
     cd "$src_dir" || exit 1
