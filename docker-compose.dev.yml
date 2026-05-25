@@ -1,0 +1,57 @@
+services:
+  backend:
+    image: maven:3.9.6-eclipse-temurin-21
+    container_name: springboot-backend-dev
+    working_dir: /workspace
+    command: >
+      sh -c "mvn -q -DskipTests spring-boot:run
+      -Dspring-boot.run.jvmArguments='-Xms256m -Xmx512m -Dfile.encoding=UTF-8 -Duser.timezone=Asia/Shanghai'"
+    environment:
+      DB_PATH: /workspace/data/gost.db
+      JWT_SECRET: ${JWT_SECRET}
+      LOG_DIR: /workspace/logs
+    ports:
+      - "${BACKEND_PORT}:6365"
+    volumes:
+      - ./springboot-backend:/workspace
+      - flux_maven_cache:/root/.m2
+      - backend_logs:/workspace/logs
+      - sqlite_data:/workspace/data
+    networks:
+      - gost-network
+
+  frontend:
+    image: node:20.19.0
+    container_name: vite-frontend-dev
+    working_dir: /workspace
+    command: sh -c "npm install --legacy-peer-deps && npm run dev -- --host 0.0.0.0 --port 5173"
+    environment:
+      VITE_API_URL: "http://127.0.0.1:${BACKEND_PORT}/api/v1"
+    ports:
+      - "${FRONTEND_PORT}:5173"
+    volumes:
+      - ./vite-frontend:/workspace
+      - flux_frontend_node_modules:/workspace/node_modules
+    depends_on:
+      - backend
+    networks:
+      - gost-network
+
+volumes:
+  sqlite_data:
+    name: sqlite_data
+    driver: local
+  backend_logs:
+    name: backend_logs
+    driver: local
+  flux_maven_cache:
+    name: flux_maven_cache
+    driver: local
+  flux_frontend_node_modules:
+    name: flux_frontend_node_modules
+    driver: local
+
+networks:
+  gost-network:
+    name: gost-network
+    driver: bridge
