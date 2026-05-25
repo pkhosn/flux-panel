@@ -2,6 +2,7 @@ package com.admin.service;
 
 import com.admin.common.dto.CreateOrderDto;
 import com.admin.common.lang.R;
+import com.admin.entity.OrderRecord;
 
 import java.util.Map;
 
@@ -12,4 +13,6 @@ public interface OrderService {
     R getAllOrderList(Map<String, Object> params);
     R deleteOrder(Long id);
     R clearOrders(Map<String, Object> params);
+
+    OrderRecord getOrderByNo(String orderNo);
 }

@@ -10,6 +10,7 @@ import com.admin.entity.User;
 import com.admin.mapper.OrderRecordMapper;
 import com.admin.mapper.PlanMapper;
 import com.admin.service.OrderService;
+import com.admin.service.PaymentService;
 import com.admin.service.UserService;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -27,6 +28,9 @@ public class OrderServiceImpl extends ServiceImpl<OrderRecordMapper, OrderRecord
 
     @Resource
     private UserService userService;
+
+    @Resource
+    private PaymentService paymentService;
 
     @PostConstruct
     public void initSeed() {
@@ -57,14 +61,15 @@ public class OrderServiceImpl extends ServiceImpl<OrderRecordMapper, OrderRecord
         order.setAmount(plan.getPrice());
         order.setPayType(dto.getPayType());
         order.setStatus(0);
-        order.setPayUrl("http://127.0.0.1:6366/billing?orderNo=" + order.getOrderNo());
         order.setCreatedTime(System.currentTimeMillis());
         order.setUpdatedTime(System.currentTimeMillis());
         save(order);
-        return R.ok(MapUtil.builder()
-                .put("payUrl", order.getPayUrl())
-                .put("orderNo", order.getOrderNo())
-                .build());
+
+        R paymentResult = paymentService.createPayment(order);
+        if (paymentResult.getCode() != 0) {
+            return paymentResult;
+        }
+        return paymentResult;
     }
 
     private Plan buildPlan(String name, String description, Long price, Long flowGb, Integer forwardNum, Long durationDays, Integer stock) {
@@ -86,10 +91,13 @@ public class OrderServiceImpl extends ServiceImpl<OrderRecordMapper, OrderRecord
     public R repayOrder(Long id) {
         OrderRecord order = getById(id);
         if (order == null) return R.err("订单不存在");
-        return R.ok(MapUtil.builder()
-                .put("payUrl", order.getPayUrl())
-                .put("orderNo", order.getOrderNo())
-                .build());
+        if (order.getStatus() != null && order.getStatus() == 1) return R.err("订单已支付");
+
+        R paymentResult = paymentService.createPayment(order);
+        if (paymentResult.getCode() != 0) {
+            return paymentResult;
+        }
+        return paymentResult;
     }
 
     @Override
@@ -142,5 +150,10 @@ public class OrderServiceImpl extends ServiceImpl<OrderRecordMapper, OrderRecord
         }
         remove(wrapper);
         return R.ok();
+    }
+
+    @Override
+    public OrderRecord getOrderByNo(String orderNo) {
+        return getOne(new QueryWrapper<OrderRecord>().eq("order_no", orderNo));
     }
 }

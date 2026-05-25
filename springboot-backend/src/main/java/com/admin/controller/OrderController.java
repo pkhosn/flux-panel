@@ -3,6 +3,7 @@ package com.admin.controller;
 import com.admin.common.dto.CreateOrderDto;
 import com.admin.common.lang.R;
 import com.admin.service.OrderService;
+import com.admin.service.PaymentService;
 import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
@@ -15,6 +16,9 @@ public class OrderController extends BaseController {
 
     @Resource
     private OrderService orderService;
+
+    @Resource
+    private PaymentService paymentService;
 
     @PostMapping("/create")
     public R create(@RequestBody CreateOrderDto dto) {
@@ -44,5 +48,11 @@ public class OrderController extends BaseController {
     @PostMapping("/clear")
     public R clear(@RequestBody Map<String, Object> params) {
         return orderService.clearOrders(params);
+    }
+
+    @PostMapping("/notify/mgate")
+    public String notifyMgate(@RequestParam Map<String, String> params) {
+        R result = paymentService.handleMgateNotify(params);
+        return result.getCode() == 0 ? "success" : "fail";
     }
 }
