@@ -14,7 +14,17 @@ export default defineConfig({
   },
   server: {
     port: 3000,
-    host: '0.0.0.0'
+    host: '0.0.0.0',
+    proxy: {
+      '/api': {
+        target: 'http://backend:6365',
+        changeOrigin: true,
+      },
+      '/flow': {
+        target: 'http://backend:6365',
+        changeOrigin: true,
+      }
+    }
   },
   build: {
     outDir: 'dist',
