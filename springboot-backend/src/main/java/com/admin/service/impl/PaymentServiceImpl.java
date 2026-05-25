@@ -22,6 +22,7 @@ import org.springframework.web.client.RestTemplate;
 
 import javax.annotation.Resource;
 import java.net.URLEncoder;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.*;
@@ -359,8 +360,12 @@ public class PaymentServiceImpl implements PaymentService {
         Map<String, String> copy = new HashMap<>(params);
         copy.remove("sign");
         copy.remove("sign_type");
-        String expected = md5(urldecode(httpBuildQuerySorted(copy)) + key);
-        if (!signatureEquals(expected, sign)) throw new RuntimeException("签名校验失败");
+        String signContent = urldecode(httpBuildQuerySorted(copy)) + key;
+        String expected = md5(signContent);
+        if (!signatureEquals(expected, sign)) {
+            log.warn("EPay sign mismatch, expected={}, actual={}, params={}", expected, sign, copy);
+            throw new RuntimeException("签名校验失败");
+        }
         if (!"TRADE_SUCCESS".equals(copy.getOrDefault("trade_status", ""))) throw new RuntimeException("支付未成功");
         return copy.get("out_trade_no");
     }
@@ -560,7 +565,8 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     private String urldecode(String input) {
-        return input.replace("+", " ");
+        if (input == null) return "";
+        return URLDecoder.decode(input, StandardCharsets.UTF_8);
     }
 
     private String str(Object obj) {
