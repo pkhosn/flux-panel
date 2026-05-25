@@ -7,7 +7,10 @@ import com.admin.service.PaymentService;
 import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
+import javax.servlet.http.HttpServletRequest;
+import java.io.BufferedReader;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @CrossOrigin
@@ -50,9 +53,26 @@ public class OrderController extends BaseController {
         return orderService.clearOrders(params);
     }
 
-    @PostMapping("/notify/mgate")
-    public String notifyMgate(@RequestParam Map<String, String> params) {
-        R result = paymentService.handleMgateNotify(params);
+    @RequestMapping(value = "/notify/{provider}", method = {RequestMethod.GET, RequestMethod.POST})
+    public String notifyProvider(@PathVariable String provider,
+                                 @RequestParam Map<String, String> params,
+                                 HttpServletRequest request) {
+        String rawBody = "";
+        try {
+            BufferedReader reader = request.getReader();
+            rawBody = reader.lines().collect(Collectors.joining());
+        } catch (Exception ignored) {
+        }
+
+        R result = paymentService.handleNotify(
+                provider,
+                params,
+                rawBody,
+                request.getHeader("Stripe-Signature"),
+                request.getHeader("BTCPay-Sig"),
+                request.getHeader("X-CC-Webhook-Signature"),
+                request.getHeader("HMAC")
+        );
         return result.getCode() == 0 ? "success" : "fail";
     }
 }

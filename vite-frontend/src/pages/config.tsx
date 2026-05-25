@@ -117,6 +117,56 @@ const CONFIG_ITEMS: ConfigItem[] = [
         label: 'MGate',
         value: 'mgate',
         description: '使用 MGate API 创建支付并处理回调'
+      },
+      {
+        label: 'EPay',
+        value: 'epay',
+        description: '易支付兼容通道'
+      },
+      {
+        label: 'BEPUSDT',
+        value: 'bepusdt',
+        description: 'BEPUSDT 通道'
+      },
+      {
+        label: 'BTCPay',
+        value: 'btcpay',
+        description: 'BTCPay Server'
+      },
+      {
+        label: 'CoinPayments',
+        value: 'coinpayments',
+        description: 'CoinPayments 加密货币支付'
+      },
+      {
+        label: 'Coinbase',
+        value: 'coinbase',
+        description: 'Coinbase Commerce'
+      },
+      {
+        label: 'Stripe Checkout',
+        value: 'stripe_checkout',
+        description: 'Stripe Checkout'
+      },
+      {
+        label: 'Stripe Alipay',
+        value: 'stripe_alipay',
+        description: 'Stripe 支付宝'
+      },
+      {
+        label: 'Stripe WePay',
+        value: 'stripe_wepay',
+        description: 'Stripe 微信'
+      },
+      {
+        label: 'Stripe Credit',
+        value: 'stripe_credit',
+        description: 'Stripe 信用卡'
+      },
+      {
+        label: 'Stripe ALL',
+        value: 'stripe_all',
+        description: 'Stripe 多支付方式'
       }
     ]
   },
@@ -166,6 +216,136 @@ const CONFIG_ITEMS: ConfigItem[] = [
     dependsValue: 'true'
   },
   {
+    key: 'payment_epay_url',
+    label: 'EPay 地址',
+    placeholder: '如: https://epay.example.com',
+    type: 'input',
+    dependsOn: 'payment_provider',
+    dependsValue: 'epay'
+  },
+  {
+    key: 'payment_epay_pid',
+    label: 'EPay PID',
+    type: 'input',
+    dependsOn: 'payment_provider',
+    dependsValue: 'epay'
+  },
+  {
+    key: 'payment_epay_key',
+    label: 'EPay KEY',
+    type: 'input',
+    dependsOn: 'payment_provider',
+    dependsValue: 'epay'
+  },
+  {
+    key: 'payment_bepusdt_url',
+    label: 'BEPUSDT 地址',
+    type: 'input',
+    dependsOn: 'payment_provider',
+    dependsValue: 'bepusdt'
+  },
+  {
+    key: 'payment_bepusdt_apitoken',
+    label: 'BEPUSDT Token',
+    type: 'input',
+    dependsOn: 'payment_provider',
+    dependsValue: 'bepusdt'
+  },
+  {
+    key: 'payment_btcpay_url',
+    label: 'BTCPay 地址',
+    type: 'input',
+    dependsOn: 'payment_provider',
+    dependsValue: 'btcpay'
+  },
+  {
+    key: 'payment_btcpay_store_id',
+    label: 'BTCPay Store ID',
+    type: 'input',
+    dependsOn: 'payment_provider',
+    dependsValue: 'btcpay'
+  },
+  {
+    key: 'payment_btcpay_api_key',
+    label: 'BTCPay API Key',
+    type: 'input',
+    dependsOn: 'payment_provider',
+    dependsValue: 'btcpay'
+  },
+  {
+    key: 'payment_btcpay_webhook_key',
+    label: 'BTCPay Webhook Key',
+    type: 'input',
+    dependsOn: 'payment_provider',
+    dependsValue: 'btcpay'
+  },
+  {
+    key: 'payment_btcpay_currency',
+    label: 'BTCPay 货币',
+    placeholder: '默认 USD',
+    type: 'input',
+    dependsOn: 'payment_provider',
+    dependsValue: 'btcpay'
+  },
+  {
+    key: 'payment_coinpayments_merchant_id',
+    label: 'CoinPayments Merchant ID',
+    type: 'input',
+    dependsOn: 'payment_provider',
+    dependsValue: 'coinpayments'
+  },
+  {
+    key: 'payment_coinpayments_ipn_secret',
+    label: 'CoinPayments IPN Secret',
+    type: 'input',
+    dependsOn: 'payment_provider',
+    dependsValue: 'coinpayments'
+  },
+  {
+    key: 'payment_coinbase_url',
+    label: 'Coinbase Endpoint',
+    placeholder: '如: https://api.commerce.coinbase.com/charges',
+    type: 'input',
+    dependsOn: 'payment_provider',
+    dependsValue: 'coinbase'
+  },
+  {
+    key: 'payment_coinbase_api_key',
+    label: 'Coinbase API Key',
+    type: 'input',
+    dependsOn: 'payment_provider',
+    dependsValue: 'coinbase'
+  },
+  {
+    key: 'payment_coinbase_webhook_key',
+    label: 'Coinbase Webhook Key',
+    type: 'input',
+    dependsOn: 'payment_provider',
+    dependsValue: 'coinbase'
+  },
+  {
+    key: 'payment_stripe_sk_live',
+    label: 'Stripe Secret Key',
+    type: 'input',
+    dependsOn: 'payment_provider',
+    dependsValue: 'stripe_checkout'
+  },
+  {
+    key: 'payment_stripe_currency',
+    label: 'Stripe 货币',
+    placeholder: '如 usd',
+    type: 'input',
+    dependsOn: 'payment_provider',
+    dependsValue: 'stripe_checkout'
+  },
+  {
+    key: 'payment_stripe_webhook_key',
+    label: 'Stripe Webhook Key',
+    type: 'input',
+    dependsOn: 'payment_provider',
+    dependsValue: 'stripe_checkout'
+  },
+  {
     key: 'payment_return_base_url',
     label: '支付返回基础地址',
     placeholder: '如: http://your-domain:6366',
@@ -192,7 +372,25 @@ const getInitialConfigs = (): Record<string, string> => {
     'payment_mgate_app_secret',
     'payment_mgate_source_currency',
     'payment_notify_base_url',
-    'payment_return_base_url'
+    'payment_return_base_url',
+    'payment_epay_url',
+    'payment_epay_pid',
+    'payment_epay_key',
+    'payment_bepusdt_url',
+    'payment_bepusdt_apitoken',
+    'payment_btcpay_url',
+    'payment_btcpay_store_id',
+    'payment_btcpay_api_key',
+    'payment_btcpay_webhook_key',
+    'payment_btcpay_currency',
+    'payment_coinpayments_merchant_id',
+    'payment_coinpayments_ipn_secret',
+    'payment_coinbase_url',
+    'payment_coinbase_api_key',
+    'payment_coinbase_webhook_key',
+    'payment_stripe_sk_live',
+    'payment_stripe_currency',
+    'payment_stripe_webhook_key'
   ];
   const initialConfigs: Record<string, string> = {};
   
