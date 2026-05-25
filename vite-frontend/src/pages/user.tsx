@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Button } from "@heroui/button";
-import { Card, CardBody, CardHeader } from "@heroui/card";
+import { Card, CardBody } from "@heroui/card";
 import { Input } from "@heroui/input";
 import { 
   Table, 
@@ -781,153 +781,96 @@ export default function UserPage() {
           </CardBody>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+        <div className="space-y-3">
           {pagedUsers.map((user) => {
             const userStatus = getUserStatus(user);
             const expStatus = user.expTime ? getExpireStatus(user.expTime) : null;
             const usedFlow = calculateUserTotalUsedFlow(user);
             const flowPercent = user.flow > 0 ? Math.min((usedFlow / (user.flow * 1024 * 1024 * 1024)) * 100, 100) : 0;
-            
+
             return (
-              <Card 
-                key={user.id} 
-                className="shadow-sm border border-divider hover:shadow-md transition-shadow duration-200"
-              >
-                <CardHeader className="pb-2">
-                  <div className="flex justify-between items-start w-full">
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-foreground truncate text-sm">
-                        {user.name || user.user}
-                      </h3>
-                      <p className="text-xs text-default-500 truncate">@{user.user}</p>
-                    </div>
-                    <div className="flex items-center gap-1.5 ml-2">
-                      <Chip 
-                        color={userStatus.color} 
-                        variant="flat" 
-                        size="sm"
-                        className="text-xs"
-                      >
+              <Card key={user.id} className="shadow-sm border border-divider">
+                <CardBody className="py-3">
+                  <div className="flex flex-col xl:flex-row xl:items-center gap-3">
+                    <div className="flex items-center gap-3 min-w-0 xl:w-56">
+                      <div className="min-w-0">
+                        <div className="font-semibold text-foreground truncate">{user.name || user.user}</div>
+                        <div className="text-xs text-default-500 truncate">@{user.user}</div>
+                      </div>
+                      <Chip color={userStatus.color} variant="flat" size="sm">
                         {userStatus.text}
                       </Chip>
                     </div>
-                  </div>
-                </CardHeader>
 
-                <CardBody className="pt-0 pb-3">
-                  <div className="space-y-2">
-                    {/* 流量信息 */}
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-default-600">流量限制</span>
-                        <span className="font-medium text-xs">{formatFlow(user.flow, 'gb')}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-sm">
+                        <div>
+                          <div className="text-default-500">流量</div>
+                          <div className="font-medium">{formatFlow(user.flow, 'gb')}</div>
+                        </div>
+                        <div>
+                          <div className="text-default-500">已用</div>
+                          <div className="font-medium text-danger">{formatFlow(usedFlow)}</div>
+                        </div>
+                        <div>
+                          <div className="text-default-500">转发数</div>
+                          <div className="font-medium">{user.num}</div>
+                        </div>
+                        <div>
+                          <div className="text-default-500">重置日</div>
+                          <div className="font-medium">{user.flowResetTime === 0 ? '不重置' : `每月${user.flowResetTime}号`}</div>
+                        </div>
                       </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-default-600">已使用</span>
-                        <span className="font-medium text-xs text-danger">{formatFlow(usedFlow)}</span>
-                      </div>
-                      <Progress 
-                        size="sm" 
-                        value={flowPercent}
-                        color={flowPercent > 90 ? 'danger' : flowPercent > 70 ? 'warning' : 'success'}
-                        className="mt-1"
-                        aria-label={`流量使用 ${flowPercent.toFixed(1)}%`}
-                      />
-                    </div>
-
-                    {/* 其他信息 */}
-                    <div className="space-y-1.5 pt-2 border-t border-divider">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-default-600">转发数量</span>
-                        <span className="font-medium text-xs">{user.num}</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-default-600">重置日期</span>
-                        <span className="text-xs">{user.flowResetTime === 0 ? '不重置' : `每月${user.flowResetTime}号`}</span>
+                      <div className="mt-2">
+                        <Progress
+                          size="sm"
+                          value={flowPercent}
+                          color={flowPercent > 90 ? 'danger' : flowPercent > 70 ? 'warning' : 'success'}
+                          aria-label={`流量使用 ${flowPercent.toFixed(1)}%`}
+                        />
                       </div>
                       {user.expTime && (
-                        <div className="flex justify-between text-sm">
-                          <span className="text-default-600">过期时间</span>
-                          <div className="text-right">
-                            {expStatus && expStatus.color === 'success' ? (
-                              <div className="text-xs">{formatDate(user.expTime)}</div>
-                            ) : (
-                              <Chip 
-                                color={expStatus?.color || 'default'} 
-                                variant="flat" 
-                                size="sm"
-                                className="text-xs"
-                              >
-                                {expStatus?.text || '未知状态'}
-                              </Chip>
-                            )}
-                          </div>
+                        <div className="mt-2 text-sm flex items-center gap-2">
+                          <span className="text-default-500">过期:</span>
+                          {expStatus && expStatus.color === 'success' ? (
+                            <span>{formatDate(user.expTime)}</span>
+                          ) : (
+                            <Chip color={expStatus?.color || 'default'} variant="flat" size="sm">
+                              {expStatus?.text || '未知状态'}
+                            </Chip>
+                          )}
                         </div>
                       )}
                     </div>
-                  </div>
-                  
-                  <div className="space-y-1.5 mt-3">
-                    {/* 第一行：编辑和重置 */}
-                    <div className="flex gap-1.5">
-                      <Button
-                        size="sm"
-                        variant="flat"
-                        color="primary"
-                        onPress={() => handleEdit(user)}
-                        className="flex-1 min-h-8"
-                        startContent={<EditIcon className="w-3 h-3" />}
-                      >
-                        编辑
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="flat"
-                        color="warning"
-                        onPress={() => handleResetFlow(user)}
-                        className="flex-1 min-h-8"
-                        startContent={
-                          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
-                          </svg>
-                        }
-                      >
-                        重置
-                      </Button>
-                    </div>
-                    
-                    {/* 第二行：权限和删除 */}
-                    <div className="flex gap-1.5">
-                      <Button
-                        size="sm"
-                        variant="flat"
-                        color="success"
-                        onPress={() => handleManageTunnels(user)}
-                        className="flex-1 min-h-8"
-                        startContent={<SettingsIcon className="w-3 h-3" />}
-                      >
-                        隧道权
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="flat"
-                        color="secondary"
-                        onPress={() => handleManageNodes(user)}
-                        className="flex-1 min-h-8"
-                        startContent={<SettingsIcon className="w-3 h-3" />}
-                      >
-                        节点权
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="flat"
-                        color="danger"
-                        onPress={() => handleDelete(user)}
-                        className="flex-1 min-h-8"
-                        startContent={<DeleteIcon className="w-3 h-3" />}
-                      >
-                        删除
-                      </Button>
+
+                    <div className="xl:w-[360px]">
+                      <div className="grid grid-cols-2 md:grid-cols-5 xl:grid-cols-5 gap-2">
+                        <Button size="sm" variant="flat" color="primary" onPress={() => handleEdit(user)} startContent={<EditIcon className="w-3 h-3" />}>
+                          编辑
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="flat"
+                          color="warning"
+                          onPress={() => handleResetFlow(user)}
+                          startContent={
+                            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
+                            </svg>
+                          }
+                        >
+                          重置
+                        </Button>
+                        <Button size="sm" variant="flat" color="success" onPress={() => handleManageTunnels(user)} startContent={<SettingsIcon className="w-3 h-3" />}>
+                          隧道权
+                        </Button>
+                        <Button size="sm" variant="flat" color="secondary" onPress={() => handleManageNodes(user)} startContent={<SettingsIcon className="w-3 h-3" />}>
+                          节点权
+                        </Button>
+                        <Button size="sm" variant="flat" color="danger" onPress={() => handleDelete(user)} startContent={<DeleteIcon className="w-3 h-3" />}>
+                          删除
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </CardBody>
