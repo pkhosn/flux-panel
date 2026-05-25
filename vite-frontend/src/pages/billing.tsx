@@ -18,6 +18,7 @@ import {
 } from '@/api';
 import { isAdmin } from '@/utils/auth';
 import { copyText } from '@/utils/clipboard';
+import { getCachedConfig } from '@/config/site';
 
 interface PlanItem {
   id: number;
@@ -58,6 +59,33 @@ interface UserInfo {
   updatedTime?: number;
 }
 
+interface PaymentMethodOption {
+  value: string;
+  label: string;
+}
+
+const DEFAULT_PAYMENT_METHODS: PaymentMethodOption[] = [
+  { value: 'alipay', label: '支付宝' },
+  { value: 'wxpay', label: '微信支付' },
+  { value: 'qqpay', label: 'QQ支付' },
+];
+
+const parsePaymentMethods = (raw?: string | null): PaymentMethodOption[] => {
+  if (!raw || !raw.trim()) return DEFAULT_PAYMENT_METHODS;
+  const options: PaymentMethodOption[] = [];
+  raw.split(',').forEach((segment) => {
+    const text = segment.trim();
+    if (!text) return;
+    const pair = text.split(':');
+    const value = (pair[0] || '').trim().toLowerCase();
+    const label = (pair[1] || pair[0] || '').trim();
+    if (!value || !label) return;
+    if (options.some((item) => item.value === value)) return;
+    options.push({ value, label });
+  });
+  return options.length > 0 ? options : DEFAULT_PAYMENT_METHODS;
+};
+
 export default function BillingPage() {
   const admin = isAdmin();
 
@@ -70,6 +98,7 @@ export default function BillingPage() {
 
   const [selectedPlanId, setSelectedPlanId] = useState<string>('');
   const [payType, setPayType] = useState<string>('alipay');
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethodOption[]>(DEFAULT_PAYMENT_METHODS);
   const [redeemCode, setRedeemCode] = useState('');
 
   const [filterKeyword, setFilterKeyword] = useState('');
@@ -79,9 +108,23 @@ export default function BillingPage() {
     if (!admin) {
       loadPlans();
       loadPackageInfo();
+      loadPaymentMethods();
     }
     loadOrders();
   }, []);
+
+  const loadPaymentMethods = async () => {
+    try {
+      const raw = await getCachedConfig('payment_methods');
+      const parsed = parsePaymentMethods(raw);
+      setPaymentMethods(parsed);
+      if (!parsed.some((item) => item.value === payType)) {
+        setPayType(parsed[0]?.value || 'alipay');
+      }
+    } catch (_e) {
+      setPaymentMethods(DEFAULT_PAYMENT_METHODS);
+    }
+  };
 
   const loadPackageInfo = async () => {
     try {
@@ -401,10 +444,14 @@ export default function BillingPage() {
                     </SelectItem>
                   ))}
                 </Select>
-                <Select label="支付方式" selectedKeys={[payType]} onSelectionChange={(keys) => setPayType(String(Array.from(keys)[0] || 'alipay'))}>
-                  <SelectItem key="alipay">支付宝</SelectItem>
-                  <SelectItem key="wxpay">微信支付</SelectItem>
-                  <SelectItem key="qqpay">QQ支付</SelectItem>
+                <Select
+                  label="支付方式"
+                  selectedKeys={[payType]}
+                  onSelectionChange={(keys) => setPayType(String(Array.from(keys)[0] || paymentMethods[0]?.value || 'alipay'))}
+                >
+                  {paymentMethods.map((item) => (
+                    <SelectItem key={item.value}>{item.label}</SelectItem>
+                  ))}
                 </Select>
                 <Button
                   color="primary"

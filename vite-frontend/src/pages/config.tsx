@@ -353,6 +353,15 @@ const CONFIG_ITEMS: ConfigItem[] = [
     type: 'input',
     dependsOn: 'payment_enabled',
     dependsValue: 'true'
+  },
+  {
+    key: 'payment_methods',
+    label: '支付方式配置',
+    placeholder: '如: alipay:支付宝,wxpay:微信支付,qqpay:QQ支付',
+    description: '格式: 渠道值:显示名，多个用英文逗号分隔。示例 alipay:支付宝,wxpay:微信支付',
+    type: 'input',
+    dependsOn: 'payment_enabled',
+    dependsValue: 'true'
   }
 ];
 
@@ -373,6 +382,7 @@ const getInitialConfigs = (): Record<string, string> => {
     'payment_mgate_source_currency',
     'payment_notify_base_url',
     'payment_return_base_url',
+    'payment_methods',
     'payment_epay_url',
     'payment_epay_pid',
     'payment_epay_key',

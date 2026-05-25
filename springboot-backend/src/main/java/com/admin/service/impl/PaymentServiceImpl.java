@@ -204,6 +204,9 @@ public class PaymentServiceImpl implements PaymentService {
         params.put("return_url", returnUrl);
         params.put("out_trade_no", order.getOrderNo());
         params.put("pid", pid);
+        if (StringUtils.hasText(order.getPayType())) {
+            params.put("type", order.getPayType().trim().toLowerCase(Locale.ROOT));
+        }
         String sign = md5(urldecode(httpBuildQuerySorted(params)) + key);
         params.put("sign", sign);
         params.put("sign_type", "MD5");
