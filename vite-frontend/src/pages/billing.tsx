@@ -387,7 +387,7 @@ export default function BillingPage() {
                     if (!selectedPlanId) return '请选择套餐';
                     const plan = plans.find((item) => String(item.id) === selectedPlanId);
                     if (!plan) return '请选择套餐';
-                    if (items.length > 0) return items[0].textValue;
+                    if (items.length > 0 && items[0]?.textValue) return items[0].textValue;
                     return `${plan.name} - ¥${plan.price}${plan.stock === 0 ? '（售罄）' : ''}`;
                   }}
                 >
