@@ -138,6 +138,21 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
 
+      - name: Validate DockerHub secrets
+        env:
+          DOCKER_HUB_USERNAME: ${{ secrets.DOCKER_HUB_USERNAME }}
+          DOCKER_HUB_TOKEN: ${{ secrets.DOCKER_HUB_TOKEN }}
+        run: |
+          if [ -z "$DOCKER_HUB_USERNAME" ]; then
+            echo "❌ Missing secret: DOCKER_HUB_USERNAME"
+            exit 1
+          fi
+          if [ -z "$DOCKER_HUB_TOKEN" ]; then
+            echo "❌ Missing secret: DOCKER_HUB_TOKEN"
+            exit 1
+          fi
+          echo "✅ DockerHub secrets are present"
+
       - name: Log in to DockerHub
         uses: docker/login-action@v2
         with:
@@ -181,6 +196,21 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
+
+      - name: Validate DockerHub secrets
+        env:
+          DOCKER_HUB_USERNAME: ${{ secrets.DOCKER_HUB_USERNAME }}
+          DOCKER_HUB_TOKEN: ${{ secrets.DOCKER_HUB_TOKEN }}
+        run: |
+          if [ -z "$DOCKER_HUB_USERNAME" ]; then
+            echo "❌ Missing secret: DOCKER_HUB_USERNAME"
+            exit 1
+          fi
+          if [ -z "$DOCKER_HUB_TOKEN" ]; then
+            echo "❌ Missing secret: DOCKER_HUB_TOKEN"
+            exit 1
+          fi
+          echo "✅ DockerHub secrets are present"
 
       - name: Log in to DockerHub
         uses: docker/login-action@v2
