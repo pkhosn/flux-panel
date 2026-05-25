@@ -89,6 +89,9 @@ public class SQLiteConfig implements ApplicationRunner {
         ensureColumn(connection, "tunnel", "owner_user_id", "INTEGER");
         ensureColumn(connection, "tunnel", "created_by_role", "INTEGER NOT NULL DEFAULT 0");
         ensureUserNodePermissionTable(connection);
+        ensurePlanTable(connection);
+        ensureOrderTable(connection);
+        ensureRedeemCodeTable(connection);
     }
 
     private void ensureColumn(Connection connection, String table, String column, String definition) throws Exception {
@@ -125,6 +128,59 @@ public class SQLiteConfig implements ApplicationRunner {
                     "updated_time INTEGER," +
                     "status INTEGER NOT NULL DEFAULT 1," +
                     "UNIQUE(user_id, node_id))");
+        }
+    }
+
+    private void ensurePlanTable(Connection connection) throws Exception {
+        try (Statement statement = connection.createStatement()) {
+            statement.execute("CREATE TABLE IF NOT EXISTS plan (" +
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT," +
+                    "created_time INTEGER NOT NULL," +
+                    "updated_time INTEGER," +
+                    "status INTEGER NOT NULL DEFAULT 1," +
+                    "name TEXT NOT NULL," +
+                    "description TEXT," +
+                    "price INTEGER NOT NULL DEFAULT 0," +
+                    "flow_gb INTEGER NOT NULL DEFAULT 0," +
+                    "forward_num INTEGER NOT NULL DEFAULT 0," +
+                    "duration_days INTEGER NOT NULL DEFAULT 0," +
+                    "stock INTEGER NOT NULL DEFAULT 0)");
+        }
+    }
+
+    private void ensureOrderTable(Connection connection) throws Exception {
+        try (Statement statement = connection.createStatement()) {
+            statement.execute("CREATE TABLE IF NOT EXISTS order_record (" +
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT," +
+                    "created_time INTEGER NOT NULL," +
+                    "updated_time INTEGER," +
+                    "status INTEGER NOT NULL DEFAULT 0," +
+                    "order_no TEXT NOT NULL UNIQUE," +
+                    "user_id INTEGER NOT NULL," +
+                    "user_name TEXT NOT NULL," +
+                    "plan_id INTEGER NOT NULL," +
+                    "plan_name TEXT NOT NULL," +
+                    "amount INTEGER NOT NULL DEFAULT 0," +
+                    "pay_type TEXT," +
+                    "paid_time INTEGER," +
+                    "pay_url TEXT)");
+        }
+    }
+
+    private void ensureRedeemCodeTable(Connection connection) throws Exception {
+        try (Statement statement = connection.createStatement()) {
+            statement.execute("CREATE TABLE IF NOT EXISTS redeem_code (" +
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT," +
+                    "created_time INTEGER NOT NULL," +
+                    "updated_time INTEGER," +
+                    "status INTEGER NOT NULL DEFAULT 1," +
+                    "code TEXT NOT NULL UNIQUE," +
+                    "flow_gb INTEGER NOT NULL DEFAULT 0," +
+                    "forward_num INTEGER NOT NULL DEFAULT 0," +
+                    "duration_days INTEGER NOT NULL DEFAULT 0," +
+                    "used INTEGER NOT NULL DEFAULT 0," +
+                    "used_by INTEGER," +
+                    "used_time INTEGER)");
         }
     }
 }

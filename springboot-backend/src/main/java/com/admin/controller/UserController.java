@@ -30,6 +30,12 @@ public class UserController extends BaseController {
     }
 
     @LogAnnotation
+    @PostMapping("/register")
+    public R register(@Validated @RequestBody RegisterDto registerDto) {
+        return userService.register(registerDto);
+    }
+
+    @LogAnnotation
     @RequireRole
     @PostMapping("/create")
     public R create(@Validated @RequestBody UserDto userDto) {

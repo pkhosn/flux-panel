@@ -88,6 +88,41 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     }
 
     @Override
+    public R register(RegisterDto registerDto) {
+        ViteConfig viteConfig = viteConfigService.getOne(new QueryWrapper<ViteConfig>().eq("name", "register_enabled"));
+        if (viteConfig != null && Objects.equals(viteConfig.getValue(), "false")) {
+            return R.err("注册功能未开启");
+        }
+        ViteConfig captchaConfig = viteConfigService.getOne(new QueryWrapper<ViteConfig>().eq("name", "captcha_enabled"));
+        if (captchaConfig != null && Objects.equals(captchaConfig.getValue(), "true")) {
+            if (StringUtils.isBlank(registerDto.getCaptchaId())) return R.err("验证码校验失败");
+            boolean valid = ((SecondaryVerificationApplication) application).secondaryVerification(registerDto.getCaptchaId());
+            if (!valid)  return R.err("验证码校验失败");
+        }
+        if (StringUtils.isBlank(registerDto.getUsername()) || StringUtils.isBlank(registerDto.getPassword())) {
+            return R.err("用户名或密码不能为空");
+        }
+        int count = this.count(new QueryWrapper<User>().eq("user", registerDto.getUsername()));
+        if (count > 0) return R.err("用户名已存在");
+
+        User user = new User();
+        user.setUser(registerDto.getUsername());
+        user.setPwd(Md5Util.md5(registerDto.getPassword()));
+        user.setRoleId(1);
+        user.setStatus(1);
+        user.setFlow(0L);
+        user.setInFlow(0L);
+        user.setOutFlow(0L);
+        user.setNum(0);
+        user.setExpTime(0L);
+        user.setFlowResetTime(0L);
+        user.setCreatedTime(System.currentTimeMillis());
+        user.setUpdatedTime(System.currentTimeMillis());
+        this.save(user);
+        return R.ok();
+    }
+
+    @Override
     public R createUser(UserDto userDto) {
         int count = this.count(new QueryWrapper<User>().eq("user", userDto.getUser()));
         if (count > 0) return R.err("用户名已存在");
