@@ -24,9 +24,11 @@ services:
     image: node:20.19.0
     container_name: vite-frontend-dev
     working_dir: /workspace
-    command: sh -c "npm install --legacy-peer-deps && npm run dev -- --host 0.0.0.0 --port 5173"
+    command: sh -c "npm install --legacy-peer-deps && npm run dev -- --host 0.0.0.0 --port ${DEV_FRONTEND_PORT:-5180}"
+    environment:
+      VITE_API_URL: "http://127.0.0.1:${BACKEND_PORT}/api/v1"
     ports:
-      - "${FRONTEND_PORT}:5173"
+      - "${FRONTEND_PORT}:${DEV_FRONTEND_PORT:-5180}"
     volumes:
       - ./vite-frontend:/workspace
       - flux_frontend_node_modules:/workspace/node_modules
