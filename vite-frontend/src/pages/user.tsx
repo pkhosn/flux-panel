@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Button } from "@heroui/button";
 import { Card, CardBody, CardHeader } from "@heroui/card";
 import { Input } from "@heroui/input";
@@ -117,6 +117,8 @@ interface UserNodePermission {
 }
 
 export default function UserPage() {
+  const PAGE_SIZE_OPTIONS = [10, 30, 50];
+
   // 状态管理
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
@@ -203,7 +205,7 @@ export default function UserPage() {
     loadTunnels();
     loadNodes();
     loadSpeedLimits();
-  }, [pagination.current, pagination.size, searchKeyword]);
+  }, []);
 
   // 数据加载函数
   const loadUsers = async () => {
@@ -217,7 +219,9 @@ export default function UserPage() {
       
       if (response.code === 0) {
         const data = response.data || {};
-        setUsers(data || []);
+        const list = data || [];
+        setUsers(list);
+        setPagination(prev => ({ ...prev, total: list.length }));
       } else {
         toast.error(response.msg || '获取用户列表失败');
       }
@@ -296,7 +300,6 @@ export default function UserPage() {
   // 用户管理操作
   const handleSearch = () => {
     setPagination(prev => ({ ...prev, current: 1 }));
-    loadUsers();
   };
 
   const handleAdd = () => {
@@ -672,6 +675,44 @@ export default function UserPage() {
     speedLimit => speedLimit.tunnelId === editTunnelForm?.tunnelId
   );
 
+  const filteredUsers = useMemo(() => {
+    const keyword = searchKeyword.trim().toLowerCase();
+    if (!keyword) return users;
+    return users.filter((item) => {
+      return (
+        (item.user || '').toLowerCase().includes(keyword) ||
+        (item.name || '').toLowerCase().includes(keyword)
+      );
+    });
+  }, [users, searchKeyword]);
+
+  const totalPages = useMemo(() => {
+    return Math.max(1, Math.ceil(filteredUsers.length / pagination.size));
+  }, [filteredUsers.length, pagination.size]);
+
+  useEffect(() => {
+    if (pagination.current > totalPages) {
+      setPagination((prev) => ({ ...prev, current: totalPages }));
+    }
+  }, [pagination.current, totalPages]);
+
+  const pagedUsers = useMemo(() => {
+    const start = (pagination.current - 1) * pagination.size;
+    return filteredUsers.slice(start, start + pagination.size);
+  }, [filteredUsers, pagination.current, pagination.size]);
+
+  const visiblePages = useMemo(() => {
+    const pages: number[] = [];
+    const maxVisible = 7;
+    let start = Math.max(1, pagination.current - 3);
+    let end = Math.min(totalPages, start + maxVisible - 1);
+    if (end - start + 1 < maxVisible) {
+      start = Math.max(1, end - maxVisible + 1);
+    }
+    for (let i = start; i <= end; i++) pages.push(i);
+    return pages;
+  }, [pagination.current, totalPages]);
+
   return (
     
       <div className="px-3 lg:px-6 py-8">
@@ -725,7 +766,7 @@ export default function UserPage() {
             <span className="text-default-600">正在加载...</span>
           </div>
         </div>
-      ) : users.length === 0 ? (
+      ) : filteredUsers.length === 0 ? (
         <Card className="shadow-sm border border-gray-200 dark:border-gray-700">
           <CardBody className="text-center py-16">
             <div className="flex flex-col items-center gap-4">
@@ -741,7 +782,7 @@ export default function UserPage() {
         </Card>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
-          {users.map((user) => {
+          {pagedUsers.map((user) => {
             const userStatus = getUserStatus(user);
             const expStatus = user.expTime ? getExpireStatus(user.expTime) : null;
             const usedFlow = calculateUserTotalUsedFlow(user);
@@ -893,6 +934,74 @@ export default function UserPage() {
               </Card>
             );
           })}
+        </div>
+      )}
+
+      {!loading && filteredUsers.length > 0 && (
+        <div className="mt-6 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+          <div className="flex items-center gap-2 text-sm text-default-600">
+            <span>每页</span>
+            <Select
+              size="sm"
+              className="w-24"
+              selectedKeys={[String(pagination.size)]}
+              onSelectionChange={(keys) => {
+                const value = Number(Array.from(keys)[0] || 10);
+                setPagination((prev) => ({ ...prev, size: value, current: 1 }));
+              }}
+            >
+              {PAGE_SIZE_OPTIONS.map((size) => (
+                <SelectItem key={String(size)}>{String(size)}</SelectItem>
+              ))}
+            </Select>
+            <span>共 {filteredUsers.length} 条</span>
+          </div>
+
+          <div className="flex items-center gap-1 overflow-x-auto">
+            <Button
+              size="sm"
+              variant="flat"
+              isDisabled={pagination.current === 1}
+              onPress={() => setPagination((prev) => ({ ...prev, current: 1 }))}
+            >
+              首页
+            </Button>
+            <Button
+              size="sm"
+              variant="flat"
+              isDisabled={pagination.current === 1}
+              onPress={() => setPagination((prev) => ({ ...prev, current: Math.max(1, prev.current - 1) }))}
+            >
+              上一页
+            </Button>
+            {visiblePages.map((page) => (
+              <Button
+                key={page}
+                size="sm"
+                color={page === pagination.current ? 'primary' : 'default'}
+                variant={page === pagination.current ? 'solid' : 'flat'}
+                onPress={() => setPagination((prev) => ({ ...prev, current: page }))}
+              >
+                {page}
+              </Button>
+            ))}
+            <Button
+              size="sm"
+              variant="flat"
+              isDisabled={pagination.current === totalPages}
+              onPress={() => setPagination((prev) => ({ ...prev, current: Math.min(totalPages, prev.current + 1) }))}
+            >
+              下一页
+            </Button>
+            <Button
+              size="sm"
+              variant="flat"
+              isDisabled={pagination.current === totalPages}
+              onPress={() => setPagination((prev) => ({ ...prev, current: totalPages }))}
+            >
+              末页
+            </Button>
+          </div>
         </div>
       )}
 
