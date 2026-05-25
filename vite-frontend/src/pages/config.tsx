@@ -98,6 +98,81 @@ const CONFIG_ITEMS: ConfigItem[] = [
         description: '拖动滑块完成图片拼接' 
       }
     ]
+  },
+  {
+    key: 'payment_enabled',
+    label: '启用支付',
+    description: '开启后用户可创建支付订单',
+    type: 'switch'
+  },
+  {
+    key: 'payment_provider',
+    label: '支付通道',
+    description: '当前支持 MGate 兼容通道',
+    type: 'select',
+    dependsOn: 'payment_enabled',
+    dependsValue: 'true',
+    options: [
+      {
+        label: 'MGate',
+        value: 'mgate',
+        description: '使用 MGate API 创建支付并处理回调'
+      }
+    ]
+  },
+  {
+    key: 'payment_mgate_url',
+    label: 'MGate API 地址',
+    placeholder: '如: https://pay.example.com',
+    description: '支付网关基础地址，不包含 /v1/gateway/fetch',
+    type: 'input',
+    dependsOn: 'payment_provider',
+    dependsValue: 'mgate'
+  },
+  {
+    key: 'payment_mgate_app_id',
+    label: 'MGate App ID',
+    placeholder: '请输入 app_id',
+    description: 'MGate 分配的应用 ID',
+    type: 'input',
+    dependsOn: 'payment_provider',
+    dependsValue: 'mgate'
+  },
+  {
+    key: 'payment_mgate_app_secret',
+    label: 'MGate App Secret',
+    placeholder: '请输入 app_secret',
+    description: '用于签名与回调验签',
+    type: 'input',
+    dependsOn: 'payment_provider',
+    dependsValue: 'mgate'
+  },
+  {
+    key: 'payment_mgate_source_currency',
+    label: 'MGate 源货币',
+    placeholder: '默认 CNY',
+    description: '下单时传递给网关的 source_currency',
+    type: 'input',
+    dependsOn: 'payment_provider',
+    dependsValue: 'mgate'
+  },
+  {
+    key: 'payment_notify_base_url',
+    label: '支付回调基础地址',
+    placeholder: '如: http://your-domain:6365',
+    description: '后端可被支付网关访问的地址，系统会拼接 /api/v1/order/notify/mgate',
+    type: 'input',
+    dependsOn: 'payment_enabled',
+    dependsValue: 'true'
+  },
+  {
+    key: 'payment_return_base_url',
+    label: '支付返回基础地址',
+    placeholder: '如: http://your-domain:6366',
+    description: '支付完成后跳转前端地址，系统会拼接 /billing?orderNo=xxx',
+    type: 'input',
+    dependsOn: 'payment_enabled',
+    dependsValue: 'true'
   }
 ];
 
@@ -105,7 +180,20 @@ const CONFIG_ITEMS: ConfigItem[] = [
 const getInitialConfigs = (): Record<string, string> => {
   if (typeof window === 'undefined') return {};
   
-  const configKeys = ['app_name', 'captcha_enabled', 'captcha_type', 'ip'];
+  const configKeys = [
+    'app_name',
+    'captcha_enabled',
+    'captcha_type',
+    'ip',
+    'payment_enabled',
+    'payment_provider',
+    'payment_mgate_url',
+    'payment_mgate_app_id',
+    'payment_mgate_app_secret',
+    'payment_mgate_source_currency',
+    'payment_notify_base_url',
+    'payment_return_base_url'
+  ];
   const initialConfigs: Record<string, string> = {};
   
   try {
@@ -187,6 +275,15 @@ export default function ConfigPage() {
     if (key === 'captcha_enabled' && value === 'true') {
       if (!newConfigs.captcha_type) {
         newConfigs.captcha_type = 'RANDOM';
+      }
+    }
+
+    if (key === 'payment_enabled' && value === 'true') {
+      if (!newConfigs.payment_provider) {
+        newConfigs.payment_provider = 'mgate';
+      }
+      if (!newConfigs.payment_mgate_source_currency) {
+        newConfigs.payment_mgate_source_currency = 'CNY';
       }
     }
     
