@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Card, CardBody, CardHeader } from "@heroui/card";
 import { Button } from "@heroui/button";
 import { Input } from "@heroui/input";
+import { Select, SelectItem } from "@heroui/select";
 import { Table, TableHeader, TableColumn, TableBody, TableRow, TableCell } from "@heroui/table";
 import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, useDisclosure } from "@heroui/modal";
 import toast from "react-hot-toast";
@@ -32,6 +33,9 @@ export default function RedeemPage() {
   const [items, setItems] = useState<RedeemItem[]>([]);
   const [form, setForm] = useState<RedeemItem>(defaultForm);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [searchKeyword, setSearchKeyword] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [usedFilter, setUsedFilter] = useState<string>("all");
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
 
   const load = async () => {
@@ -53,6 +57,14 @@ export default function RedeemPage() {
   useEffect(() => {
     load();
   }, []);
+
+  const filteredItems = items.filter((item) => {
+    if (statusFilter !== "all" && String(item.status) !== statusFilter) return false;
+    if (usedFilter !== "all" && String(item.used) !== usedFilter) return false;
+    if (!searchKeyword.trim()) return true;
+    const key = searchKeyword.trim().toLowerCase();
+    return (item.code || "").toLowerCase().includes(key);
+  });
 
   const openCreate = () => {
     setEditingId(null);
@@ -112,6 +124,17 @@ export default function RedeemPage() {
     }
   };
 
+  const toggleStatus = async (item: RedeemItem) => {
+    if (!item.id) return;
+    const res = await updateRedeemCode({ id: item.id, status: item.status === 1 ? 0 : 1 });
+    if (res.code === 0) {
+      toast.success(item.status === 1 ? "已停用" : "已启用");
+      load();
+    } else {
+      toast.error(res.msg || "状态更新失败");
+    }
+  };
+
   return (
     <div className="p-4 md:p-6 space-y-4">
       <Card>
@@ -127,6 +150,34 @@ export default function RedeemPage() {
           </div>
         </CardHeader>
         <CardBody>
+          <div className="grid grid-cols-1 md:grid-cols-[1fr_180px_180px_auto] gap-2 mb-4">
+            <Input
+              placeholder="搜索兑换码"
+              value={searchKeyword}
+              onValueChange={setSearchKeyword}
+            />
+            <Select
+              label="状态筛选"
+              selectedKeys={[statusFilter]}
+              onSelectionChange={(keys) => setStatusFilter(String(Array.from(keys)[0] || "all"))}
+            >
+              <SelectItem key="all">全部状态</SelectItem>
+              <SelectItem key="1">启用</SelectItem>
+              <SelectItem key="0">停用</SelectItem>
+            </Select>
+            <Select
+              label="使用状态"
+              selectedKeys={[usedFilter]}
+              onSelectionChange={(keys) => setUsedFilter(String(Array.from(keys)[0] || "all"))}
+            >
+              <SelectItem key="all">全部</SelectItem>
+              <SelectItem key="0">未使用</SelectItem>
+              <SelectItem key="1">已使用</SelectItem>
+            </Select>
+            <Button variant="flat" onPress={() => { setSearchKeyword(""); setStatusFilter("all"); setUsedFilter("all"); }}>
+              重置筛选
+            </Button>
+          </div>
           <Table aria-label="兑换码列表" isStriped>
             <TableHeader>
               <TableColumn>ID</TableColumn>
@@ -139,7 +190,7 @@ export default function RedeemPage() {
               <TableColumn>操作</TableColumn>
             </TableHeader>
             <TableBody isLoading={loading} emptyContent="暂无兑换码">
-              {items.map((item) => (
+              {filteredItems.map((item) => (
                 <TableRow key={item.id}>
                   <TableCell>{item.id}</TableCell>
                   <TableCell>{item.code}</TableCell>
@@ -152,6 +203,9 @@ export default function RedeemPage() {
                     <div className="flex gap-2">
                       <Button size="sm" variant="flat" onPress={() => openEdit(item)}>
                         编辑
+                      </Button>
+                      <Button size="sm" variant="flat" onPress={() => toggleStatus(item)}>
+                        {item.status === 1 ? "停用" : "启用"}
                       </Button>
                       <Button size="sm" color="danger" variant="flat" onPress={() => remove(item.id)}>
                         删除
