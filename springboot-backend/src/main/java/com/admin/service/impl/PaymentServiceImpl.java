@@ -6,8 +6,8 @@ import com.admin.entity.OrderRecord;
 import com.admin.entity.Plan;
 import com.admin.entity.User;
 import com.admin.entity.ViteConfig;
+import com.admin.mapper.OrderRecordMapper;
 import com.admin.mapper.PlanMapper;
-import com.admin.service.OrderService;
 import com.admin.service.PaymentService;
 import com.admin.service.UserService;
 import com.admin.service.ViteConfigService;
@@ -40,7 +40,7 @@ public class PaymentServiceImpl implements PaymentService {
     private RestTemplate restTemplate;
 
     @Resource
-    private OrderService orderService;
+    private OrderRecordMapper orderRecordMapper;
 
     @Resource
     private UserService userService;
@@ -128,7 +128,7 @@ public class PaymentServiceImpl implements PaymentService {
             String payUrl = payUrlObj.toString();
             order.setPayUrl(payUrl);
             order.setUpdatedTime(System.currentTimeMillis());
-            orderService.updateById(order);
+            orderRecordMapper.updateById(order);
 
             return R.ok(MapUtil.builder()
                     .put("payUrl", payUrl)
@@ -165,7 +165,7 @@ public class PaymentServiceImpl implements PaymentService {
             return R.err("订单号缺失");
         }
 
-        OrderRecord order = orderService.getOne(new QueryWrapper<OrderRecord>().eq("order_no", orderNo));
+        OrderRecord order = orderRecordMapper.selectOne(new QueryWrapper<OrderRecord>().eq("order_no", orderNo));
         if (order == null) {
             return R.err("订单不存在");
         }
@@ -205,7 +205,7 @@ public class PaymentServiceImpl implements PaymentService {
         order.setStatus(1);
         order.setPaidTime(now);
         order.setUpdatedTime(now);
-        orderService.updateById(order);
+        orderRecordMapper.updateById(order);
 
         return R.ok("success");
     }
