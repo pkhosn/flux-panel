@@ -30,6 +30,9 @@ export const updateUser = (data: any) => Network.post("/user/update", data);
 export const deleteUser = (id: number) => Network.post("/user/delete", { id });
 export const getUserPackageInfo = () => Network.post("/user/package");
 export const getPlanList = () => Network.post("/plan/list");
+export const createPlan = (data: any) => Network.post("/plan/create", data);
+export const updatePlan = (data: any) => Network.post("/plan/update", data);
+export const deletePlan = (id: number) => Network.post("/plan/delete", { id });
 
 // 订单相关接口
 export const createPayOrder = (data: { planId: number; payType: string }) => Network.post("/order/create", data);
@@ -39,6 +42,10 @@ export const getAllOrderList = (data: any = {}) => Network.post("/order/list", d
 export const deleteOrder = (id: number) => Network.post("/order/delete", { id });
 export const clearOrders = (data: { status?: number; keyword?: string } = {}) => Network.post("/order/clear", data);
 export const useRedeemCode = (code: string) => Network.post("/redeem/use", { code });
+export const getRedeemCodeList = () => Network.post("/redeem/list");
+export const createRedeemCode = (data: any) => Network.post("/redeem/create", data);
+export const updateRedeemCode = (data: any) => Network.post("/redeem/update", data);
+export const deleteRedeemCode = (id: number) => Network.post("/redeem/delete", { id });
 
 // 节点CRUD操作 - 全部使用POST请求
 export const createNode = (data: any) => Network.post("/node/create", data);

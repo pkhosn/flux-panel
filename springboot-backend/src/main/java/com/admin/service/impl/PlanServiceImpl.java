@@ -4,6 +4,7 @@ import com.admin.common.lang.R;
 import com.admin.entity.Plan;
 import com.admin.mapper.PlanMapper;
 import com.admin.service.PlanService;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import org.springframework.stereotype.Service;
 
@@ -29,6 +30,41 @@ public class PlanServiceImpl extends ServiceImpl<PlanMapper, Plan> implements Pl
             }
         }
         return R.ok(list());
+    }
+
+    @Override
+    public R createPlan(Plan plan) {
+        if (plan == null || plan.getName() == null || plan.getName().trim().isEmpty()) {
+            return R.err("套餐名称不能为空");
+        }
+        long now = System.currentTimeMillis();
+        plan.setCreatedTime(now);
+        plan.setUpdatedTime(now);
+        if (plan.getStatus() == null) plan.setStatus(1);
+        if (plan.getPrice() == null) plan.setPrice(0L);
+        if (plan.getFlowGb() == null) plan.setFlowGb(0L);
+        if (plan.getForwardNum() == null) plan.setForwardNum(0);
+        if (plan.getDurationDays() == null) plan.setDurationDays(0L);
+        if (plan.getStock() == null) plan.setStock(0);
+        save(plan);
+        return R.ok(plan);
+    }
+
+    @Override
+    public R updatePlan(Plan plan) {
+        if (plan == null || plan.getId() == null) return R.err("参数错误");
+        Plan existed = getById(plan.getId());
+        if (existed == null) return R.err("套餐不存在");
+        plan.setUpdatedTime(System.currentTimeMillis());
+        updateById(plan);
+        return R.ok(getById(plan.getId()));
+    }
+
+    @Override
+    public R deletePlan(Long id) {
+        if (id == null) return R.err("参数错误");
+        remove(new QueryWrapper<Plan>().eq("id", id));
+        return R.ok();
     }
 
     private Plan buildPlan(String name, String description, Long price, Long flowGb, Integer forwardNum, Long durationDays, Integer stock) {

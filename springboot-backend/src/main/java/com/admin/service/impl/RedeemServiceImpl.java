@@ -50,6 +50,54 @@ public class RedeemServiceImpl extends ServiceImpl<RedeemCodeMapper, RedeemCode>
     }
 
     @Override
+    public R listCodes() {
+        seedDefaults();
+        return R.ok(list(new QueryWrapper<RedeemCode>().orderByDesc("id")));
+    }
+
+    @Override
+    public R createCode(RedeemCode code) {
+        if (code == null || code.getCode() == null || code.getCode().trim().isEmpty()) {
+            return R.err("兑换码不能为空");
+        }
+        int count = count(new QueryWrapper<RedeemCode>().eq("code", code.getCode().trim()));
+        if (count > 0) return R.err("兑换码已存在");
+        long now = System.currentTimeMillis();
+        code.setCode(code.getCode().trim());
+        code.setCreatedTime(now);
+        code.setUpdatedTime(now);
+        if (code.getStatus() == null) code.setStatus(1);
+        if (code.getFlowGb() == null) code.setFlowGb(0L);
+        if (code.getForwardNum() == null) code.setForwardNum(0);
+        if (code.getDurationDays() == null) code.setDurationDays(0L);
+        code.setUsed(0);
+        save(code);
+        return R.ok(code);
+    }
+
+    @Override
+    public R updateCode(RedeemCode code) {
+        if (code == null || code.getId() == null) return R.err("参数错误");
+        RedeemCode existed = getById(code.getId());
+        if (existed == null) return R.err("兑换码不存在");
+        if (code.getCode() != null && !code.getCode().trim().isEmpty()) {
+            int count = count(new QueryWrapper<RedeemCode>().eq("code", code.getCode().trim()).ne("id", code.getId()));
+            if (count > 0) return R.err("兑换码已存在");
+            code.setCode(code.getCode().trim());
+        }
+        code.setUpdatedTime(System.currentTimeMillis());
+        updateById(code);
+        return R.ok(getById(code.getId()));
+    }
+
+    @Override
+    public R deleteCode(Long id) {
+        if (id == null) return R.err("参数错误");
+        removeById(id);
+        return R.ok();
+    }
+
+    @Override
     public R useRedeemCode(RedeemCodeDto dto) {
         seedDefaults();
         Integer userId = JwtUtil.getUserIdFromToken();
