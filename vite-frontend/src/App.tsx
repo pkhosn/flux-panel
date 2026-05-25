@@ -12,6 +12,8 @@ import UserPage from "@/pages/user";
 import ProfilePage from "@/pages/profile";
 import LimitPage from "@/pages/limit";
 import ConfigPage from "@/pages/config";
+import PlanPage from "@/pages/plan";
+import RedeemPage from "@/pages/redeem";
 import { SettingsPage } from "@/pages/settings";
 
 import AdminLayout from "@/layouts/admin";
@@ -229,6 +231,22 @@ function App() {
             <ConfigPage />
           </ProtectedRoute>
         } 
+      />
+      <Route
+        path="/plan"
+        element={
+          <ProtectedRoute useSimpleLayout={true}>
+            <PlanPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/redeem"
+        element={
+          <ProtectedRoute useSimpleLayout={true}>
+            <RedeemPage />
+          </ProtectedRoute>
+        }
       />
       <Route 
         path="/settings" 
