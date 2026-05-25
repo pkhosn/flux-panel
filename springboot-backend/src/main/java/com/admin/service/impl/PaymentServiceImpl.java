@@ -198,7 +198,7 @@ public class PaymentServiceImpl implements PaymentService {
         }
 
         Map<String, String> params = new HashMap<>();
-        params.put("money", String.format(Locale.US, "%.2f", order.getAmount() / 100.0));
+        params.put("money", String.format(Locale.US, "%.2f", order.getAmount() * 1.0));
         params.put("name", order.getOrderNo());
         params.put("notify_url", notifyUrl);
         params.put("return_url", returnUrl);
@@ -219,7 +219,7 @@ public class PaymentServiceImpl implements PaymentService {
         }
         Map<String, Object> req = new LinkedHashMap<>();
         req.put("user_transaction_id", order.getOrderNo());
-        req.put("amount", order.getAmount() / 100.0);
+        req.put("amount", order.getAmount() * 1.0);
         req.put("goods_title", order.getPlanName());
         req.put("notify_url", notifyUrl);
         req.put("return_url", returnUrl);
@@ -243,7 +243,7 @@ public class PaymentServiceImpl implements PaymentService {
         params.put("merchant", merchant);
         params.put("item_name", order.getOrderNo());
         params.put("invoice", order.getOrderNo());
-        params.put("amountf", String.format(Locale.US, "%.2f", order.getAmount() / 100.0));
+        params.put("amountf", String.format(Locale.US, "%.2f", order.getAmount() * 1.0));
         params.put("currency", "USD");
         params.put("want_shipping", "0");
         params.put("success_url", returnUrl);
@@ -264,7 +264,7 @@ public class PaymentServiceImpl implements PaymentService {
         req.put("name", order.getOrderNo());
         req.put("description", order.getPlanName());
         req.put("pricing_type", "fixed_price");
-        req.put("local_price", Map.of("amount", String.format(Locale.US, "%.2f", order.getAmount() / 100.0), "currency", "USD"));
+        req.put("local_price", Map.of("amount", String.format(Locale.US, "%.2f", order.getAmount() * 1.0), "currency", "USD"));
         req.put("metadata", Map.of("trade_no", order.getOrderNo()));
         req.put("redirect_url", returnUrl);
         req.put("cancel_url", returnUrl);
@@ -290,7 +290,7 @@ public class PaymentServiceImpl implements PaymentService {
             return R.err("支付配置不完整，请检查 payment_btcpay_* 配置");
         }
         Map<String, Object> req = new HashMap<>();
-        req.put("amount", String.format(Locale.US, "%.2f", order.getAmount() / 100.0));
+        req.put("amount", String.format(Locale.US, "%.2f", order.getAmount() * 1.0));
         req.put("currency", currency);
         req.put("metadata", Map.of("orderId", order.getOrderNo()));
         req.put("checkout", Map.of("redirectURL", returnUrl));
