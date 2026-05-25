@@ -42,6 +42,35 @@ interface ConfigItem {
   dependsValue?: string; // 依赖的配置项值
 }
 
+interface PaymentMethodItem {
+  id: string;
+  value: string;
+  label: string;
+}
+
+const parsePaymentMethods = (raw?: string): PaymentMethodItem[] => {
+  if (!raw || !raw.trim()) return [];
+  return raw
+    .split(',')
+    .map((item, index) => {
+      const text = item.trim();
+      if (!text) return null;
+      const [value, label] = text.split(':');
+      const v = (value || '').trim();
+      const l = (label || value || '').trim();
+      if (!v || !l) return null;
+      return { id: `${Date.now()}_${index}`, value: v, label: l };
+    })
+    .filter((item): item is PaymentMethodItem => item !== null);
+};
+
+const serializePaymentMethods = (items: PaymentMethodItem[]): string => {
+  return items
+    .map((item) => `${item.value.trim()}:${item.label.trim()}`)
+    .filter((item) => item !== ':')
+    .join(',');
+};
+
 // 网站配置项定义
 const CONFIG_ITEMS: ConfigItem[] = [
   {
@@ -425,6 +454,7 @@ export default function ConfigPage() {
   const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [originalConfigs, setOriginalConfigs] = useState<Record<string, string>>(initialConfigs);
+  const [paymentMethodsEditor, setPaymentMethodsEditor] = useState<PaymentMethodItem[]>([]);
 
   // 权限检查
   useEffect(() => {
@@ -474,6 +504,10 @@ export default function ConfigPage() {
 
     return () => clearTimeout(timer);
   }, []); // 只在组件挂载时执行一次
+
+  useEffect(() => {
+    setPaymentMethodsEditor(parsePaymentMethods(configs.payment_methods || ''));
+  }, [configs.payment_methods]);
 
   // 处理配置项变更
   const handleConfigChange = (key: string, value: string) => {
@@ -544,6 +578,30 @@ export default function ConfigPage() {
     }
   };
 
+  const updatePaymentMethods = (list: PaymentMethodItem[]) => {
+    setPaymentMethodsEditor(list);
+    handleConfigChange('payment_methods', serializePaymentMethods(list));
+  };
+
+  const addPaymentMethod = () => {
+    updatePaymentMethods([
+      ...paymentMethodsEditor,
+      { id: `${Date.now()}_${Math.random()}`, value: '', label: '' }
+    ]);
+  };
+
+  const removePaymentMethod = (id: string) => {
+    updatePaymentMethods(paymentMethodsEditor.filter((item) => item.id !== id));
+  };
+
+  const updatePaymentMethodField = (id: string, field: 'value' | 'label', value: string) => {
+    const next = paymentMethodsEditor.map((item) => {
+      if (item.id !== id) return item;
+      return { ...item, [field]: value };
+    });
+    updatePaymentMethods(next);
+  };
+
 
 
   // 检查配置项是否应该显示（依赖检查）
@@ -560,6 +618,39 @@ export default function ConfigPage() {
     
     switch (item.type) {
       case 'input':
+        if (item.key === 'payment_methods') {
+          return (
+            <div className="space-y-3">
+              {paymentMethodsEditor.length === 0 && (
+                <div className="text-sm text-default-500">暂未配置支付方式，可点击“新增支付方式”。</div>
+              )}
+              {paymentMethodsEditor.map((method) => (
+                <div key={method.id} className="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-2">
+                  <Input
+                    value={method.value}
+                    onChange={(e) => updatePaymentMethodField(method.id, 'value', e.target.value)}
+                    placeholder="渠道值，如 alipay"
+                    variant="bordered"
+                    size="md"
+                  />
+                  <Input
+                    value={method.label}
+                    onChange={(e) => updatePaymentMethodField(method.id, 'label', e.target.value)}
+                    placeholder="显示名，如 支付宝"
+                    variant="bordered"
+                    size="md"
+                  />
+                  <Button color="danger" variant="flat" onClick={() => removePaymentMethod(method.id)}>
+                    删除
+                  </Button>
+                </div>
+              ))}
+              <Button color="primary" variant="flat" onClick={addPaymentMethod}>
+                新增支付方式
+              </Button>
+            </div>
+          );
+        }
         return (
           <Input
             value={configs[item.key] || ''}
