@@ -7,6 +7,12 @@ export interface LoginData {
   captchaId: string;
 }
 
+export interface RegisterData {
+  username: string;
+  password: string;
+  captchaId: string;
+}
+
 export interface LoginResponse {
   token: string;
   role_id: number;
@@ -15,6 +21,7 @@ export interface LoginResponse {
 }
 
 export const login = (data: LoginData) => Network.post<LoginResponse>("/user/login", data);
+export const register = (data: RegisterData) => Network.post("/user/register", data);
 
 // 用户CRUD操作 - 全部使用POST请求
 export const createUser = (data: any) => Network.post("/user/create", data);
@@ -22,6 +29,16 @@ export const getAllUsers = (pageData: any = {}) => Network.post("/user/list", pa
 export const updateUser = (data: any) => Network.post("/user/update", data);
 export const deleteUser = (id: number) => Network.post("/user/delete", { id });
 export const getUserPackageInfo = () => Network.post("/user/package");
+export const getPlanList = () => Network.post("/plan/list");
+
+// 订单相关接口
+export const createPayOrder = (data: { planId: number; payType: string }) => Network.post("/order/create", data);
+export const repayOrder = (id: number) => Network.post("/order/repay", { id });
+export const getMyOrderList = () => Network.post("/order/my-list");
+export const getAllOrderList = (data: any = {}) => Network.post("/order/list", data);
+export const deleteOrder = (id: number) => Network.post("/order/delete", { id });
+export const clearOrders = (data: { status?: number; keyword?: string } = {}) => Network.post("/order/clear", data);
+export const useRedeemCode = (code: string) => Network.post("/redeem/use", { code });
 
 // 节点CRUD操作 - 全部使用POST请求
 export const createNode = (data: any) => Network.post("/node/create", data);
