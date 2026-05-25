@@ -380,19 +380,23 @@ export default function BillingPage() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <Select
                   label="选择套餐"
-                  selectedKeys={selectedPlanId ? [selectedPlanId] : []}
-                  onSelectionChange={(keys) => setSelectedPlanId(String(Array.from(keys)[0] || ''))}
-                  isDisabled={loading}
-                  renderValue={(items) => {
-                    if (!selectedPlanId) return '请选择套餐';
-                    const plan = plans.find((item) => String(item.id) === selectedPlanId);
-                    if (!plan) return '请选择套餐';
-                    if (items.length > 0 && items[0]?.textValue) return items[0].textValue;
-                    return `${plan.name} - ¥${plan.price}${plan.stock === 0 ? '（售罄）' : ''}`;
+                  placeholder="请选择套餐"
+                  selectedKeys={selectedPlanId ? new Set([selectedPlanId]) : new Set()}
+                  onSelectionChange={(keys) => {
+                    if (keys === 'all') {
+                      setSelectedPlanId('');
+                      return;
+                    }
+                    setSelectedPlanId(String(Array.from(keys)[0] || ''));
                   }}
+                  isDisabled={loading}
                 >
                   {plans.map((plan) => (
-                    <SelectItem key={String(plan.id)} isDisabled={plan.stock === 0}>
+                    <SelectItem
+                      key={String(plan.id)}
+                      textValue={`${plan.name} - ¥${plan.price}${plan.stock === 0 ? '（售罄）' : ''}`}
+                      isDisabled={plan.stock === 0}
+                    >
                       {plan.name} - ¥{plan.price}{plan.stock === 0 ? '（售罄）' : ''}
                     </SelectItem>
                   ))}
