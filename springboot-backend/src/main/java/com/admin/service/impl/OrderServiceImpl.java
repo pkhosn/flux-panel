@@ -139,6 +139,8 @@ public class OrderServiceImpl extends ServiceImpl<OrderRecordMapper, OrderRecord
             return R.err("无权限");
         }
         QueryWrapper<OrderRecord> wrapper = new QueryWrapper<>();
+        // 避免触发 MyBatis-Plus 全表删除拦截：即便清空全部订单也附带安全 where 条件
+        wrapper.isNotNull("id");
         Object status = params.get("status");
         Object keyword = params.get("keyword");
         if (status != null && !"".equals(status.toString())) {
