@@ -349,7 +349,7 @@ public class PaymentServiceImpl implements PaymentService {
         Map<String, String> copy = new HashMap<>(params);
         copy.remove("sign");
         String expected = md5(httpBuildQuerySorted(copy) + secret);
-        if (!Objects.equals(expected, sign)) throw new RuntimeException("签名校验失败");
+        if (!signatureEquals(expected, sign)) throw new RuntimeException("签名校验失败");
         return copy.get("out_trade_no");
     }
 
@@ -360,7 +360,7 @@ public class PaymentServiceImpl implements PaymentService {
         copy.remove("sign");
         copy.remove("sign_type");
         String expected = md5(urldecode(httpBuildQuerySorted(copy)) + key);
-        if (!Objects.equals(expected, sign)) throw new RuntimeException("签名校验失败");
+        if (!signatureEquals(expected, sign)) throw new RuntimeException("签名校验失败");
         if (!"TRADE_SUCCESS".equals(copy.getOrDefault("trade_status", ""))) throw new RuntimeException("支付未成功");
         return copy.get("out_trade_no");
     }
@@ -371,7 +371,7 @@ public class PaymentServiceImpl implements PaymentService {
         Map<String, String> copy = new HashMap<>(params);
         copy.remove("signature");
         String expected = md5(urldecode(httpBuildQuerySorted(copy)) + token);
-        if (!Objects.equals(expected, sign)) throw new RuntimeException("签名校验失败");
+        if (!signatureEquals(expected, sign)) throw new RuntimeException("签名校验失败");
         return copy.get("user_transaction_id");
     }
 
@@ -380,7 +380,7 @@ public class PaymentServiceImpl implements PaymentService {
         if (!StringUtils.hasText(secret)) throw new RuntimeException("未配置 coinpayments secret");
         String request = httpBuildQuery(params);
         String hmac = hmacSha512(request, secret.trim());
-        if (!Objects.equals(hmac, hmacHeader)) throw new RuntimeException("HMAC signature does not match");
+        if (!signatureEquals(hmac, hmacHeader)) throw new RuntimeException("HMAC signature does not match");
         String status = params.getOrDefault("status", "0");
         if (!status.startsWith("1") && !status.startsWith("2") && !status.startsWith("100")) {
             throw new RuntimeException("payment not completed");
@@ -608,5 +608,10 @@ public class PaymentServiceImpl implements PaymentService {
     private boolean constantEquals(String a, String b) {
         if (a == null || b == null) return false;
         return java.security.MessageDigest.isEqual(a.getBytes(StandardCharsets.UTF_8), b.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private boolean signatureEquals(String a, String b) {
+        if (a == null || b == null) return false;
+        return a.trim().equalsIgnoreCase(b.trim());
     }
 }
