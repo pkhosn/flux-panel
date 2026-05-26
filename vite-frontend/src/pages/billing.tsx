@@ -62,28 +62,26 @@ interface UserInfo {
 interface PaymentMethodOption {
   value: string;
   label: string;
+  enabled: boolean;
 }
 
-const DEFAULT_PAYMENT_METHODS: PaymentMethodOption[] = [
-  { value: 'alipay', label: '支付宝' },
-  { value: 'wxpay', label: '微信支付' },
-  { value: 'qqpay', label: 'QQ支付' },
-];
-
 const parsePaymentMethods = (raw?: string | null): PaymentMethodOption[] => {
-  if (!raw || !raw.trim()) return DEFAULT_PAYMENT_METHODS;
+  if (!raw || !raw.trim()) return [];
   const options: PaymentMethodOption[] = [];
   raw.split(',').forEach((segment) => {
     const text = segment.trim();
     if (!text) return;
     const pair = text.split(':');
+    if (pair.length < 3) return;
     const value = (pair[0] || '').trim().toLowerCase();
     const label = (pair[1] || pair[0] || '').trim();
+    const enabled = pair[2].trim() === '1';
     if (!value || !label) return;
     if (options.some((item) => item.value === value)) return;
-    options.push({ value, label });
+    options.push({ value, label, enabled });
   });
-  return options.length > 0 ? options : DEFAULT_PAYMENT_METHODS;
+  const enabledOptions = options.filter((item) => item.enabled);
+  return enabledOptions;
 };
 
 export default function BillingPage() {
@@ -97,8 +95,8 @@ export default function BillingPage() {
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
 
   const [selectedPlanId, setSelectedPlanId] = useState<string>('');
-  const [payType, setPayType] = useState<string>('alipay');
-  const [paymentMethods, setPaymentMethods] = useState<PaymentMethodOption[]>(DEFAULT_PAYMENT_METHODS);
+  const [payType, setPayType] = useState<string>('');
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethodOption[]>([]);
   const [redeemCode, setRedeemCode] = useState('');
 
   const [filterKeyword, setFilterKeyword] = useState('');
@@ -119,10 +117,11 @@ export default function BillingPage() {
       const parsed = parsePaymentMethods(raw);
       setPaymentMethods(parsed);
       if (!parsed.some((item) => item.value === payType)) {
-        setPayType(parsed[0]?.value || 'alipay');
+        setPayType(parsed[0]?.value || '');
       }
     } catch (_e) {
-      setPaymentMethods(DEFAULT_PAYMENT_METHODS);
+      setPaymentMethods([]);
+      setPayType('');
     }
   };
 
@@ -237,6 +236,10 @@ export default function BillingPage() {
   };
 
   const createOrder = async () => {
+    if (paymentMethods.length === 0 || !payType) {
+      toast.error('暂无可用支付方式，请联系管理员在网站配置中添加并启用支付');
+      return;
+    }
     if (!selectedPlanId) {
       toast.error('请选择套餐');
       return;

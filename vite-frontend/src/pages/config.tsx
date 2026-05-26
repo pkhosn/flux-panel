@@ -7,6 +7,7 @@ import { Spinner } from "@heroui/spinner";
 import { Divider } from "@heroui/divider";
 import { Switch } from "@heroui/switch";
 import { Select, SelectItem } from "@heroui/select";
+import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, useDisclosure } from "@heroui/modal";
 import toast from 'react-hot-toast';
 import { updateConfigs } from '@/api';
 import { SettingsIcon } from '@/components/icons';
@@ -46,7 +47,44 @@ interface PaymentMethodItem {
   id: string;
   value: string;
   label: string;
+  enabled: boolean;
 }
+
+const PAYMENT_PROVIDER_OPTIONS: { label: string; value: string; description?: string }[] = [
+  { label: 'MGate', value: 'mgate', description: '使用 MGate API 创建支付并处理回调' },
+  { label: 'EPay', value: 'epay', description: '易支付兼容通道' },
+  { label: 'BEPUSDT', value: 'bepusdt', description: 'BEPUSDT 通道' },
+  { label: 'BTCPay', value: 'btcpay', description: 'BTCPay Server' },
+  { label: 'CoinPayments', value: 'coinpayments', description: 'CoinPayments 加密货币支付' },
+  { label: 'Coinbase', value: 'coinbase', description: 'Coinbase Commerce' },
+  { label: 'Stripe Checkout', value: 'stripe_checkout', description: 'Stripe Checkout' },
+  { label: 'Stripe Alipay', value: 'stripe_alipay', description: 'Stripe 支付宝' },
+  { label: 'Stripe WePay', value: 'stripe_wepay', description: 'Stripe 微信' },
+  { label: 'Stripe Credit', value: 'stripe_credit', description: 'Stripe 信用卡' },
+  { label: 'Stripe ALL', value: 'stripe_all', description: 'Stripe 多支付方式' }
+];
+
+const PAYMENT_PROVIDER_FIELD_KEYS: Record<string, string[]> = {
+  mgate: ['payment_mgate_url', 'payment_mgate_app_id', 'payment_mgate_app_secret', 'payment_mgate_source_currency'],
+  epay: ['payment_epay_url', 'payment_epay_pid', 'payment_epay_key'],
+  bepusdt: ['payment_bepusdt_url', 'payment_bepusdt_apitoken'],
+  btcpay: ['payment_btcpay_url', 'payment_btcpay_store_id', 'payment_btcpay_api_key', 'payment_btcpay_webhook_key', 'payment_btcpay_currency'],
+  coinpayments: ['payment_coinpayments_merchant_id', 'payment_coinpayments_ipn_secret'],
+  coinbase: ['payment_coinbase_url', 'payment_coinbase_api_key', 'payment_coinbase_webhook_key'],
+  stripe_checkout: ['payment_stripe_sk_live', 'payment_stripe_currency', 'payment_stripe_webhook_key'],
+  stripe_alipay: ['payment_stripe_sk_live', 'payment_stripe_currency', 'payment_stripe_webhook_key'],
+  stripe_wepay: ['payment_stripe_sk_live', 'payment_stripe_currency', 'payment_stripe_webhook_key'],
+  stripe_credit: ['payment_stripe_sk_live', 'payment_stripe_currency', 'payment_stripe_webhook_key'],
+  stripe_all: ['payment_stripe_sk_live', 'payment_stripe_currency', 'payment_stripe_webhook_key']
+};
+
+const PAYMENT_CHANNEL_OPTIONS: { value: string; label: string }[] = [
+  { value: 'alipay', label: '支付宝' },
+  { value: 'wxpay', label: '微信支付' },
+  { value: 'qqpay', label: 'QQ支付' },
+  { value: 'usdt', label: 'USDT' },
+  { value: 'bank', label: '银行卡' }
+];
 
 const parsePaymentMethods = (raw?: string): PaymentMethodItem[] => {
   if (!raw || !raw.trim()) return [];
@@ -55,19 +93,28 @@ const parsePaymentMethods = (raw?: string): PaymentMethodItem[] => {
     .map((item, index) => {
       const text = item.trim();
       if (!text) return null;
-      const [value, label] = text.split(':');
-      const v = (value || '').trim();
-      const l = (label || value || '').trim();
+      const pair = text.split(':');
+      if (pair.length < 3) return null;
+      const value = (pair[0] || '').trim().toLowerCase();
+      const label = (pair[1] || pair[0] || '').trim();
+      const enabled = pair[2].trim() === '1';
+      const v = value;
+      const l = label;
       if (!v || !l) return null;
-      return { id: `${Date.now()}_${index}`, value: v, label: l };
+      return { id: `${Date.now()}_${index}`, value: v, label: l, enabled };
     })
     .filter((item): item is PaymentMethodItem => item !== null);
 };
 
 const serializePaymentMethods = (items: PaymentMethodItem[]): string => {
   return items
-    .map((item) => `${item.value.trim()}:${item.label.trim()}`)
-    .filter((item) => item !== ':')
+    .map((item) => {
+      const value = item.value.trim().toLowerCase();
+      const label = item.label.trim();
+      const enabled = item.enabled ? '1' : '0';
+      return `${value}:${label}:${enabled}`;
+    })
+    .filter((item) => item !== '::1' && item !== '::0')
     .join(',');
 };
 
@@ -141,63 +188,7 @@ const CONFIG_ITEMS: ConfigItem[] = [
     type: 'select',
     dependsOn: 'payment_enabled',
     dependsValue: 'true',
-    options: [
-      {
-        label: 'MGate',
-        value: 'mgate',
-        description: '使用 MGate API 创建支付并处理回调'
-      },
-      {
-        label: 'EPay',
-        value: 'epay',
-        description: '易支付兼容通道'
-      },
-      {
-        label: 'BEPUSDT',
-        value: 'bepusdt',
-        description: 'BEPUSDT 通道'
-      },
-      {
-        label: 'BTCPay',
-        value: 'btcpay',
-        description: 'BTCPay Server'
-      },
-      {
-        label: 'CoinPayments',
-        value: 'coinpayments',
-        description: 'CoinPayments 加密货币支付'
-      },
-      {
-        label: 'Coinbase',
-        value: 'coinbase',
-        description: 'Coinbase Commerce'
-      },
-      {
-        label: 'Stripe Checkout',
-        value: 'stripe_checkout',
-        description: 'Stripe Checkout'
-      },
-      {
-        label: 'Stripe Alipay',
-        value: 'stripe_alipay',
-        description: 'Stripe 支付宝'
-      },
-      {
-        label: 'Stripe WePay',
-        value: 'stripe_wepay',
-        description: 'Stripe 微信'
-      },
-      {
-        label: 'Stripe Credit',
-        value: 'stripe_credit',
-        description: 'Stripe 信用卡'
-      },
-      {
-        label: 'Stripe ALL',
-        value: 'stripe_all',
-        description: 'Stripe 多支付方式'
-      }
-    ]
+    options: PAYMENT_PROVIDER_OPTIONS
   },
   {
     key: 'payment_mgate_url',
@@ -455,6 +446,9 @@ export default function ConfigPage() {
   const [hasChanges, setHasChanges] = useState(false);
   const [originalConfigs, setOriginalConfigs] = useState<Record<string, string>>(initialConfigs);
   const [paymentMethodsEditor, setPaymentMethodsEditor] = useState<PaymentMethodItem[]>([]);
+  const { isOpen: isPaymentModalOpen, onOpen: onPaymentModalOpen, onClose: onPaymentModalClose } = useDisclosure();
+  const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null);
+  const [paymentForm, setPaymentForm] = useState<{ value: string; label: string; enabled: boolean; provider: string }>({ value: '', label: '', enabled: true, provider: '' });
 
   // 权限检查
   useEffect(() => {
@@ -506,38 +500,30 @@ export default function ConfigPage() {
   }, []); // 只在组件挂载时执行一次
 
   useEffect(() => {
-    setPaymentMethodsEditor(parsePaymentMethods(configs.payment_methods || ''));
+    const raw = configs.payment_methods || '';
+    if (raw && raw.split(',').some((item) => item.trim() && item.trim().split(':').length < 3)) {
+      updatePaymentMethods([]);
+      return;
+    }
+    setPaymentMethodsEditor(parsePaymentMethods(raw));
   }, [configs.payment_methods]);
 
   // 处理配置项变更
   const handleConfigChange = (key: string, value: string) => {
-    let newConfigs = { ...configs, [key]: value };
-    
-    // 特殊处理：启用验证码时，如果验证码类型未设置，默认为随机
-    if (key === 'captcha_enabled' && value === 'true') {
-      if (!newConfigs.captcha_type) {
+    setConfigs((prev) => {
+      const newConfigs = { ...prev, [key]: value };
+      // 特殊处理：启用验证码时，如果验证码类型未设置，默认为随机
+      if (key === 'captcha_enabled' && value === 'true' && !newConfigs.captcha_type) {
         newConfigs.captcha_type = 'RANDOM';
       }
-    }
-
-    if (key === 'payment_enabled' && value === 'true') {
-      if (!newConfigs.payment_provider) {
-        newConfigs.payment_provider = 'mgate';
-      }
-      if (!newConfigs.payment_mgate_source_currency) {
-        newConfigs.payment_mgate_source_currency = 'CNY';
-      }
-    }
-    
-    setConfigs(newConfigs);
-    
-    // 检查是否有变更
-    const hasChangesNow = Object.keys(newConfigs).some(
-      k => newConfigs[k] !== originalConfigs[k]
-    ) || Object.keys(originalConfigs).some(
-      k => originalConfigs[k] !== newConfigs[k]
-    );
-    setHasChanges(hasChangesNow);
+      const hasChangesNow = Object.keys(newConfigs).some(
+        k => newConfigs[k] !== originalConfigs[k]
+      ) || Object.keys(originalConfigs).some(
+        k => originalConfigs[k] !== newConfigs[k]
+      );
+      setHasChanges(hasChangesNow);
+      return newConfigs;
+    });
   };
 
   // 保存配置
@@ -583,23 +569,47 @@ export default function ConfigPage() {
     handleConfigChange('payment_methods', serializePaymentMethods(list));
   };
 
-  const addPaymentMethod = () => {
-    updatePaymentMethods([
-      ...paymentMethodsEditor,
-      { id: `${Date.now()}_${Math.random()}`, value: '', label: '' }
-    ]);
-  };
-
   const removePaymentMethod = (id: string) => {
     updatePaymentMethods(paymentMethodsEditor.filter((item) => item.id !== id));
   };
 
-  const updatePaymentMethodField = (id: string, field: 'value' | 'label', value: string) => {
-    const next = paymentMethodsEditor.map((item) => {
-      if (item.id !== id) return item;
-      return { ...item, [field]: value };
-    });
-    updatePaymentMethods(next);
+  const openCreatePaymentModal = () => {
+    setEditingPaymentId(null);
+    setPaymentForm({ value: '', label: '', enabled: true, provider: configs.payment_provider || '' });
+    onPaymentModalOpen();
+  };
+
+  const openEditPaymentModal = (item: PaymentMethodItem) => {
+    setEditingPaymentId(item.id);
+    setPaymentForm({ value: item.value, label: item.label, enabled: item.enabled, provider: configs.payment_provider || 'mgate' });
+    onPaymentModalOpen();
+  };
+
+  const savePaymentMethod = () => {
+    const value = paymentForm.value.trim().toLowerCase();
+    const label = paymentForm.label.trim();
+    const provider = paymentForm.provider.trim();
+    if (!value || !label) {
+      toast.error('请填写完整的支付信息');
+      return;
+    }
+    if (!provider) {
+      toast.error('请选择支付通道');
+      return;
+    }
+    const duplicated = paymentMethodsEditor.some((item) => item.value === value && item.id !== editingPaymentId);
+    if (duplicated) {
+      toast.error('支付标识已存在');
+      return;
+    }
+    if (editingPaymentId) {
+      updatePaymentMethods(paymentMethodsEditor.map((item) => item.id === editingPaymentId ? { ...item, value, label, enabled: paymentForm.enabled } : item));
+    } else {
+      updatePaymentMethods([...paymentMethodsEditor, { id: `${Date.now()}_${Math.random()}`, value, label, enabled: paymentForm.enabled }]);
+    }
+    handleConfigChange('payment_enabled', 'true');
+    handleConfigChange('payment_provider', provider);
+    onPaymentModalClose();
   };
 
 
@@ -621,33 +631,41 @@ export default function ConfigPage() {
         if (item.key === 'payment_methods') {
           return (
             <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <div className="text-sm text-default-600">支付方式列表</div>
+                <Button color="primary" variant="flat" onClick={openCreatePaymentModal}>
+                  添加支付
+                </Button>
+              </div>
               {paymentMethodsEditor.length === 0 && (
-                <div className="text-sm text-default-500">暂未配置支付方式，可点击“新增支付方式”。</div>
+                <div className="text-sm text-default-500">暂未配置支付方式，可点击“添加支付”。</div>
               )}
               {paymentMethodsEditor.map((method) => (
-                <div key={method.id} className="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-2">
-                  <Input
-                    value={method.value}
-                    onChange={(e) => updatePaymentMethodField(method.id, 'value', e.target.value)}
-                    placeholder="渠道值，如 alipay"
-                    variant="bordered"
-                    size="md"
-                  />
-                  <Input
-                    value={method.label}
-                    onChange={(e) => updatePaymentMethodField(method.id, 'label', e.target.value)}
-                    placeholder="显示名，如 支付宝"
-                    variant="bordered"
-                    size="md"
-                  />
-                  <Button color="danger" variant="flat" onClick={() => removePaymentMethod(method.id)}>
-                    删除
-                  </Button>
+                <div key={method.id} className="flex items-center justify-between border border-default-200 rounded-lg p-3">
+                  <div className="min-w-0">
+                    <div className="font-medium text-default-900">{method.label}</div>
+                    <div className="text-xs text-default-500">标识: {method.value}</div>
+                    <div className="text-xs text-default-500">状态: {method.enabled ? '已启用' : '已停用'}</div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      size="sm"
+                      isSelected={method.enabled}
+                      onValueChange={(checked) => {
+                        updatePaymentMethods(paymentMethodsEditor.map((item) => item.id === method.id ? { ...item, enabled: checked } : item));
+                      }}
+                    >
+                      {method.enabled ? '启用' : '停用'}
+                    </Switch>
+                    <Button size="sm" variant="flat" color="primary" onClick={() => openEditPaymentModal(method)}>
+                      编辑
+                    </Button>
+                    <Button size="sm" color="danger" variant="flat" onClick={() => removePaymentMethod(method.id)}>
+                      删除
+                    </Button>
+                  </div>
                 </div>
               ))}
-              <Button color="primary" variant="flat" onClick={addPaymentMethod}>
-                新增支付方式
-              </Button>
             </div>
           );
         }
@@ -730,7 +748,7 @@ export default function ConfigPage() {
   }
 
   return (
-    
+    <>
       <div className="p-6 max-w-4xl mx-auto">
         {/* 页面标题 */}
         <div className="flex items-center gap-3 mb-6">
@@ -771,6 +789,8 @@ export default function ConfigPage() {
 
           <CardBody className="space-y-6 pt-6">
             {CONFIG_ITEMS.map((item, index) => {
+              if (item.key === 'payment_enabled' || item.key === 'payment_provider') return null;
+              if (item.key !== 'payment_methods' && item.key.startsWith('payment_')) return null;
               // 检查配置项是否应该显示
               if (!shouldShowItem(item)) {
                 return null;
@@ -820,6 +840,89 @@ export default function ConfigPage() {
           </Card>
         )}
       </div>
-    
+
+      <Modal isOpen={isPaymentModalOpen} onClose={onPaymentModalClose} size="md">
+        <ModalContent>
+          <ModalHeader>{editingPaymentId ? '编辑支付' : '添加支付'}</ModalHeader>
+          <ModalBody className="space-y-3">
+            <Select
+              label="支付渠道"
+              selectedKeys={paymentForm.value ? [paymentForm.value] : []}
+              onSelectionChange={(keys) => {
+                const selectedKey = Array.from(keys)[0] as string;
+                if (selectedKey) {
+                  setPaymentForm((p) => ({ ...p, value: selectedKey }));
+                }
+              }}
+              variant="bordered"
+            >
+              {PAYMENT_CHANNEL_OPTIONS.map((option) => (
+                <SelectItem key={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </Select>
+            <Input
+              label="支付名称"
+              placeholder="如: 支付宝 / 微信支付"
+              value={paymentForm.label}
+              onValueChange={(v) => setPaymentForm((p) => ({ ...p, label: v }))}
+            />
+            <Switch
+              isSelected={paymentForm.enabled}
+              onValueChange={(checked) => setPaymentForm((p) => ({ ...p, enabled: checked }))}
+            >
+              {paymentForm.enabled ? '启用该支付方式' : '停用该支付方式'}
+            </Switch>
+            <Select
+              label="支付通道"
+              selectedKeys={paymentForm.provider ? [paymentForm.provider] : []}
+              onSelectionChange={(keys) => {
+                const selectedKey = Array.from(keys)[0] as string;
+                if (selectedKey) {
+                  setPaymentForm((p) => ({ ...p, provider: selectedKey }));
+                }
+              }}
+              variant="bordered"
+            >
+              {PAYMENT_PROVIDER_OPTIONS.map((option) => (
+                <SelectItem key={option.value} description={option.description}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </Select>
+            <Input
+              label="支付回调基础地址"
+              placeholder="如: http://your-domain:6365"
+              value={configs.payment_notify_base_url || ''}
+              onValueChange={(v) => handleConfigChange('payment_notify_base_url', v)}
+            />
+            <Input
+              label="支付返回基础地址"
+              placeholder="如: http://your-domain:6366"
+              value={configs.payment_return_base_url || ''}
+              onValueChange={(v) => handleConfigChange('payment_return_base_url', v)}
+            />
+            {(PAYMENT_PROVIDER_FIELD_KEYS[paymentForm.provider] || []).map((key) => {
+              const item = CONFIG_ITEMS.find((configItem) => configItem.key === key);
+              if (!item) return null;
+              return (
+                <Input
+                  key={item.key}
+                  label={item.label}
+                  placeholder={item.placeholder}
+                  value={configs[item.key] || ''}
+                  onValueChange={(v) => handleConfigChange(item.key, v)}
+                />
+              );
+            })}
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="flat" onPress={onPaymentModalClose}>取消</Button>
+            <Button color="primary" onPress={savePaymentMethod}>保存</Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+    </>
   );
 } 
