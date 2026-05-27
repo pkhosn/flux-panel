@@ -208,8 +208,7 @@ public class ResetFlowAsync {
                 forward.setStatus(0);
                 forwardService.updateById(forward);
             }
-            user.setStatus(0);
-            userService.updateById(user);
+            // 到期只影响可用性，不自动改用户状态；禁用由管理员手工控制
         }
     }
 
@@ -232,8 +231,7 @@ public class ResetFlowAsync {
             }
 
 
-            userTunnel.setStatus(0);
-            userTunnelService.updateById(userTunnel);
+            // 到期只影响可用性，不自动改隧道权限状态；禁用由管理员手工控制
         }
     }
 
