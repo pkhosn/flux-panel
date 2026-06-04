@@ -21,6 +21,9 @@ import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.UUID;
 
@@ -45,6 +48,17 @@ public class WebSocketServer extends TextWebSocketHandler {
     
     // 缓存加密器实例，避免重复创建
     private static final ConcurrentHashMap<String, AESCrypto> cryptoCache = new ConcurrentHashMap<>();
+
+    // 节点离线确认任务，避免网络抖动导致瞬时误判离线
+    private static final ScheduledExecutorService offlineScheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+        Thread thread = new Thread(r, "node-offline-confirm");
+        thread.setDaemon(true);
+        return thread;
+    });
+
+    private static final ConcurrentHashMap<Long, ScheduledFuture<?>> pendingOfflineTasks = new ConcurrentHashMap<>();
+
+    private static final long OFFLINE_CONFIRM_DELAY_SECONDS = 45L;
 
     /**
      * 加密消息包装器
@@ -241,6 +255,7 @@ public class WebSocketServer extends TextWebSocketHandler {
                 
                 // 直接覆盖会话映射（不主动关闭旧连接，让它自然断开）
                 nodeSessions.put(nodeId, session);
+                cancelPendingOfflineTask(nodeId);
                 
                 // 如果有旧连接，在覆盖映射后主动关闭它
                 if (existingSession != null && existingSession.isOpen()) {
@@ -336,28 +351,8 @@ public class WebSocketServer extends TextWebSocketHandler {
                 
                 log.info("节点 {} 当前活跃连接关闭，开始验证并更新状态", nodeId);
                 
-                    nodeSessions.remove(nodeId);
-                    
-                    // 更新节点状态为离线
-                    Node node = nodeService.getById(nodeId);
-                    if (node != null) {
-                        node.setStatus(0);
-                        boolean updateResult = nodeService.updateById(node);
-                        
-                        if (updateResult) {
-                            log.info("节点 {} 状态更新为离线成功", nodeId);
-                            
-                            JSONObject res = new JSONObject();
-                            res.put("id", id);
-                            res.put("type", "status");
-                            res.put("data", 0);
-                            broadcastMessage(res.toJSONString());
-                        } else {
-                            log.info("节点 {} 状态更新为离线失败", nodeId);
-                        }
-                    } else {
-                        log.info("节点 {} 不存在，无法更新离线状态", nodeId);
-                    }
+                nodeSessions.remove(nodeId);
+                scheduleOfflineConfirmation(nodeId, id, sessionId);
             }
             
             // 清理session锁对象
@@ -366,6 +361,51 @@ public class WebSocketServer extends TextWebSocketHandler {
         } catch (Exception e) {
             log.info("关闭连接时发生异常: {}", e.getMessage(), e);
         }
+    }
+
+    private static void cancelPendingOfflineTask(Long nodeId) {
+        ScheduledFuture<?> task = pendingOfflineTasks.remove(nodeId);
+        if (task != null) {
+            task.cancel(false);
+        }
+    }
+
+    private void scheduleOfflineConfirmation(Long nodeId, String id, String sessionId) {
+        cancelPendingOfflineTask(nodeId);
+        ScheduledFuture<?> task = offlineScheduler.schedule(() -> {
+            try {
+                WebSocketSession currentSession = nodeSessions.get(nodeId);
+                if (currentSession != null && currentSession.isOpen()) {
+                    log.info("节点 {} 在离线确认窗口内已恢复连接，跳过离线更新", nodeId);
+                    return;
+                }
+
+                Node node = nodeService.getById(nodeId);
+                if (node == null) {
+                    log.info("节点 {} 不存在，跳过离线状态更新", nodeId);
+                    return;
+                }
+
+                node.setStatus(0);
+                boolean updateResult = nodeService.updateById(node);
+                if (updateResult) {
+                    log.info("节点 {} 延迟确认后状态更新为离线成功，原sessionId: {}", nodeId, sessionId);
+                    JSONObject res = new JSONObject();
+                    res.put("id", id);
+                    res.put("type", "status");
+                    res.put("data", 0);
+                    broadcastMessage(res.toJSONString());
+                } else {
+                    log.info("节点 {} 延迟确认后状态更新为离线失败", nodeId);
+                }
+            } catch (Exception e) {
+                log.info("节点 {} 离线确认任务执行失败: {}", nodeId, e.getMessage(), e);
+            } finally {
+                pendingOfflineTasks.remove(nodeId);
+            }
+        }, OFFLINE_CONFIRM_DELAY_SECONDS, TimeUnit.SECONDS);
+        pendingOfflineTasks.put(nodeId, task);
+        log.info("节点 {} 连接关闭，已进入 {} 秒离线确认窗口，sessionId: {}", nodeId, OFFLINE_CONFIRM_DELAY_SECONDS, sessionId);
     }
 
     // 点对点发送消息

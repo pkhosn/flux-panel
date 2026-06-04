@@ -350,12 +350,15 @@ EOF
   cat > "$SERVICE_FILE" <<EOF
 [Unit]
 Description=Flux_agent Proxy Service
-After=network.target
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 WorkingDirectory=$INSTALL_DIR
 ExecStart=$INSTALL_DIR/flux_agent
-Restart=on-failure
+Restart=always
+RestartSec=5
+StartLimitIntervalSec=0
 
 [Install]
 WantedBy=multi-user.target
