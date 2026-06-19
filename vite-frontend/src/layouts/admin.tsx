@@ -36,6 +36,7 @@ export default function AdminLayout({
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
 
   const [isMobile, setIsMobile] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [mobileMenuVisible, setMobileMenuVisible] = useState(false);
   const [username, setUsername] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
@@ -170,6 +171,7 @@ export default function AdminLayout({
     
     setUsername(name);
     setIsAdmin(adminFlag);
+    setIsSidebarCollapsed(localStorage.getItem('admin_sidebar_collapsed') === 'true');
 
     // 响应式检查
     checkMobile();
@@ -189,6 +191,12 @@ export default function AdminLayout({
   // 切换移动端菜单
   const toggleMobileMenu = () => {
     setMobileMenuVisible(!mobileMenuVisible);
+  };
+
+  const toggleSidebar = () => {
+    const nextCollapsed = !isSidebarCollapsed;
+    setIsSidebarCollapsed(nextCollapsed);
+    localStorage.setItem('admin_sidebar_collapsed', nextCollapsed.toString());
   };
 
   // 隐藏移动端菜单
@@ -284,21 +292,21 @@ export default function AdminLayout({
       <aside className={`
         ${isMobile ? 'fixed' : 'relative'} 
         ${isMobile && !mobileMenuVisible ? '-translate-x-full' : 'translate-x-0'}
-        ${isMobile ? 'w-64' : 'w-72'} 
+        ${isMobile ? 'w-64' : isSidebarCollapsed ? 'w-20' : 'w-72'} 
         bg-white dark:bg-black 
         shadow-lg 
         border-r border-gray-200 dark:border-gray-600
         z-50 
-        transition-transform duration-300 ease-in-out
+        transition-all duration-300 ease-in-out
         flex flex-col
         ${isMobile ? 'h-screen' : 'h-full'}
         ${isMobile ? 'top-0 left-0' : ''}
       `}>
                  {/* Logo 区域 */}
-         <div className="px-3 py-3 h-14 flex items-center">
-           <div className="flex items-center gap-2 w-full">
+         <div className={`px-3 py-3 h-14 flex items-center ${!isMobile && isSidebarCollapsed ? 'justify-center' : ''}`}>
+           <div className="flex items-center gap-2 w-full overflow-hidden">
              <Logo size={24} />
-             <div className="flex-1 min-w-0">
+             <div className={`flex-1 min-w-0 ${!isMobile && isSidebarCollapsed ? 'hidden' : ''}`}>
                <h1 className="text-sm font-bold text-foreground overflow-hidden whitespace-nowrap">{siteConfig.name}</h1>
                <p className="text-xs text-default-500">v{siteConfig.version}</p>
              </div>
@@ -315,18 +323,20 @@ export default function AdminLayout({
                                      <button
                      onClick={() => handleMenuClick(item.path)}
                      className={`
-                       w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left
+                       w-full flex items-center px-4 py-3 rounded-lg text-left
                        transition-colors duration-200 min-h-[44px]
+                       ${!isMobile && isSidebarCollapsed ? 'justify-center' : 'gap-3'}
                        ${isActive 
                          ? 'bg-primary-100 dark:bg-primary-600/20 text-primary-600 dark:text-primary-300' 
                          : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-900'
                        }
                      `}
+                     title={!isMobile && isSidebarCollapsed ? item.label : undefined}
                    >
                      <div className="flex-shrink-0">
                        {item.icon}
                      </div>
-                     <span className="font-medium text-sm">{item.label}</span>
+                     <span className={`font-medium text-sm ${!isMobile && isSidebarCollapsed ? 'hidden' : ''}`}>{item.label}</span>
                    </button>
                 </li>
               );
@@ -367,6 +377,18 @@ export default function AdminLayout({
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </Button>
+            )}
+            {!isMobile && (
+              <Button
+                isIconOnly
+                variant="light"
+                onPress={toggleSidebar}
+                aria-label={isSidebarCollapsed ? '展开侧边栏' : '折叠侧边栏'}
+              >
+                <svg className={`w-5 h-5 transition-transform duration-300 ${isSidebarCollapsed ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                 </svg>
               </Button>
             )}
