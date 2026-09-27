@@ -657,13 +657,13 @@ export default function ForwardPage() {
       if (res.code === 0) {
         toast.success(isEdit ? '修改成功' : '创建成功');
         setModalOpen(false);
-        loadData();
+        await loadData(false);
       } else {
-        toast.error(res.msg || '操作失败');
+        toast.error(res.msg || (isEdit ? '修改失败' : '创建失败'));
       }
     } catch (error) {
       console.error('提交失败:', error);
-      toast.error('操作失败');
+      toast.error(error instanceof Error ? error.message : '提交转发规则失败');
     } finally {
       setSubmitLoading(false);
     }
