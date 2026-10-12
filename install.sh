@@ -19,8 +19,7 @@ get_architecture() {
 # 构建下载地址
 build_download_url() {
     local ARCH=$(get_architecture)
-    local RELEASE_TAG="2.0.10-beta"
-    echo "https://github.com/pkhosn/flux-panel/releases/download/${RELEASE_TAG}/gost-${ARCH}"
+    echo "https://github.com/pkhosn/flux-panel/releases/download/2.0.11-beta/gost-${ARCH}"
 }
 
 # 下载地址
@@ -148,18 +147,32 @@ build_flux_agent_from_source() {
 
 fetch_flux_agent_binary() {
   local output_path="$1"
-  echo "⬇️ 下载 flux_agent 中..."
-
-  # 固定 release 资产早于当前 beta 源码，不包含节点 IPv4/IPv6 上报。
-  # 始终构建当前 beta，避免安装成功却仍运行旧功能。
-  build_flux_agent_from_source "$output_path" || return 1
+  local expected_sha256
+  case "$(get_architecture)" in
+    amd64) expected_sha256="6f9983499c1fd848503c8d47f875ade15e3106c80144be4cc00bbef0e165c3fa" ;;
+    arm64) expected_sha256="91a7b9c84222502d91bcd28968135c493dfbc8ffbc5fb3b3b9e4494883812f3e" ;;
+  esac
+  echo "⬇️ 下载 flux_agent 2.0.11-beta 中..."
+  if ! curl -fL "$DOWNLOAD_URL" -o "$output_path"; then
+    echo "❌ 无法下载已编译的 Agent。"
+    return 1
+  fi
+  if ! echo "$expected_sha256  $output_path" | sha256sum -c - >/dev/null; then
+    echo "❌ Agent 文件校验失败，已停止安装。"
+    rm -f "$output_path"
+    return 1
+  fi
 
   if ! is_elf_binary "$output_path"; then
-    echo "❌ 构建结果不是有效 ELF 二进制。"
+    echo "❌ 下载结果不是有效 ELF 二进制。"
     return 1
   fi
 
   chmod +x "$output_path"
+  if ! "$output_path" -V | grep -q '2.0.11-beta'; then
+    echo "❌ Agent 版本校验失败。"
+    return 1
+  fi
   return 0
 }
 
@@ -384,7 +397,7 @@ update_flux_agent() {
     return 1
   fi
   
-  echo "📥 优先下载地址: $DOWNLOAD_URL"
+  echo "📥 下载地址: $DOWNLOAD_URL"
   
   # 检查并安装 tcpkill
   check_and_install_tcpkill
