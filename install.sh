@@ -49,11 +49,11 @@ ensure_go_installed() {
     major="$(echo "$current_go" | awk -F. '{print $1}')"
     minor="$(echo "$current_go" | awk -F. '{print $2}')"
     if [[ -n "$major" && -n "$minor" ]]; then
-      if (( major > 1 || (major == 1 && minor >= 21) )); then
+      if (( major > 1 || (major == 1 && minor >= 23) )); then
         return 0
       fi
     fi
-    echo "⚠️ 检测到 Go 版本过低: ${current_go:-unknown}，需要升级到 1.21+"
+    echo "⚠️ 检测到 Go 版本过低: ${current_go:-unknown}，需要升级到 1.23+"
   fi
 
   echo "🧩 开始安装/升级 Go..."
@@ -119,7 +119,7 @@ build_flux_agent_from_source() {
   # 优先使用 Docker 构建，避免宿主机 Go 版本过低
   if command -v docker >/dev/null 2>&1; then
     if docker run --rm -v "$src_dir:/src" -w /src golang:1.23 sh -lc \
-      "CGO_ENABLED=0 GOOS=linux GOARCH=$arch /usr/local/go/bin/go build -ldflags='-s -w' -o /src/flux_agent" >/dev/null 2>&1; then
+      "CGO_ENABLED=0 GOOS=linux GOARCH=$arch /usr/local/go/bin/go build -mod=mod -ldflags='-s -w' -o /src/flux_agent" >/dev/null 2>&1; then
       cp "$src_dir/flux_agent" "$output_path"
       rm -f "$src_dir/flux_agent"
       rm -rf "$tmp_dir"
@@ -135,7 +135,7 @@ build_flux_agent_from_source() {
 
   (
     cd "$src_dir" || exit 1
-    CGO_ENABLED=0 GOOS=linux GOARCH="$arch" go build -ldflags="-s -w" -o "$output_path"
+    CGO_ENABLED=0 GOOS=linux GOARCH="$arch" go build -mod=mod -ldflags="-s -w" -o "$output_path"
   ) || {
     echo "❌ 编译 flux_agent 失败。"
     rm -rf "$tmp_dir"
@@ -150,15 +150,13 @@ fetch_flux_agent_binary() {
   local output_path="$1"
   echo "⬇️ 下载 flux_agent 中..."
 
-  # 先尝试 release 资产（可能不存在），失败则回退源码编译
-  if ! curl -fL "$DOWNLOAD_URL" -o "$output_path"; then
-    echo "⚠️ release 资产下载失败，改为源码编译。"
-    build_flux_agent_from_source "$output_path" || return 1
-  fi
+  # 固定 release 资产早于当前 beta 源码，不包含节点 IPv4/IPv6 上报。
+  # 始终构建当前 beta，避免安装成功却仍运行旧功能。
+  build_flux_agent_from_source "$output_path" || return 1
 
   if ! is_elf_binary "$output_path"; then
-    echo "⚠️ 下载文件不是有效 ELF 二进制，改为源码编译。"
-    build_flux_agent_from_source "$output_path" || return 1
+    echo "❌ 构建结果不是有效 ELF 二进制。"
+    return 1
   fi
 
   chmod +x "$output_path"
@@ -301,21 +299,17 @@ install_flux_agent() {
 
   mkdir -p "$INSTALL_DIR"
 
-  # 停止并禁用已有服务
+  # 先构建新版本，失败时保留正在运行的旧服务。
+  if ! fetch_flux_agent_binary "$INSTALL_DIR/flux_agent.new"; then
+    echo "❌ 安装失败：无法获取有效的 flux_agent 二进制。"
+    exit 1
+  fi
   if systemctl list-units --full -all | grep -Fq "flux_agent.service"; then
     echo "🔍 检测到已存在的flux_agent服务"
     systemctl stop flux_agent 2>/dev/null && echo "🛑 停止服务"
     systemctl disable flux_agent 2>/dev/null && echo "🚫 禁用自启"
   fi
-
-  # 删除旧文件
-  [[ -f "$INSTALL_DIR/flux_agent" ]] && echo "🧹 删除旧文件 flux_agent" && rm -f "$INSTALL_DIR/flux_agent"
-
-  # 下载或编译 flux_agent
-  if ! fetch_flux_agent_binary "$INSTALL_DIR/flux_agent"; then
-    echo "❌ 安装失败：无法获取有效的 flux_agent 二进制。"
-    exit 1
-  fi
+  mv -f "$INSTALL_DIR/flux_agent.new" "$INSTALL_DIR/flux_agent"
   echo "✅ flux_agent 已就绪"
 
   # 打印版本
