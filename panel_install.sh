@@ -12,7 +12,7 @@ REPO_OWNER="pkhosn"
 REPO_NAME="flux-panel"
 REPO_BRANCH="beta"
 COMPOSE_PROJECT_NAME="flux-panel"
-SCRIPT_VERSION="2026-10-12.3"
+SCRIPT_VERSION="2026-10-12.4"
 DOCKER_COMPOSEV4_URL="https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/refs/heads/${REPO_BRANCH}/docker-compose-v4.yml"
 DOCKER_COMPOSEV6_URL="https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/refs/heads/${REPO_BRANCH}/docker-compose-v6.yml"
 
@@ -56,6 +56,10 @@ check_docker() {
 # gost-network、sqlite_data 和 backend_logs。
 compose() {
   COMPOSE_PROJECT_NAME="$COMPOSE_PROJECT_NAME" $DOCKER_CMD "$@"
+}
+
+backend_container_id() {
+  docker ps -q --filter "label=com.docker.compose.project=$COMPOSE_PROJECT_NAME" --filter "label=com.docker.compose.service=backend" | head -n1
 }
 
 prepare_shared_resources() {
@@ -326,7 +330,7 @@ update_panel() {
   # 检查后端容器健康状态
   echo "🔍 检查后端服务状态..."
   for i in {1..90}; do
-    backend_container=$(compose ps -q backend 2>/dev/null || true)
+    backend_container=$(backend_container_id)
     if [[ -n "$backend_container" ]]; then
       BACKEND_HEALTH=$(docker inspect -f '{{.State.Health.Status}}' "$backend_container" 2>/dev/null || echo "unknown")
       if [[ "$BACKEND_HEALTH" == "healthy" ]]; then
@@ -501,7 +505,7 @@ import_backup() {
 
   echo "🔍 检查后端服务状态..."
   for i in {1..90}; do
-    backend_container=$(compose ps -q backend 2>/dev/null || true)
+    backend_container=$(backend_container_id)
     if [[ -n "$backend_container" ]]; then
       BACKEND_HEALTH=$(docker inspect -f '{{.State.Health.Status}}' "$backend_container" 2>/dev/null || echo "unknown")
       if [[ "${BACKEND_HEALTH}" == "healthy" ]]; then
