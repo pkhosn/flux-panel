@@ -57,6 +57,50 @@ compose() {
   COMPOSE_PROJECT_NAME="$COMPOSE_PROJECT_NAME" $DOCKER_CMD "$@"
 }
 
+prepare_shared_resources() {
+  if ! docker network inspect gost-network >/dev/null 2>&1; then
+    docker network create --driver bridge gost-network >/dev/null
+  fi
+  docker volume inspect sqlite_data >/dev/null 2>&1 || docker volume create sqlite_data >/dev/null
+  docker volume inspect backend_logs >/dev/null 2>&1 || docker volume create backend_logs >/dev/null
+}
+
+recover_existing_config() {
+  local backend_port frontend_port jwt
+  if [[ ! -f .env ]]; then
+    touch .env
+    chmod 600 .env
+  fi
+  backend_port=$(docker port springboot-backend 6365/tcp 2>/dev/null | head -n1 | sed -E 's/.*:([0-9]+)$/\1/' || true)
+  frontend_port=$(docker port vite-frontend 80/tcp 2>/dev/null | head -n1 | sed -E 's/.*:([0-9]+)$/\1/' || true)
+  jwt=$(docker inspect springboot-backend --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null | sed -n 's/^JWT_SECRET=//p' | head -n1 || true)
+  [[ -n "$backend_port" ]] || backend_port=6365
+  [[ -n "$frontend_port" ]] || frontend_port=6366
+  [[ -n "$jwt" ]] || jwt=$(grep -E '^JWT_SECRET=' .env | cut -d= -f2- || true)
+  [[ -n "$jwt" ]] || jwt=$(generate_random)
+  grep -q '^BACKEND_PORT=' .env || echo "BACKEND_PORT=$backend_port" >> .env
+  grep -q '^FRONTEND_PORT=' .env || echo "FRONTEND_PORT=$frontend_port" >> .env
+  if ! grep -q '^JWT_SECRET=' .env; then
+    echo "JWT_SECRET=$jwt" >> .env
+  fi
+  set -a
+  . ./.env
+  set +a
+}
+
+take_over_existing_containers() {
+  local project
+  for container in springboot-backend vite-frontend; do
+    if docker inspect "$container" >/dev/null 2>&1; then
+      project=$(docker inspect "$container" --format '{{index .Config.Labels "com.docker.compose.project"}}' 2>/dev/null || true)
+      if [[ "$project" != "$COMPOSE_PROJECT_NAME" ]]; then
+        docker stop -t 30 "$container" >/dev/null 2>&1 || true
+        docker rm "$container" >/dev/null 2>&1 || true
+      fi
+    fi
+  done
+}
+
 # 检测系统是否支持 IPv6
 check_ipv6_support() {
   echo "🔍 检测 IPv6 支持..."
@@ -238,6 +282,7 @@ update_panel() {
   check_docker
 
   echo "🔽 下载最新配置文件..."
+  recover_existing_config
   DOCKER_COMPOSE_URL=$(get_docker_compose_url)
   echo "📡 选择配置文件：$(basename "$DOCKER_COMPOSE_URL")"
   curl -L -o docker-compose.yml "$DOCKER_COMPOSE_URL"
@@ -249,6 +294,8 @@ update_panel() {
     configure_docker_ipv6
   fi
 
+  prepare_shared_resources
+  take_over_existing_containers
   # 先发送 SIGTERM 信号，让应用优雅关闭
   docker stop -t 30 springboot-backend 2>/dev/null || true
   docker stop -t 10 vite-frontend 2>/dev/null || true

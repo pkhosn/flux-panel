@@ -46,18 +46,13 @@ services:
 volumes:
   sqlite_data:
     name: sqlite_data
-    driver: local
+    external: true
   backend_logs:
     name: backend_logs
-    driver: local
+    external: true
 
 
 networks:
   gost-network:
     name: gost-network
-    driver: bridge
-    enable_ipv6: true
-    ipam:
-      config:
-        - subnet: 172.20.0.0/16 
-        - subnet: fd00:dead:beef::/48
+    external: true
