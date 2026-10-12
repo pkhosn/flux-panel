@@ -118,8 +118,9 @@ func main() {
 
 	log := xlogger.NewLogger()
 	logger.SetDefault(log)
+	service.SetProtocolBlock(config.Http, config.Tls, config.Socks)
 
-	wsReporter := socket.StartWebSocketReporterWithConfig(config.Addr, config.Secret, config.Http, config.Tls, config.Socks, "2.0.2")
+	wsReporter := socket.StartWebSocketReporterWithConfig(config.Addr, config.Secret, config.Http, config.Tls, config.Socks, version)
 	defer wsReporter.Stop()
 	service.SetHTTPReportURL(config.Addr, config.Secret)
 
