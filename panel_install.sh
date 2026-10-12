@@ -89,14 +89,11 @@ recover_existing_config() {
 }
 
 take_over_existing_containers() {
-  local project
   for container in springboot-backend vite-frontend; do
     if docker inspect "$container" >/dev/null 2>&1; then
-      project=$(docker inspect "$container" --format '{{index .Config.Labels "com.docker.compose.project"}}' 2>/dev/null || true)
-      if [[ "$project" != "$COMPOSE_PROJECT_NAME" ]]; then
-        docker stop -t 30 "$container" >/dev/null 2>&1 || true
-        docker rm "$container" >/dev/null 2>&1 || true
-      fi
+      echo "🔁 接管现有容器：$container"
+      docker stop -t 30 "$container" >/dev/null 2>&1 || true
+      docker rm -f "$container" >/dev/null 2>&1 || true
     fi
   done
 }
@@ -306,6 +303,9 @@ update_panel() {
   
   # 然后再完全停止
   compose down
+  # 旧版本可能属于 root 或其他 Compose 项目，compose down 无法移除它们。
+  # 固定容器名必须在 up 前释放，但不会触碰数据卷。
+  take_over_existing_containers
 
   echo "🏗️ 构建并启动更新后的服务..."
   compose up -d --build
