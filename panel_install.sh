@@ -11,6 +11,7 @@ export LC_ALL=C
 REPO_OWNER="pkhosn"
 REPO_NAME="flux-panel"
 REPO_BRANCH="beta"
+COMPOSE_PROJECT_NAME="flux-panel"
 DOCKER_COMPOSEV4_URL="https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/refs/heads/${REPO_BRANCH}/docker-compose-v4.yml"
 DOCKER_COMPOSEV6_URL="https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/refs/heads/${REPO_BRANCH}/docker-compose-v6.yml"
 
@@ -48,6 +49,12 @@ check_docker() {
     exit 1
   fi
   echo "检测到 Docker 命令：$DOCKER_CMD"
+}
+
+# 固定 Compose 项目名，确保从任意部署目录更新时都复用原有容器、
+# gost-network、sqlite_data 和 backend_logs。
+compose() {
+  COMPOSE_PROJECT_NAME="$COMPOSE_PROJECT_NAME" $DOCKER_CMD "$@"
 }
 
 # 检测系统是否支持 IPv6
@@ -213,7 +220,7 @@ BACKEND_PORT=$BACKEND_PORT
 EOF
 
   echo "🚀 构建并启动 docker 服务..."
-  $DOCKER_CMD up -d --build
+  compose up -d --build
 
   echo "🎉 部署完成"
   echo "🌐 访问地址: http://服务器IP:$FRONTEND_PORT"
@@ -251,10 +258,10 @@ update_panel() {
   sleep 5
   
   # 然后再完全停止
-  $DOCKER_CMD down
+  compose down
 
   echo "🏗️ 构建并启动更新后的服务..."
-  $DOCKER_CMD up -d --build
+  compose up -d --build
 
   # 等待服务启动
   echo "⏳ 等待服务启动..."
@@ -315,7 +322,7 @@ uninstall_panel() {
   fi
 
   echo "🛑 停止并删除容器、镜像、卷..."
-  $DOCKER_CMD down --rmi all --volumes --remove-orphans
+  compose down --rmi all --volumes --remove-orphans
   echo "🧹 删除配置文件..."
   rm -f docker-compose.yml .env
   echo "✅ 卸载完成"
@@ -401,7 +408,7 @@ import_backup() {
   docker stop -t 30 springboot-backend 2>/dev/null || true
   docker stop -t 10 vite-frontend 2>/dev/null || true
   sleep 3
-  $DOCKER_CMD down || true
+  compose down || true
 
   # 恢复配置文件
   [[ -f "${TMP_DIR}/docker-compose.yml" ]] && cp -f "${TMP_DIR}/docker-compose.yml" ./docker-compose.yml
@@ -432,7 +439,7 @@ import_backup() {
   rm -rf "${TMP_DIR}"
 
   echo "🚀 启动服务..."
-  $DOCKER_CMD up -d --build
+  compose up -d --build
 
   echo "🔍 检查后端服务状态..."
   for i in {1..90}; do
