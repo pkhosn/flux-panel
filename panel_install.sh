@@ -12,6 +12,7 @@ REPO_OWNER="pkhosn"
 REPO_NAME="flux-panel"
 REPO_BRANCH="beta"
 COMPOSE_PROJECT_NAME="flux-panel"
+SCRIPT_VERSION="2026-10-12.3"
 DOCKER_COMPOSEV4_URL="https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/refs/heads/${REPO_BRANCH}/docker-compose-v4.yml"
 DOCKER_COMPOSEV6_URL="https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/refs/heads/${REPO_BRANCH}/docker-compose-v6.yml"
 
@@ -276,6 +277,7 @@ EOF
 # 更新功能
 update_panel() {
   echo "🔄 开始更新面板..."
+  echo "📌 更新脚本版本：$SCRIPT_VERSION"
   check_docker
 
   echo "🔽 下载最新配置文件..."
@@ -308,6 +310,14 @@ update_panel() {
   take_over_existing_containers
 
   echo "🏗️ 构建并启动更新后的服务..."
+  # 最后一道保护：无论旧容器属于哪个 Compose 项目，都不能阻塞新容器创建。
+  for legacy_name in springboot-backend vite-frontend; do
+    legacy_ids=$(docker ps -aq --filter "name=^/${legacy_name}$" || true)
+    if [[ -n "$legacy_ids" ]]; then
+      echo "🧹 清理旧容器：$legacy_name"
+      docker rm -f $legacy_ids >/dev/null
+    fi
+  done
   compose up -d --build
 
   # 等待服务启动
