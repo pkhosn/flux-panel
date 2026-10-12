@@ -26,6 +26,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.UUID;
+import java.net.InetAddress;
 
 
 @Slf4j
@@ -270,6 +271,22 @@ public class WebSocketServer extends TextWebSocketHandler {
                 // 更新节点状态为在线
                 Node node = nodeService.getById(nodeId);
                 if (node != null) {
+                    String detectedIpv4 = publicAddress((String) session.getAttributes().get("reportedIpv4"), true);
+                    if (detectedIpv4 == null) {
+                        detectedIpv4 = publicAddress((String) session.getAttributes().get("detectedIpv4"), true);
+                    }
+                    String detectedIpv6 = publicAddress((String) session.getAttributes().get("reportedIpv6"), false);
+                    if (detectedIpv4 != null) {
+                        node.setDetectedIpv4(detectedIpv4);
+                    }
+                    if (detectedIpv6 != null) {
+                        node.setDetectedIpv6(detectedIpv6);
+                    }
+                    if (detectedIpv4 != null) {
+                        node.setServerIp(detectedIpv4);
+                    } else if (detectedIpv6 != null) {
+                        node.setServerIp(detectedIpv6);
+                    }
                     // 更新状态和版本信息
                     node.setStatus(1);
                     if (version != null) {
@@ -320,6 +337,27 @@ public class WebSocketServer extends TextWebSocketHandler {
             } catch (Exception cleanupException) {
                 log.info("清理异常会话时出错: {}", cleanupException.getMessage());
             }
+        }
+    }
+
+    private static String publicAddress(String value, boolean ipv4) {
+        if (value == null || value.length() > 45 || value.isBlank()) {
+            return null;
+        }
+        try {
+            InetAddress address = InetAddress.getByName(value);
+            byte[] bytes = address.getAddress();
+            if (bytes.length != (ipv4 ? 4 : 16) || address.isAnyLocalAddress()
+                    || address.isLoopbackAddress() || address.isLinkLocalAddress()
+                    || address.isSiteLocalAddress() || address.isMulticastAddress()) {
+                return null;
+            }
+            if (!ipv4 && (bytes[0] & 0xfe) == 0xfc) {
+                return null;
+            }
+            return address.getHostAddress();
+        } catch (Exception ignored) {
+            return null;
         }
     }
 

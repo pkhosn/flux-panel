@@ -342,8 +342,8 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
                 // 使用节点的serverIp（一对一，不求笛卡尔积）
                 for (ForwardPort forwardPort : forwardPorts) {
                     Node node = nodeService.getById(forwardPort.getNodeId());
-                    if (node != null && node.getServerIp() != null && forwardPort.getPort() != null) {
-                        ipPortSet.add(node.getServerIp() + ":" + forwardPort.getPort());
+                    if (node != null && node.getServerIp() != null && !node.getServerIp().isBlank() && forwardPort.getPort() != null) {
+                        ipPortSet.add(GostUtil.processServerAddress(node.getServerIp() + ":" + forwardPort.getPort()));
                     }
                 }
                 

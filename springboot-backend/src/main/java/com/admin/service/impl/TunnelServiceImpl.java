@@ -117,6 +117,7 @@ public class TunnelServiceImpl extends ServiceImpl<TunnelMapper, Tunnel> impleme
         if (list.size() != node_ids.size()) return R.err("部分节点不存在");
         for (Node node : list) {
             if (node.getStatus() != 1) return R.err("部分节点不在线");
+            if (StringUtils.isBlank(node.getServerIp())) return R.err("节点地址尚未获取");
         }
         if (roleId != 0) {
             R permissionCheck = validateTunnelNodePermissions(tunnelDto, userId);
@@ -715,6 +716,9 @@ public class TunnelServiceImpl extends ServiceImpl<TunnelMapper, Tunnel> impleme
             }
             if (node.getStatus() != 1) {
                 throw new RuntimeException("部分节点不在线");
+            }
+            if (StringUtils.isBlank(node.getServerIp())) {
+                throw new RuntimeException("节点地址尚未获取");
             }
         }
 

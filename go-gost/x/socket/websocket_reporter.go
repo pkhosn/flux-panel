@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
@@ -220,6 +221,16 @@ func (w *WebSocketReporter) connect() error {
 	if err != nil {
 		return fmt.Errorf("解析URL失败: %v", err)
 	}
+	if ipv6 := publicIPv6Address(); ipv6 != "" {
+		query := u.Query()
+		query.Set("ipv6", ipv6)
+		u.RawQuery = query.Encode()
+	}
+	if ipv4 := publicIPv4Address(); ipv4 != "" {
+		query := u.Query()
+		query.Set("ipv4", ipv4)
+		u.RawQuery = query.Encode()
+	}
 
 	dialer := websocket.DefaultDialer
 	dialer.HandshakeTimeout = 10 * time.Second
@@ -248,6 +259,72 @@ func (w *WebSocketReporter) connect() error {
 
 	fmt.Printf("✅ WebSocket连接建立成功 (http=%d, tls=%d, socks=%d)\n", cfg.Http, cfg.Tls, cfg.Socks)
 	return nil
+}
+
+// publicIPv6Address reports a stable global address from a local interface.
+// The panel observes the IPv4 connection address separately, which also works
+// when the agent is behind an IPv4 NAT.
+func publicIPv6Address() string {
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		return ""
+	}
+	for _, iface := range interfaces {
+		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
+			continue
+		}
+		addresses, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+		for _, address := range addresses {
+			ip, _, err := net.ParseCIDR(address.String())
+			if err == nil && ip.To4() == nil && ip.IsGlobalUnicast() && !ip.IsPrivate() {
+				return ip.String()
+			}
+		}
+	}
+	return ""
+}
+
+func publicIPv4Address() string {
+	interfaces, err := net.Interfaces()
+	if err == nil {
+		for _, iface := range interfaces {
+			if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
+				continue
+			}
+			addresses, err := iface.Addrs()
+			if err != nil {
+				continue
+			}
+			for _, address := range addresses {
+				ip, _, err := net.ParseCIDR(address.String())
+				if err == nil && ip.To4() != nil && ip.IsGlobalUnicast() && !ip.IsPrivate() {
+					return ip.String()
+				}
+			}
+		}
+	}
+	client := &http.Client{Timeout: 3 * time.Second}
+	response, err := client.Get("https://api.ipify.org")
+	if err != nil {
+		return ""
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return ""
+	}
+	body := make([]byte, 64)
+	n, err := response.Body.Read(body)
+	if err != nil && n == 0 {
+		return ""
+	}
+	ip := net.ParseIP(strings.TrimSpace(string(body[:n])))
+	if ip == nil || ip.To4() == nil || ip.IsPrivate() {
+		return ""
+	}
+	return ip.String()
 }
 
 // handleConnection 处理WebSocket连接

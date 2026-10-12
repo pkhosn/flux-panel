@@ -14,7 +14,6 @@ public class NodeUpdateDto {
     @NotBlank(message = "节点名称不能为空")
     private String name;
 
-    @NotBlank(message = "服务器ip不能为空")
     private String serverIp;
 
     @NotBlank(message = "可用port不能为空")

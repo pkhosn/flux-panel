@@ -58,7 +58,7 @@ public class NodeServiceImpl extends ServiceImpl<NodeMapper, Node> implements No
         node.setStatus(0);
         node.setPort(nodeDto.getPort());
         node.setName(nodeDto.getName());
-        node.setServerIp(nodeDto.getServerIp());
+        node.setServerIp(nodeDto.getServerIp() == null ? "" : nodeDto.getServerIp().trim());
         node.setOwnerUserId(roleId == 0 ? null : userId);
         node.setCreatedByRole(roleId);
         long currentTime = System.currentTimeMillis();
@@ -205,7 +205,7 @@ public class NodeServiceImpl extends ServiceImpl<NodeMapper, Node> implements No
         Node node = new Node();
         node.setId(nodeUpdateDto.getId());
         node.setName(nodeUpdateDto.getName());
-        node.setServerIp(nodeUpdateDto.getServerIp());
+        node.setServerIp(nodeUpdateDto.getServerIp() == null ? "" : nodeUpdateDto.getServerIp().trim());
         node.setPort(nodeUpdateDto.getPort());
         node.setHttp(nodeUpdateDto.getHttp());
         node.setTls(nodeUpdateDto.getTls());

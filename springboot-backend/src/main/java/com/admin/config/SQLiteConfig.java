@@ -86,6 +86,8 @@ public class SQLiteConfig implements ApplicationRunner {
     private void ensureSchema(Connection connection) throws Exception {
         ensureColumn(connection, "node", "owner_user_id", "INTEGER");
         ensureColumn(connection, "node", "created_by_role", "INTEGER NOT NULL DEFAULT 0");
+        ensureColumn(connection, "node", "detected_ipv4", "VARCHAR(100)");
+        ensureColumn(connection, "node", "detected_ipv6", "VARCHAR(100)");
         ensureColumn(connection, "tunnel", "owner_user_id", "INTEGER");
         ensureColumn(connection, "tunnel", "created_by_role", "INTEGER NOT NULL DEFAULT 0");
         ensureUserNodePermissionTable(connection);

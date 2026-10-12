@@ -28,6 +28,8 @@ interface Node {
   name: string;
   ip: string;
   serverIp: string;
+  detectedIpv4?: string;
+  detectedIpv6?: string;
   port: string;
   tcpListenAddr?: string;
   udpListenAddr?: string;
@@ -182,6 +184,9 @@ export default function NodePage() {
     const { id, type, data: messageData } = data;
     
     if (type === 'status') {
+      if (messageData === 1) {
+        loadNodes();
+      }
       setNodeList(prev => prev.map(node => {
         if (node.id == id) {
           return {
@@ -433,9 +438,7 @@ export default function NodePage() {
       newErrors.name = '节点名称长度不能超过50位';
     }
     
-    if (!form.serverIp.trim()) {
-      newErrors.serverIp = '请输入服务器IP地址';
-    } else if (!validateIp(form.serverIp.trim())) {
+    if (form.serverIp.trim() && !validateIp(form.serverIp.trim())) {
       newErrors.serverIp = '请输入有效的IPv4、IPv6地址或域名';
     }
     
@@ -699,10 +702,18 @@ export default function NodePage() {
                     <div className="flex justify-between items-center text-sm min-w-0">
                       <span className="text-default-600 flex-shrink-0">IP</span>
                       <div className="text-right text-xs min-w-0 flex-1 ml-2">
-                      <span className="font-mono truncate block" title={node.serverIp.trim()}>
-                              {node.serverIp.trim()}
+                      <span className="font-mono truncate block" title={node.serverIp?.trim() || '待获取'}>
+                              {node.serverIp?.trim() || '待获取'}
                       </span>
                       </div>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-default-600">IPv4</span>
+                      <span className="font-mono text-xs">{node.detectedIpv4 || '未获取'}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-default-600">IPv6</span>
+                      <span className="font-mono text-xs truncate ml-2" title={node.detectedIpv6 || ''}>{node.detectedIpv6 || '未获取'}</span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-default-600">版本</span>
@@ -874,8 +885,8 @@ export default function NodePage() {
                 />
 
                 <Input
-                  label="服务器IP"
-                  placeholder="请输入服务器IP地址，如: 192.168.1.100 或 example.com"
+                  label="服务器地址（可留空，Agent 连接后自动获取）"
+                  placeholder="可留空，或填写 IP / 域名作为获取前的地址"
                   value={form.serverIp}
                   onChange={(e) => setForm(prev => ({ ...prev, serverIp: e.target.value }))}
                   isInvalid={!!errors.serverIp}

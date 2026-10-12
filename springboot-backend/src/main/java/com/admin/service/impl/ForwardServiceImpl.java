@@ -111,7 +111,7 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
                 // 组合 IP:Port（笛卡尔积）
                 for (String ip : uniqueIps) {
                     for (Integer port : uniquePorts) {
-                        ipPortSet.add(ip + ":" + port);
+                        ipPortSet.add(GostUtil.processServerAddress(ip + ":" + port));
                     }
                 }
                 
@@ -123,8 +123,8 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
                 // 使用节点的serverIp（一对一，不求笛卡尔积）
                 for (ForwardPort forwardPort : forwardPorts) {
                     Node node = nodeService.getById(forwardPort.getNodeId());
-                    if (node != null && node.getServerIp() != null && forwardPort.getPort() != null) {
-                        ipPortSet.add(node.getServerIp() + ":" + forwardPort.getPort());
+                    if (node != null && node.getServerIp() != null && !node.getServerIp().isBlank() && forwardPort.getPort() != null) {
+                        ipPortSet.add(GostUtil.processServerAddress(node.getServerIp() + ":" + forwardPort.getPort()));
                     }
                 }
                 
