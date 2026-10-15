@@ -2136,9 +2136,8 @@ export default function ForwardPage() {
                         const protocol = Array.from(keys)[0] as ForwardForm["protocol"];
                         if (protocol) setForm(prev => ({ ...prev, protocol }));
                       }}
-                      isDisabled={isEdit}
                       variant="bordered"
-                      description={isEdit ? "已有规则的协议暂不可修改" : "新规则选择 TCP 或 UDP；旧规则保持 TCP+UDP"}
+                      description="可选 TCP、UDP；旧规则保持 TCP+UDP，编辑时也可切换"
                     >
                       <SelectItem key="tcp">TCP</SelectItem>
                       <SelectItem key="udp">UDP</SelectItem>

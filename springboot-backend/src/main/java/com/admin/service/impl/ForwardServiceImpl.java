@@ -228,11 +228,19 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
         if (existForward == null) {
             return R.err("转发不存在");
         }
+        if (!Objects.equals(existForward.getStatus(), 1)) {
+            return R.err("暂停中的规则请先恢复，再编辑或切换入口");
+        }
 
         Integer targetTunnelId = forwardUpdateDto.getTunnelId() != null
                 ? forwardUpdateDto.getTunnelId()
                 : existForward.getTunnelId();
         boolean tunnelChanged = !Objects.equals(existForward.getTunnelId(), targetTunnelId);
+        String previousProtocol = GostUtil.normalizeForwardProtocol(existForward.getProtocol());
+        String nextProtocol = forwardUpdateDto.getProtocol() == null
+                ? previousProtocol : GostUtil.normalizeForwardProtocol(forwardUpdateDto.getProtocol());
+        if (nextProtocol == null) return R.err("转发协议无效");
+        boolean recreateServices = tunnelChanged || !Objects.equals(previousProtocol, nextProtocol);
 
         Tunnel tunnel = validateTunnel(targetTunnelId);
         if (tunnel == null) {
@@ -256,7 +264,7 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
 
         UserTunnel oldUserTunnel = null;
         Tunnel oldTunnel = null;
-        if (tunnelChanged) {
+        if (recreateServices) {
             oldTunnel = validateTunnel(existForward.getTunnelId());
             if (oldTunnel != null) {
                 oldUserTunnel = getUserTunnel(existForward.getUserId(), oldTunnel.getId().intValue());
@@ -266,11 +274,6 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
         Forward previousForward = new Forward();
         BeanUtils.copyProperties(existForward, previousForward);
         existForward.setRemoteAddr(forwardUpdateDto.getRemoteAddr());
-        String previousProtocol = GostUtil.normalizeForwardProtocol(existForward.getProtocol());
-        String nextProtocol = forwardUpdateDto.getProtocol() == null
-                ? previousProtocol : GostUtil.normalizeForwardProtocol(forwardUpdateDto.getProtocol());
-        if (nextProtocol == null) return R.err("转发协议无效");
-        if (!Objects.equals(previousProtocol, nextProtocol)) return R.err("暂不支持修改已有规则的转发协议");
         if (forwardUpdateDto.getGroupId() != null) {
             if (!validGroup(forwardUpdateDto.getGroupId(), existForward.getUserId())) return R.err("分组不存在或无权使用");
             existForward.setGroupId(forwardUpdateDto.getGroupId() == 0 ? null : forwardUpdateDto.getGroupId());
@@ -294,7 +297,7 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
 
         String newServiceName = buildServiceName(existForward.getId(), existForward.getUserId(), newUserTunnel);
 
-        if (!tunnelChanged) {
+        if (!recreateServices) {
             Map<Long, ForwardPort> oldPorts = forwardPortService.list(
                     new QueryWrapper<ForwardPort>().eq("forward_id", existForward.getId())
             ).stream().collect(Collectors.toMap(ForwardPort::getNodeId, port -> port));
@@ -357,9 +360,10 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
             return R.ok();
         }
 
-        if (oldTunnel == null) return R.err("原隧道不存在，无法安全迁移规则");
+        if (oldTunnel == null) return R.err("原隧道不存在，无法安全修改规则");
         List<ForwardPort> oldPorts = forwardPortService.list(
                 new QueryWrapper<ForwardPort>().eq("forward_id", existForward.getId()));
+        if (oldPorts.isEmpty()) return R.err("原入口端口记录缺失，无法安全修改规则");
         Map<Long, Node> oldNodes = new HashMap<>();
         for (ForwardPort oldPort : oldPorts) {
             Node node = nodeService.getById(oldPort.getNodeId());
