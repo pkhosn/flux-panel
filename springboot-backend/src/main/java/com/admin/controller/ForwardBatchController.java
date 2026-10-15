@@ -108,8 +108,8 @@ public class ForwardBatchController {
                 for (Map<String, Object> row : selected) {
                     int ruleOwner = ((Number) row.get("user_id")).intValue();
                     if (!admin && ruleOwner != owner) return R.err("规则无权操作");
-                    Number originalPort = jdbc.queryForObject(
-                            "SELECT MIN(port) FROM forward_port WHERE forward_id=?", Number.class, row.get("id"));
+                    Integer originalPort = jdbc.queryForObject(
+                            "SELECT MIN(port) FROM forward_port WHERE forward_id=?", Integer.class, row.get("id"));
                     Integer distinctPorts = jdbc.queryForObject(
                             "SELECT COUNT(DISTINCT port) FROM forward_port WHERE forward_id=?", Integer.class, row.get("id"));
                     if (originalPort == null || distinctPorts == null || distinctPorts != 1) {

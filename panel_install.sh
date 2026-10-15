@@ -12,11 +12,11 @@ REPO_OWNER="pkhosn"
 REPO_NAME="flux-panel"
 REPO_BRANCH="beta"
 COMPOSE_PROJECT_NAME="flux-panel"
-SCRIPT_VERSION="2026-10-12.4"
+SCRIPT_VERSION="2026-10-15.1"
 DOCKER_COMPOSEV4_URL="https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/refs/heads/${REPO_BRANCH}/docker-compose-v4.yml"
 DOCKER_COMPOSEV6_URL="https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/refs/heads/${REPO_BRANCH}/docker-compose-v6.yml"
 
-COUNTRY=$(curl -s https://ipinfo.io/country)
+COUNTRY=$(curl -fsS --connect-timeout 5 --max-time 8 https://ipinfo.io/country 2>/dev/null || true)
 if [ "$COUNTRY" = "CN" ]; then
     # 拼接 URL
     DOCKER_COMPOSEV4_URL="https://ghfast.top/${DOCKER_COMPOSEV4_URL}"
@@ -71,23 +71,33 @@ prepare_shared_resources() {
 }
 
 recover_existing_config() {
-  local backend_port frontend_port jwt
+  local backend_port frontend_port jwt backend_id frontend_id
   if [[ ! -f .env ]]; then
     touch .env
     chmod 600 .env
   fi
-  backend_port=$(docker port springboot-backend 6365/tcp 2>/dev/null | head -n1 | sed -E 's/.*:([0-9]+)$/\1/' || true)
-  frontend_port=$(docker port vite-frontend 80/tcp 2>/dev/null | head -n1 | sed -E 's/.*:([0-9]+)$/\1/' || true)
-  jwt=$(docker inspect springboot-backend --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null | sed -n 's/^JWT_SECRET=//p' | head -n1 || true)
+  backend_id=$(docker ps -aq --filter "label=com.docker.compose.project=$COMPOSE_PROJECT_NAME" --filter "label=com.docker.compose.service=backend" | head -n1)
+  frontend_id=$(docker ps -aq --filter "label=com.docker.compose.project=$COMPOSE_PROJECT_NAME" --filter "label=com.docker.compose.service=frontend" | head -n1)
+  backend_id=${backend_id:-springboot-backend}
+  frontend_id=${frontend_id:-vite-frontend}
+  backend_port=$(docker port "$backend_id" 6365/tcp 2>/dev/null | head -n1 | sed -E 's/.*:([0-9]+)$/\1/' || true)
+  frontend_port=$(docker port "$frontend_id" 80/tcp 2>/dev/null | head -n1 | sed -E 's/.*:([0-9]+)$/\1/' || true)
+  jwt=$(docker inspect "$backend_id" --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null | sed -n 's/^JWT_SECRET=//p' | head -n1 || true)
   [[ -n "$backend_port" ]] || backend_port=6365
   [[ -n "$frontend_port" ]] || frontend_port=6366
   [[ -n "$jwt" ]] || jwt=$(grep -E '^JWT_SECRET=' .env | cut -d= -f2- || true)
   [[ -n "$jwt" ]] || jwt=$(generate_random)
-  grep -q '^BACKEND_PORT=' .env || echo "BACKEND_PORT=$backend_port" >> .env
-  grep -q '^FRONTEND_PORT=' .env || echo "FRONTEND_PORT=$frontend_port" >> .env
-  if ! grep -q '^JWT_SECRET=' .env; then
-    echo "JWT_SECRET=$jwt" >> .env
-  fi
+  # 保留已有非空值；空值从当前运行容器恢复，避免随机映射端口。
+  for key in BACKEND_PORT FRONTEND_PORT JWT_SECRET; do
+    if ! grep -Eq "^${key}=.+" .env; then
+      sed -i "/^${key}=/d" .env
+      case "$key" in
+        BACKEND_PORT) echo "BACKEND_PORT=$backend_port" >> .env ;;
+        FRONTEND_PORT) echo "FRONTEND_PORT=$frontend_port" >> .env ;;
+        JWT_SECRET) echo "JWT_SECRET=$jwt" >> .env ;;
+      esac
+    fi
+  done
   set -a
   . ./.env
   set +a
@@ -288,41 +298,34 @@ update_panel() {
   recover_existing_config
   DOCKER_COMPOSE_URL=$(get_docker_compose_url)
   echo "📡 选择配置文件：$(basename "$DOCKER_COMPOSE_URL")"
-  curl -L -o docker-compose.yml "$DOCKER_COMPOSE_URL"
-  echo "✅ 下载完成"
-
-  # 自动检测并配置 IPv6 支持
-  if check_ipv6_support; then
-    echo "🚀 系统支持 IPv6，自动启用 IPv6 配置..."
-    configure_docker_ipv6
+  local candidate
+  candidate=$(mktemp ./docker-compose.update.XXXXXX)
+  if ! curl -fL --connect-timeout 10 --max-time 120 --retry 2 -o "$candidate" "$DOCKER_COMPOSE_URL"; then
+    rm -f "$candidate"
+    echo "❌ 配置下载失败，现有服务继续运行"
+    return 1
   fi
-
+  if ! compose -f "$candidate" config -q; then
+    rm -f "$candidate"
+    echo "❌ 配置校验失败，现有服务继续运行"
+    return 1
+  fi
+  echo "🏗️ 构建新版本（现有服务继续运行）..."
+  if ! compose -f "$candidate" build --pull; then
+    rm -f "$candidate"
+    echo "❌ 构建失败，现有服务继续运行"
+    return 1
+  fi
+  [[ ! -f docker-compose.yml ]] || cp -p docker-compose.yml docker-compose.yml.previous
+  mv -f "$candidate" docker-compose.yml
   prepare_shared_resources
   take_over_existing_containers
-  # 先发送 SIGTERM 信号，让应用优雅关闭
-  docker stop -t 30 springboot-backend 2>/dev/null || true
-  docker stop -t 10 vite-frontend 2>/dev/null || true
-  
-  # 等待 WAL 文件同步
-  echo "⏳ 等待数据同步..."
-  sleep 5
-  
-  # 然后再完全停止
-  compose down
-  # 旧版本可能属于 root 或其他 Compose 项目，compose down 无法移除它们。
-  # 固定容器名必须在 up 前释放，但不会触碰数据卷。
-  take_over_existing_containers
-
-  echo "🏗️ 构建并启动更新后的服务..."
-  # 最后一道保护：无论旧容器属于哪个 Compose 项目，都不能阻塞新容器创建。
-  for legacy_name in springboot-backend vite-frontend; do
-    legacy_ids=$(docker ps -aq --filter "name=^/${legacy_name}$" || true)
-    if [[ -n "$legacy_ids" ]]; then
-      echo "🧹 清理旧容器：$legacy_name"
-      docker rm -f $legacy_ids >/dev/null
-    fi
-  done
-  compose up -d --build
+  echo "🚀 替换服务，保留原数据库、密钥和端口..."
+  if ! compose up -d --no-build; then
+    echo "❌ 启动失败，请检查下方日志及 docker-compose.yml.previous"
+    compose logs --tail=50 || true
+    return 1
+  fi
 
   # 等待服务启动
   echo "⏳ 等待服务启动..."
@@ -359,7 +362,19 @@ update_panel() {
     sleep 1
   done
 
-  echo "✅ 更新完成"
+  echo "🔍 检查网页与后端 HTTP 访问..."
+  if ! curl --noproxy '*' -fsS --connect-timeout 5 --max-time 15 "http://127.0.0.1:${BACKEND_PORT}/flow/test" >/dev/null; then
+    echo "❌ 后端端口 ${BACKEND_PORT} 无法访问"
+    compose logs --tail=50 || true
+    return 1
+  fi
+  if ! curl --noproxy '*' -fsS --retry 5 --retry-connrefused --retry-delay 2 --connect-timeout 5 --max-time 15 "http://127.0.0.1:${FRONTEND_PORT}/" >/dev/null; then
+    echo "❌ 网页端口 ${FRONTEND_PORT} 无法访问"
+    compose logs --tail=50 || true
+    return 1
+  fi
+  echo "✅ 更新完成，网页端口：${FRONTEND_PORT}，后端端口：${BACKEND_PORT}"
+  echo "📌 请使用原服务器地址和网页端口访问面板"
 }
 
 

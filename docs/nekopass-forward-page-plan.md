@@ -79,3 +79,13 @@
 ## 需确认的范围
 
 默认理解为：Nekopass 当前规则页面上可见的底层能力都纳入，分阶段交付；Flux 现有能力保留。Nekopass 的套餐/节点授权体系不会整体移植，规则能力与 Flux 当前的用户、隧道和配额体系对接。具体实现过程中发现规则行为依赖其他 Nekopass 子系统时，先记录依赖并调整阶段边界。
+
+## 2026-10-15 可更新版本
+
+本次交付现有规则表格、分组、协议、批量操作、统计、Proxy 设置和普通 JSON/nyanpass 导入导出。完整范围继续按上面的 TODO 推进，不能视为 Nekopass 全部能力已复刻。
+
+更新入口仍为 `./panel_install.sh` 选项 2。脚本版本 `2026-10-15.1`：按 Compose 标签恢复现有端口及密钥，补齐空环境变量；新配置先下载至临时文件并校验，构建成功后再替换服务，不再构建前执行 down；更新结束检查后端及网页 HTTP。数据卷继续使用 sqlite_data/backend_logs。原 Compose 文件保留为 docker-compose.yml.previous，此文件不构成数据库回退备份。
+
+本地验证方式：`bash -n panel_install.sh`；沿用项目 `mvn -q test`、`npm run build` 和既有 Go 测试。脚本额外在临时目录载入函数，以 shell 函数替换 curl/compose/docker，分别模拟成功、HTTP 下载失败、配置无效、构建失败；断言失败时原配置不变且未调用容器接管或启动，成功时构建先于接管。模拟当前 Compose 容器与空 .env，核对恢复原端口和 JWT。该模拟不代表生产 Docker 更新或公网连通性验证。
+
+使用限制：TLS 回源和共享 TLS/SNI 尚未实现；暂停规则与 TLS/SNI JSON 导入会拒绝；跨节点失败采用尽力补偿，尚未完成完整端到端故障验证。Proxy 功能要求 Agent 2.0.12-beta，新 Agent 已本地编译但 Release 资产尚未上传，安装脚本目前可能需要源码编译后备路径。普通规则和页面更新不要求先升级 Agent。
