@@ -24,20 +24,28 @@ func createServices(req createServicesRequest) error {
 		config  config.ServiceConfig
 		service service.Service
 	}
+	cleanupParsed := func() {
+		for _, parsed := range parsedServices {
+			parsed.service.Close()
+		}
+	}
 
 	for _, serviceConfig := range req.Data {
 		name := strings.TrimSpace(serviceConfig.Name)
 		if name == "" {
+			cleanupParsed()
 			return errors.New("service name is required")
 		}
 		serviceConfig.Name = name
 
 		if registry.ServiceRegistry().IsRegistered(name) {
+			cleanupParsed()
 			return errors.New("service " + name + " already exists")
 		}
 
 		svc, err := parser.ParseService(&serviceConfig)
 		if err != nil {
+			cleanupParsed()
 			return errors.New("create service " + name + " failed: " + err.Error())
 		}
 
@@ -53,10 +61,11 @@ func createServices(req createServicesRequest) error {
 		if err := registry.ServiceRegistry().Register(ps.config.Name, ps.service); err != nil {
 			// 如果注册失败，回滚已注册的服务
 			for _, regName := range registeredServices {
-				if svc := registry.ServiceRegistry().Get(regName); svc != nil {
-					registry.ServiceRegistry().Unregister(regName)
-					svc.Close()
-				}
+				registry.ServiceRegistry().Unregister(regName)
+			}
+			ps.service.Close()
+			for _, pending := range parsedServices[len(registeredServices)+1:] {
+				pending.service.Close()
 			}
 			return errors.New("service " + ps.config.Name + " already exists")
 		}
