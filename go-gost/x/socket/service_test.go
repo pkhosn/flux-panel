@@ -105,6 +105,45 @@ func TestUpdateServicesRestoresListenersOnParseFailure(t *testing.T) {
 	conn.Close()
 }
 
+func TestUpdateServicesReplacesConfigAndListener(t *testing.T) {
+	logger.SetDefault(xlogger.NewLogger(xlogger.OutputOption(io.Discard)))
+	config.Set(&config.Config{})
+	original := config.ServiceConfig{
+		Name: "update-success", Addr: "127.0.0.1:0",
+		Listener:  &config.ListenerConfig{Type: "tcp"},
+		Handler:   &config.HandlerConfig{Type: "tcp"},
+		Forwarder: &config.ForwarderConfig{Nodes: []*config.ForwardNodeConfig{{Name: "old", Addr: "127.0.0.1:9"}}},
+	}
+	if err := createServices(createServicesRequest{Data: []config.ServiceConfig{original}}); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		registry.ServiceRegistry().Unregister(original.Name)
+		config.Set(&config.Config{})
+	}()
+	held, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	newAddr := held.Addr().String()
+	held.Close()
+	updated := original
+	updated.Addr = newAddr
+	updated.Forwarder = &config.ForwarderConfig{Nodes: []*config.ForwardNodeConfig{{Name: "new", Addr: "127.0.0.1:10"}}}
+	if err := updateServices(updateServicesRequest{Data: []config.ServiceConfig{updated}}); err != nil {
+		t.Fatal(err)
+	}
+	stored := config.Global().Services
+	if len(stored) != 1 || stored[0].Addr != newAddr || stored[0].Forwarder.Nodes[0].Addr != "127.0.0.1:10" {
+		t.Fatal("updated service config was not stored")
+	}
+	conn, err := net.DialTimeout("tcp", newAddr, time.Second)
+	if err != nil {
+		t.Fatalf("updated listener was not started: %v", err)
+	}
+	conn.Close()
+}
+
 func TestPauseFailureRestoresEarlierService(t *testing.T) {
 	logger.SetDefault(xlogger.NewLogger(xlogger.OutputOption(io.Discard)))
 	config.Set(&config.Config{})
