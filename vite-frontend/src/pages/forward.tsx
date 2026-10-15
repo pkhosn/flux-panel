@@ -204,6 +204,7 @@ export default function ForwardPage() {
   const [diagnosisLoading, setDiagnosisLoading] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedForwardIds, setSelectedForwardIds] = useState<number[]>([]);
+  const [batchDeleteIds, setBatchDeleteIds] = useState<number[]>([]);
   const [forwardToDelete, setForwardToDelete] = useState<Forward | null>(null);
   const [currentDiagnosisForward, setCurrentDiagnosisForward] = useState<Forward | null>(null);
   const [diagnosisResult, setDiagnosisResult] = useState<DiagnosisResult | null>(null);
@@ -531,7 +532,7 @@ export default function ForwardPage() {
     const result = await getForwardStats(forward?.id);
     if (result.code !== 0) return toast.error(result.msg || "获取统计失败");
     setRuleHours(result.data || []);
-    setStatsTitle(forward ? `${forward.name} · 最近 24 小时流量` : "最近 24 小时流量");
+    setStatsTitle(forward ? `${forward.name} · 最近 24 小时流量` : JwtUtil.getRoleIdFromToken() === 0 ? "全站最近 24 小时流量" : "最近 24 小时流量");
     setStatsOpen(true);
   };
 
@@ -668,15 +669,19 @@ export default function ForwardPage() {
   };
 
   const handleBatchDelete = () => {
-    if (selectedForwardIds.length === 0) {
+    const ids = ruleView === "table"
+      ? selectedForwardIds.filter(id => tableRules.some(row => row.id === id))
+      : selectedForwardIds.filter(id => visibleForwards.some(row => row.id === id));
+    if (ids.length === 0) {
       toast.error('请先选择要删除的转发');
       return;
     }
+    setBatchDeleteIds(ids);
     setBatchDeleteModalOpen(true);
   };
 
   const confirmBatchDelete = async () => {
-    if (selectedForwardIds.length === 0) return;
+    if (batchDeleteIds.length === 0) return;
 
     setBatchDeleteLoading(true);
     try {
@@ -685,7 +690,7 @@ export default function ForwardPage() {
       let forceCount = 0;
       const failedItems: string[] = [];
 
-      for (const id of selectedForwardIds) {
+      for (const id of batchDeleteIds) {
         try {
           const res = await deleteForward(id);
           if (res.code === 0) {
@@ -715,6 +720,7 @@ export default function ForwardPage() {
       }
 
       setBatchDeleteModalOpen(false);
+      setBatchDeleteIds([]);
       setSelectionMode(false);
       setSelectedForwardIds([]);
       loadData(false);
@@ -1368,7 +1374,7 @@ export default function ForwardPage() {
   );
 
   // 根据排序顺序获取转发列表
-  const getSortedForwards = (): Forward[] => {
+  const getSortedForwards = (includeAllUsers = false): Forward[] => {
     // 确保 forwards 数组存在且有效
     if (!forwards || forwards.length === 0) {
       return [];
@@ -1376,7 +1382,7 @@ export default function ForwardPage() {
     
     // 在平铺模式下，只显示当前用户的转发
     let filteredForwards = forwards;
-    if (viewMode === 'direct') {
+    if (viewMode === 'direct' && !includeAllUsers) {
       const currentUserId = JwtUtil.getUserIdFromToken();
       if (currentUserId !== null) {
         filteredForwards = forwards.filter(forward => forward.userId === currentUserId);
@@ -1655,8 +1661,10 @@ export default function ForwardPage() {
   const allVisibleSelected = visibleForwardIds.length > 0
     && visibleForwardIds.every(id => selectedForwardIds.includes(id));
   const ownUserId = JwtUtil.getUserIdFromToken();
+  const isAdmin = JwtUtil.getRoleIdFromToken() === 0;
   const ownRuleGroups = ruleGroups.filter(group => group.userId === ownUserId);
-  const tableRules = getSortedForwards().filter(forward => {
+  const filterRuleGroups = isAdmin ? ruleGroups : ownRuleGroups;
+  const tableRules = getSortedForwards(true).filter(forward => {
     const matchesGroup = activeGroupId === -1 ||
       (activeGroupId === 0 ? !forward.groupId : forward.groupId === activeGroupId);
     const haystack = `${forward.name} ${forward.tunnelName} ${forward.inIp} ${forward.inPort} ${forward.remoteAddr} ${forward.userName || ""}`.toLowerCase();
@@ -1664,6 +1672,10 @@ export default function ForwardPage() {
   });
   const tableRuleIds = new Set(tableRules.map(row => row.id));
   const tableSelectedIds = selectedForwardIds.filter(id => tableRuleIds.has(id));
+  const selectedOwners = new Set(tableRules.filter(row => tableSelectedIds.includes(row.id)).map(row => row.userId));
+  const movableGroups = isAdmin
+    ? selectedOwners.size === 1 ? ruleGroups.filter(group => selectedOwners.has(group.userId)) : []
+    : ownRuleGroups;
   const pagedRules = tableRules.slice((rulePage - 1) * rulePageSize, rulePage * rulePageSize);
 
   return (
@@ -1675,7 +1687,7 @@ export default function ForwardPage() {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h1 className="text-lg font-semibold">转发规则</h1>
               <div className="flex flex-wrap gap-2">
-                <Button size="sm" variant="flat" onPress={() => setRuleView(ruleView === "table" ? "cards" : "table")}>
+                <Button size="sm" variant="flat" onPress={() => { setSelectedForwardIds([]); setRuleView(ruleView === "table" ? "cards" : "table"); }}>
                   {ruleView === "table" ? "卡片视图" : "表格视图"}
                 </Button>
                 <Button size="sm" variant="flat" onPress={() => loadData(false)}>刷新</Button>
@@ -1688,9 +1700,9 @@ export default function ForwardPage() {
               <Button size="sm" variant="bordered" onPress={() => setGroupModalOpen(true)}>管理分组</Button>
               <Button size="sm" variant={activeGroupId === -1 ? "solid" : "flat"} onPress={() => { setActiveGroupId(-1); setRulePage(1); }}>全部</Button>
               <Button size="sm" variant={activeGroupId === 0 ? "solid" : "flat"} onPress={() => { setActiveGroupId(0); setRulePage(1); }}>未分组</Button>
-              {ownRuleGroups.map(group => (
+              {filterRuleGroups.map(group => (
                 <Button key={group.id} size="sm" variant={activeGroupId === group.id ? "solid" : "flat"} onPress={() => { setActiveGroupId(group.id); setRulePage(1); }}>
-                  {group.name}（{group.ruleCount}）
+                  {isAdmin ? `${forwards.find(row => row.userId === group.userId)?.userName || `用户 #${group.userId}`} / ` : ""}{group.name}（{group.ruleCount}）
                 </Button>
               ))}
             </div>
@@ -1708,7 +1720,7 @@ export default function ForwardPage() {
             <Button size="sm" variant="flat" onPress={handleImport}>批量导入</Button>
             <Button size="sm" variant="flat" onPress={handleExport}>批量导出</Button>
             <Button size="sm" variant="flat" isDisabled={!tableSelectedIds.length} onPress={() => handleBatchMeta("clear")}>清空选中流量</Button>
-            <Select aria-label="批量移动到分组" size="sm" className="w-48" items={[{id: 0, name: "未分组"}, ...ownRuleGroups]} selectedKeys={[String(batchGroupId)]} onSelectionChange={keys => {
+            <Select aria-label="批量移动到分组" size="sm" className="w-48" items={[{id: 0, name: "未分组"}, ...movableGroups]} selectedKeys={[String(batchGroupId)]} onSelectionChange={keys => {
               const value = Array.from(keys)[0];
               if (value !== undefined) setBatchGroupId(Number(value));
             }}>
@@ -2276,7 +2288,7 @@ export default function ForwardPage() {
                 </ModalHeader>
                 <ModalBody>
                   <p className="text-default-600">
-                    确定要删除已选择的 <span className="font-semibold text-foreground">{selectedForwardIds.length}</span> 条转发吗？
+                    确定要删除已选择的 <span className="font-semibold text-foreground">{batchDeleteIds.length}</span> 条转发吗？
                   </p>
                   <p className="text-small text-default-500 mt-2">
                     系统会先执行常规删除，失败时自动尝试强制删除。此操作无法撤销。
