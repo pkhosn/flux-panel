@@ -963,6 +963,10 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
             return R.err("隧道不存在");
         }
 
+        if (targetStatus == 1 && forward.getTlsInboundId() != null && forward.getTlsInboundId() > 0) {
+            Integer enabled = jdbc.queryForObject("SELECT enabled FROM forward_tls_inbound WHERE id=?", Integer.class, forward.getTlsInboundId());
+            if (!Integer.valueOf(1).equals(enabled)) return R.err("共享 TLS 入口已关闭");
+        }
         UserTunnel userTunnel = null;
         if (targetStatus == 1) {
             if (tunnel.getStatus() != 1) {
@@ -1336,10 +1340,11 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
                 || (rule.getProxyAccept() != null && rule.getProxyAccept() != 0)) {
             throw new IllegalArgumentException("共享 TLS 仅支持 TCP，不可同时使用回源 TLS 或接收 Proxy");
         }
-        var found = jdbc.queryForList("SELECT tunnel_id,port,allowed_sni FROM forward_tls_inbound WHERE id=?", rule.getTlsInboundId());
+        var found = jdbc.queryForList("SELECT tunnel_id,port,allowed_sni,enabled FROM forward_tls_inbound WHERE id=?", rule.getTlsInboundId());
         if (found.size() != 1 || ((Number) found.getFirst().get("tunnel_id")).intValue() != rule.getTunnelId()) {
             throw new IllegalArgumentException("共享 TLS 入口不属于所选隧道");
         }
+        if (((Number) found.getFirst().get("enabled")).intValue() != 1) throw new IllegalArgumentException("共享 TLS 入口已关闭");
         String names = ForwardSni.normalize(rule.getSniNames(), false);
         if (names.isEmpty()) throw new IllegalArgumentException("请填写至少一个 SNI 域名");
         String allowed = (String) found.getFirst().get("allowed_sni");

@@ -131,3 +131,5 @@ export const createTlsInbound = (data: any) => Network.post("/forward/tls-inboun
 export const deleteTlsInbound = (data: any) => Network.post("/forward/tls-inbound/delete", data);
 
 export const updateTlsInbound = (data: any) => Network.post("/forward/tls-inbound/update", data);
+
+export const toggleTlsInbound = (data: any) => Network.post("/forward/tls-inbound/toggle", data);

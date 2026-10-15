@@ -178,5 +178,7 @@ CREATE TABLE IF NOT EXISTS forward_tls_inbound (
   name TEXT NOT NULL,
   port INTEGER NOT NULL,
   allowed_sni TEXT NOT NULL DEFAULT '',
+  enabled INTEGER NOT NULL DEFAULT 1,
+  suspended_ids TEXT NOT NULL DEFAULT '',
   UNIQUE(tunnel_id,port)
 );

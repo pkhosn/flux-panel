@@ -44,7 +44,7 @@ import {
   resumeForwardService,
   diagnoseForward,
   updateForwardOrder,
-  getTlsInbounds, createTlsInbound, updateTlsInbound, deleteTlsInbound,
+  getTlsInbounds, createTlsInbound, updateTlsInbound, toggleTlsInbound, deleteTlsInbound,
   getForwardGroups,
   createForwardGroup,
   updateForwardGroup,
@@ -173,7 +173,7 @@ export default function ForwardPage() {
   const [loading, setLoading] = useState(true);
   const [forwards, setForwards] = useState<Forward[]>([]);
   const [tunnels, setTunnels] = useState<Tunnel[]>([]);
-  const [tlsInbounds, setTlsInbounds] = useState<{id: number; tunnelId: number; name: string; port: number; allowedSni: string}[]>([]);
+  const [tlsInbounds, setTlsInbounds] = useState<{id: number; tunnelId: number; name: string; port: number; allowedSni: string; enabled: number}[]>([]);
   const [tlsModalOpen, setTlsModalOpen] = useState(false);
   const [tlsDraft, setTlsDraft] = useState({ id: 0, name: "", tunnelId: "", port: "443", allowedSni: "" });
   const [ruleGroups, setRuleGroups] = useState<ForwardGroup[]>([]);
@@ -2194,7 +2194,12 @@ export default function ForwardPage() {
           <ModalContent><ModalHeader>共享 TLS 入口</ModalHeader><ModalBody>
             <p className="text-sm text-default-500">多个 TCP 规则共用端口，按客户端 SNI 分流，原样透传 TLS。无需在节点安装证书。</p>
             {tlsInbounds.map(item => <div key={item.id} className="flex items-center justify-between gap-2 border-b py-2">
-              <span>{item.name} · 隧道 #{item.tunnelId} · :{item.port}<br />{item.allowedSni || "不限域名"}</span>
+              <span>{item.enabled === 0 ? "已关闭 · " : ""}{item.name} · 隧道 #{item.tunnelId} · :{item.port}<br />{item.allowedSni || "不限域名"}</span>
+              <Button size="sm" variant="light" onPress={async () => {
+                const result = await toggleTlsInbound({ id: item.id, enabled: item.enabled === 0 ? 1 : 0 });
+                if (result.code === 0) { toast.success("入口状态已更新"); loadData(false); }
+                else toast.error(result.msg || "切换失败");
+              }}>{item.enabled === 0 ? "开启" : "关闭"}</Button>
               <Button size="sm" variant="light" onPress={() => setTlsDraft({ id: item.id, name: item.name, tunnelId: String(item.tunnelId), port: String(item.port), allowedSni: item.allowedSni })}>编辑</Button>
               <Button size="sm" color="danger" variant="light" onPress={async () => {
                 const result = await deleteTlsInbound({ id: item.id });
