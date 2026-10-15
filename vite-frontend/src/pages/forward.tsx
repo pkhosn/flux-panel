@@ -45,6 +45,7 @@ import {
   updateForwardOrder,
   getForwardGroups,
   createForwardGroup,
+  updateForwardGroup,
   deleteForwardGroup,
   batchForward,
   getForwardStats,
@@ -2083,12 +2084,22 @@ export default function ForwardPage() {
                 {ruleGroups.filter(group => group.userId === JwtUtil.getUserIdFromToken()).map(group => (
                   <div key={group.id} className="flex items-center justify-between border border-divider rounded-lg p-2">
                     <span>{group.name}（{group.ruleCount} 条）</span>
+                    <div className="flex gap-1">
+                    <Button size="sm" variant="light" onPress={async () => {
+                      const name = window.prompt("分组新名称", group.name)?.trim();
+                      if (name === undefined) return;
+                      if (!name || name.length > 64) return toast.error("分组名称须为 1–64 个字符");
+                      const result = await updateForwardGroup(group.id, name);
+                      if (result.code !== 0) return toast.error(result.msg || "分组改名失败");
+                      await loadData(false);
+                    }}>改名</Button>
                     <Button size="sm" color="danger" variant="light" onPress={async () => {
                       if (!window.confirm("删除分组后，其中规则会移至未分组。")) return;
                       const result = await deleteForwardGroup(group.id);
                       if (result.code !== 0) return toast.error(result.msg || "删除分组失败");
                       await loadData(false);
                     }}>删除</Button>
+                    </div>
                   </div>
                 ))}
               </div>
