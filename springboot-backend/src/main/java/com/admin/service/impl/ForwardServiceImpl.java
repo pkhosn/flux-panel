@@ -995,14 +995,28 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
 
         List<ChainTunnel> chainTunnels = chainTunnelService.list(new QueryWrapper<ChainTunnel>().eq("tunnel_id", tunnel.getId()).eq("chain_type", 1));
 
+        if (Objects.equals(forward.getStatus(), targetStatus)) return R.ok();
+        List<Node> attempted = new ArrayList<>();
+        String serviceName = buildServiceName(forward.getId(), forward.getUserId(), userTunnel);
         for (ChainTunnel chainTunnel : chainTunnels) {
-            String serviceName = buildServiceName(forward.getId(), forward.getUserId(), userTunnel);
             Node node = nodeService.getById(chainTunnel.getNodeId());
-            if (node == null) {
-                return R.err("部分节点不存在");
+            String failure = null;
+            if (node == null) failure = "部分节点不存在";
+            else {
+                attempted.add(node);
+                GostDto result = GostUtil.PauseAndResumeService(node.getId(), serviceName, forward.getProtocol(), gostMethod);
+                if (!Objects.equals(result.getMsg(), "OK")) failure = result.getMsg();
             }
-            GostDto gostDto = GostUtil.PauseAndResumeService(node.getId(), serviceName, forward.getProtocol(), gostMethod);
-            if (!Objects.equals(gostDto.getMsg(), "OK")) return R.err(gostDto.getMsg());
+            if (failure != null) {
+                Collections.reverse(attempted);
+                List<Long> rollbackFailed = new ArrayList<>();
+                for (Node changed : attempted) {
+                    GostDto restored = GostUtil.PauseAndResumeService(changed.getId(), serviceName, forward.getProtocol(),
+                            targetStatus == 1 ? "PauseService" : "ResumeService");
+                    if (!Objects.equals(restored.getMsg(), "OK")) rollbackFailed.add(changed.getId());
+                }
+                return R.err(failure + (rollbackFailed.isEmpty() ? "；已尝试恢复此前状态" : "；恢复失败节点：" + rollbackFailed));
+            }
         }
         forward.setStatus(targetStatus);
         forward.setUpdatedTime(System.currentTimeMillis());
