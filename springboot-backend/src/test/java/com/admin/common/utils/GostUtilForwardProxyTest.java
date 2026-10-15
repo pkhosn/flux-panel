@@ -38,6 +38,22 @@ class GostUtilForwardProxyTest {
         assertEquals("::1/128", service.getJSONObject("listener").getJSONObject("metadata")
                 .getJSONArray("proxyTrustedCIDRs").getString(1));
 
+        forward.setOriginTls(1);
+        forward.setOriginServerName("origin.example.com");
+        forward.setOriginAlpn("h2,http/1.1");
+        JSONObject tlsMetadata = GostUtil.forwardServiceConfig("tls-rule", null, node, forward, port, tunnel)
+                .getJSONObject(0).getJSONObject("handler").getJSONObject("metadata");
+        assertTrue(tlsMetadata.getBoolean("originTLS"));
+        assertEquals("origin.example.com", tlsMetadata.getString("originServerName"));
+        assertEquals(2, tlsMetadata.getInteger("proxyProtocol"));
+        assertNotNull(GostUtil.validateForwardOrigin("udp", 1, "", "", ""));
+        assertNotNull(GostUtil.validateForwardOrigin("tcp", 1, "", "invalid", ""));
+        assertNull(GostUtil.validateForwardOrigin("tcp", 1, "origin.example.com", "", "h2,http/1.1"));
+        node.setVersion("2.0.12-beta");
+        assertFalse(GostUtil.supportsForwardProxy(node, forward));
+        node.setVersion("2.0.13-beta");
+        assertTrue(GostUtil.supportsForwardProxy(node, forward));
+        forward.setOriginTls(0);
         forward.setProxyAccept(0);
         forward.setProxySend(0);
         forward.setProxyTrustedCidrs("");

@@ -181,6 +181,15 @@ public class GostUtil {
                 metadata.put("proxyProtocol", forward.getProxySend());
                 handler.put("metadata", metadata);
             }
+            if ("tcp".equals(protocol) && Integer.valueOf(1).equals(forward.getOriginTls())) {
+                JSONObject metadata = handler.getJSONObject("metadata");
+                if (metadata == null) metadata = new JSONObject();
+                metadata.put("originTLS", true);
+                metadata.put("originServerName", forward.getOriginServerName());
+                metadata.put("originRootCA", forward.getOriginRootCa());
+                metadata.put("originALPN", forward.getOriginAlpn());
+                handler.put("metadata", metadata);
+            }
             if (tunnel.getType() == 2){
                 handler.put("chain", "chains_" + forward.getTunnelId());
             }
@@ -276,9 +285,33 @@ public class GostUtil {
         return null;
     }
 
+    public static String validateForwardOrigin(String protocol, Integer enabled, String serverName, String rootCa, String alpn) {
+        if (enabled != null && enabled != 0 && enabled != 1) return "回源 TLS 开关无效";
+        if (!Integer.valueOf(1).equals(enabled)) return null;
+        if (!"tcp".equals(protocol)) return "回源 TLS 仅支持单 TCP 规则";
+        if (serverName != null && !serverName.isBlank()
+                && (serverName.length() > 253 || !serverName.matches("[a-zA-Z0-9._:-]+"))) return "TLS 校验名称无效";
+        if (rootCa != null && !rootCa.isBlank()) {
+            if (rootCa.length() > 65536) return "根证书不能超过 64 KiB";
+            try {
+                var certificates = java.security.cert.CertificateFactory.getInstance("X.509")
+                        .generateCertificates(new java.io.ByteArrayInputStream(rootCa.getBytes(java.nio.charset.StandardCharsets.US_ASCII)));
+                if (certificates.isEmpty()) return "根证书 PEM 无效";
+            } catch (java.security.cert.CertificateException ex) { return "根证书 PEM 无效"; }
+        }
+        if (alpn != null && !alpn.isBlank()) {
+            if (alpn.length() > 1024) return "ALPN 过长";
+            for (String item : alpn.split(",", -1)) {
+                if (item.isBlank() || item.length() > 255 || !item.matches("[!-~]+")) return "ALPN 格式无效";
+            }
+        }
+        return null;
+    }
+
     public static boolean supportsForwardProxy(Node node, Forward forward) {
         if ((forward.getProxyAccept() == null || forward.getProxyAccept() == 0)
-                && (forward.getProxySend() == null || forward.getProxySend() == 0)) return true;
+                && (forward.getProxySend() == null || forward.getProxySend() == 0)
+                && !Integer.valueOf(1).equals(forward.getOriginTls())) return true;
         String version = node.getVersion();
         if (version == null) return false;
         java.util.regex.Matcher match = java.util.regex.Pattern.compile("^(\\d+)\\.(\\d+)\\.(\\d+)-beta$")
@@ -287,7 +320,7 @@ public class GostUtil {
         int major = Integer.parseInt(match.group(1));
         int minor = Integer.parseInt(match.group(2));
         int patch = Integer.parseInt(match.group(3));
-        return major > 2 || (major == 2 && (minor > 0 || (minor == 0 && patch >= 12)));
+        return major > 2 || (major == 2 && (minor > 0 || (minor == 0 && patch >= (Integer.valueOf(1).equals(forward.getOriginTls()) ? 13 : 12))));
     }
 
     public static String[] forwardProtocols(String protocol) {

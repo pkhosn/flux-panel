@@ -45,6 +45,11 @@ public class Forward extends BaseEntity{
 
     private String proxyTrustedCidrs;
 
+    private Integer originTls;
+    private String originServerName;
+    private String originRootCa;
+    private String originAlpn;
+
     private Integer groupId;
 
     private Long trafficBaseline;

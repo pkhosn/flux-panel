@@ -1,9 +1,15 @@
 package local
 
 import (
+	"bufio"
+	"crypto/tls"
+	"encoding/pem"
 	"fmt"
 	"io"
 	"net"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -142,5 +148,104 @@ func TestLegacyTCPAndUDPForwardSamePort(t *testing.T) {
 	udpData := make([]byte, 3)
 	if n, _, err := udpTarget.ReadFrom(udpData); err != nil || n != 3 || string(udpData) != "udp" {
 		t.Fatalf("legacy UDP forwarding failed: %q %v", udpData, err)
+	}
+}
+
+func TestOriginTLSCertificateValidation(t *testing.T) {
+	logger.SetDefault(xlogger.NewLogger(xlogger.OutputOption(io.Discard)))
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("secure-origin")) }))
+	defer server.Close()
+	cert := server.Certificate()
+	root := string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: cert.Raw}))
+	address := strings.TrimPrefix(server.URL, "https://")
+	for _, tc := range []struct {
+		name, ca, serverName string
+		success              bool
+	}{
+		{"trusted", root, "example.com", true},
+		{"wrong-name", root, "wrong.invalid", false},
+		{"untrusted", "", "example.com", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := &config.ServiceConfig{Name: "origin-test", Addr: "127.0.0.1:0",
+				Listener: &config.ListenerConfig{Type: "tcp"},
+				Handler: &config.HandlerConfig{Type: "tcp", Metadata: map[string]any{
+					"originTLS": true, "originServerName": tc.serverName, "originRootCA": tc.ca,
+				}},
+				Forwarder: &config.ForwarderConfig{Nodes: []*config.ForwardNodeConfig{{Name: "origin", Addr: address}}},
+			}
+			svc, err := serviceparser.ParseService(cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer svc.Close()
+			go svc.Serve()
+			client, err := net.DialTimeout("tcp", svc.Addr().String(), time.Second)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer client.Close()
+			client.SetDeadline(time.Now().Add(3 * time.Second))
+			fmt.Fprint(client, "GET / HTTP/1.0\r\nHost: example.com\r\n\r\n")
+			data, _ := io.ReadAll(client)
+			if strings.Contains(string(data), "secure-origin") != tc.success {
+				t.Fatalf("unexpected TLS result: %q", data)
+			}
+		})
+	}
+}
+
+func TestOriginTLSProxyHeaderIsEncrypted(t *testing.T) {
+	server := httptest.NewTLSServer(http.NotFoundHandler())
+	certificate := server.TLS.Certificates[0]
+	root := string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: server.Certificate().Raw}))
+	server.Close()
+	upstream, err := tls.Listen("tcp", "127.0.0.1:0", &tls.Config{Certificates: []tls.Certificate{certificate}, MinVersion: tls.VersionTLS12})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer upstream.Close()
+	received := make(chan string, 1)
+	go func() {
+		c, err := upstream.Accept()
+		if err != nil {
+			received <- ""
+			return
+		}
+		defer c.Close()
+		c.SetDeadline(time.Now().Add(3 * time.Second))
+		reader := bufio.NewReader(c)
+		header, _ := reader.ReadString('\n')
+		payload := make([]byte, 5)
+		io.ReadFull(reader, payload)
+		received <- header + string(payload)
+	}()
+	cfg := &config.ServiceConfig{Name: "tls-proxy-test", Addr: "127.0.0.1:0",
+		Listener: &config.ListenerConfig{Type: "tcp"},
+		Handler: &config.HandlerConfig{Type: "tcp", Metadata: map[string]any{
+			"originTLS": true, "originServerName": "example.com", "originRootCA": root, "proxyProtocol": 1,
+		}},
+		Forwarder: &config.ForwarderConfig{Nodes: []*config.ForwardNodeConfig{{Name: "origin", Addr: upstream.Addr().String()}}},
+	}
+	svc, err := serviceparser.ParseService(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer svc.Close()
+	go svc.Serve()
+	c, err := net.DialTimeout("tcp", svc.Addr().String(), time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	c.SetDeadline(time.Now().Add(3 * time.Second))
+	c.Write([]byte("hello"))
+	select {
+	case data := <-received:
+		if !strings.HasPrefix(data, "PROXY TCP4 ") || !strings.HasSuffix(data, "\r\nhello") {
+			t.Fatalf("unexpected decrypted data: %q", data)
+		}
+	case <-time.After(4 * time.Second):
+		t.Fatal("TLS origin did not receive header")
 	}
 }

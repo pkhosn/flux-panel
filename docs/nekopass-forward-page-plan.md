@@ -95,3 +95,15 @@
 生产日志显示前端构建约 220 秒、nginx 下载约 64 秒，npm 安装已命中构建层缓存。将 Maven/npm 的 BuildKit 缓存挂载修正到显式指定的 /var/cache/flux-maven 和 /var/cache/flux-npm，以便源码或依赖变化后复用下载缓存；首次使用新缓存仍需要填充。更新脚本 2026-10-15.2 取消 build --pull，使用本机已有基础镜像，源码仍通过 beta Git context 解析；基础镜像升级需另行维护。此改动不承诺固定更新时间，也不会省去前端源码变化后的编译。
 
 验证使用既有 Dockerfile：本地 docker build 分别构建后端与前端；bash -n panel_install.sh 及 git diff --check。
+
+## 继续实施：回源 TLS
+
+沿用已确认阶段三，先完成规则级回源 TLS：开关、校验名称、自定义根证书、ALPN；默认开启证书校验，不提供跳过校验选项。Agent 在路由连接建立后发起 TLS 握手，再在加密流中发送可选 Proxy 头及业务数据；这也覆盖经过现有隧道的连接。规则限定单 TCP，旧规则默认关闭。同步保存、编辑、批量入口切换、复制及 JSON 导入导出；nyanpass 不支持时明确拒绝导出。增加 Agent 能力版本门槛，并用本地可信证书、错误名称、未受信任证书网络测试验证。共享 TLS/SNI 仍按独立阶段推进。
+
+- [x] Agent TLS 握手及证书验证测试；可信证书、错误名称、不可信证书及 TLS 内 Proxy 头均通过本地环回验证。
+- [x] 面板迁移、配置下发、表单及格式兼容；复制/批量切换保留字段，JSON 可往返；nyanpass 拒绝导出含回源 TLS 的规则。
+- [x] 本地 Maven 测试、前端构建、Go 测试通过；amd64/arm64 Agent 2.0.13-beta 本地交叉编译并核对 ELF/SHA256，amd64 版本执行验证通过。安装脚本已更新目标版本；Release 上传尚未完成，当前仍可能走源码编译后备路径。
+
+验证命令：后端 `mvn -q test`；前端 `NODE_OPTIONS=--max-old-space-size=1024 npm run build`；Go x 模块 `go test -mod=mod -p=2 ./handler/forward/local -count=1`，使用 golang:1.23 在本机 Docker 内运行。首次前端构建与其他验证并发时被系统终止；减少并发、限制 Node 堆后通过。旧表增加四列的 SQLite 默认值检查与 TypeScript 转译后的 JSON 往返、UDP+TLS 拒绝检查通过。面板到真实 Agent 的完整下发与隧道模式网络验证尚未完成。
+
+Agent 编译产物：/tmp/flux-agent-2.0.13-beta/gost-amd64、gost-arm64。SHA256 分别为 b746232f5e17ca283902f561ffa65dbe94ef05e734f78903d508c1d60d499317、c9a793695954ae4afde158561ecc6cd33431bcfa6f2d838d6ae7c2512f7be669。

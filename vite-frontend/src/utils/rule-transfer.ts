@@ -6,6 +6,10 @@ export interface TransferRule {
   protocol: "tcp" | "udp" | "tcp_udp";
   strategy: string;
   groupId: number;
+  originTls: number;
+  originServerName: string;
+  originRootCa: string;
+  originAlpn: string;
   proxyAccept: number;
   proxySend: number;
   proxyTrustedCidrs: string;
@@ -29,10 +33,18 @@ export function parseRuleTransfer(text: string, tunnelId: number): TransferRule[
   return rows.map((row, index) => {
     const fail = (reason: string): never => { throw Error(`第 ${index + 1} 条：${reason}`); };
     if (!object(row)) return fail("规则必须是 JSON 对象");
-    if (row.tls_inbound_id || (object(row.origin_tls) && row.origin_tls.enabled)) return fail("共享 TLS 和回源 TLS 尚未支持导入");
+    if (row.tls_inbound_id) return fail("共享 TLS 尚未支持导入");
+    const origin = object(row.origin_tls) ? row.origin_tls : {};
+    const originTls = row.originTls ?? (origin.enabled ? 1 : 0);
+    const originServerName = row.originServerName ?? origin.server_name ?? "";
+    const originRootCa = row.originRootCa ?? origin.root_ca ?? "";
+    const originAlpn = row.originAlpn ?? (Array.isArray(origin.alpn) ? origin.alpn.join(",") : "");
+    if (![0, 1].includes(Number(originTls)) || typeof originServerName !== "string"
+      || typeof originRootCa !== "string" || typeof originAlpn !== "string") return fail("回源 TLS 配置无效");
     if (row.enabled === false || row.status === 0) return fail("暂停规则请先恢复后导入");
     const protocol = row.protocol ?? (row.dest ? "tcp" : "tcp_udp");
     if (!["tcp", "udp", "tcp_udp"].includes(String(protocol))) return fail("协议无效");
+    if (Number(originTls) === 1 && protocol !== "tcp") return fail("回源 TLS 仅支持 TCP");
     const targets = row.dest ?? row.targets;
     const remoteAddr = Array.isArray(targets) && targets.every(value => typeof value === "string")
       ? targets.join(",") : row.remoteAddr;
@@ -57,6 +69,7 @@ export function parseRuleTransfer(text: string, tunnelId: number): TransferRule[
     const strategy = row.strategy ?? balances[String(row.balance)] ?? "fifo";
     if (!["fifo", "rand", "round", "hash"].includes(String(strategy))) return fail("负载策略无效");
     return {
+      originTls: Number(originTls), originServerName, originRootCa, originAlpn,
       name: row.name.trim(), tunnelId, remoteAddr: remoteAddr.trim(),
       inPort: Number(port) || null, protocol: protocol as TransferRule["protocol"],
       strategy: String(strategy), groupId: Number(row.groupId ?? 0),

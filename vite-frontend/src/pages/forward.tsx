@@ -75,6 +75,10 @@ interface Forward {
   userId?: number;
   inx?: number;
   protocol?: "tcp" | "udp" | "tcp_udp";
+  originTls?: number;
+  originServerName?: string;
+  originRootCa?: string;
+  originAlpn?: string;
   proxyAccept?: number;
   proxySend?: number;
   proxyTrustedCidrs?: string;
@@ -99,6 +103,10 @@ interface ForwardForm {
   interfaceName?: string;
   strategy: string;
   protocol: "tcp" | "udp" | "tcp_udp";
+  originTls: number;
+  originServerName: string;
+  originRootCa: string;
+  originAlpn: string;
   proxyAccept: number;
   proxySend: number;
   proxyTrustedCidrs: string;
@@ -251,6 +259,7 @@ export default function ForwardPage() {
     interfaceName: '',
     strategy: 'fifo',
     protocol: 'tcp',
+    originTls: 0, originServerName: "", originRootCa: "", originAlpn: "",
     proxyAccept: 0,
     proxySend: 0,
     proxyTrustedCidrs: '',
@@ -515,7 +524,8 @@ export default function ForwardPage() {
       interfaceName: '',
       strategy: 'fifo',
       protocol: 'tcp',
-      proxyAccept: 0,
+      originTls: 0, originServerName: "", originRootCa: "", originAlpn: "",
+    proxyAccept: 0,
       proxySend: 0,
       proxyTrustedCidrs: '',
       groupId: 0
@@ -585,6 +595,10 @@ export default function ForwardPage() {
       interfaceName: forward.interfaceName || '',
       strategy: forward.strategy || 'fifo',
       protocol: forward.protocol || 'tcp_udp',
+      originTls: forward.originTls || 0,
+      originServerName: forward.originServerName || "",
+      originRootCa: forward.originRootCa || "",
+      originAlpn: forward.originAlpn || "",
       proxyAccept: forward.proxyAccept || 0,
       proxySend: forward.proxySend || 0,
       proxyTrustedCidrs: forward.proxyTrustedCidrs || '',
@@ -619,6 +633,10 @@ export default function ForwardPage() {
       remoteAddr: forward.remoteAddr,
       strategy: forward.strategy,
       protocol: forward.protocol || "tcp_udp",
+      originTls: forward.originTls || 0,
+      originServerName: forward.originServerName || "",
+      originRootCa: forward.originRootCa || "",
+      originAlpn: forward.originAlpn || "",
       proxyAccept: forward.proxyAccept || 0,
       proxySend: forward.proxySend || 0,
       proxyTrustedCidrs: forward.proxyTrustedCidrs || '',
@@ -786,6 +804,10 @@ export default function ForwardPage() {
           remoteAddr: processedRemoteAddr,
           strategy: addressCount > 1 ? form.strategy : 'fifo',
           protocol: form.protocol,
+          originTls: form.originTls,
+          originServerName: form.originServerName,
+          originRootCa: form.originRootCa,
+          originAlpn: form.originAlpn,
           proxyAccept: form.proxyAccept,
           proxySend: form.proxySend,
           proxyTrustedCidrs: form.proxyTrustedCidrs,
@@ -801,6 +823,10 @@ export default function ForwardPage() {
           remoteAddr: processedRemoteAddr,
           strategy: addressCount > 1 ? form.strategy : 'fifo',
           protocol: form.protocol,
+          originTls: form.originTls,
+          originServerName: form.originServerName,
+          originRootCa: form.originRootCa,
+          originAlpn: form.originAlpn,
           proxyAccept: form.proxyAccept,
           proxySend: form.proxySend,
           proxyTrustedCidrs: form.proxyTrustedCidrs,
@@ -1137,11 +1163,13 @@ export default function ForwardPage() {
           name: row.name, tunnelId: row.tunnelId, remoteAddr: row.remoteAddr, inPort: row.inPort,
           protocol: row.protocol || "tcp_udp", strategy: row.strategy || "fifo",
           groupId: row.groupId || 0, status: row.status, proxyAccept: row.proxyAccept || 0,
-          proxySend: row.proxySend || 0, proxyTrustedCidrs: row.proxyTrustedCidrs || ""
+          proxySend: row.proxySend || 0, proxyTrustedCidrs: row.proxyTrustedCidrs || "",
+          originTls: row.originTls || 0, originServerName: row.originServerName || "",
+          originRootCa: row.originRootCa || "", originAlpn: row.originAlpn || ""
         })) }, null, 2);
       } else if (exportFormat === "nyanpass") {
-        if (forwardsToExport.some(row => row.protocol !== "tcp")) {
-          toast.error("nyanpass 格式仅支持 TCP；请选完整 JSON 保留协议");
+        if (forwardsToExport.some(row => row.protocol !== "tcp" || row.originTls === 1)) {
+          toast.error("nyanpass 格式仅支持无回源 TLS 的 TCP；请选完整 JSON 保留配置");
           return;
         }
         exportText = forwardsToExport.map(row => JSON.stringify({
@@ -2208,7 +2236,7 @@ export default function ForwardPage() {
                       onSelectionChange={(keys) => {
                         const protocol = Array.from(keys)[0] as ForwardForm["protocol"];
                         if (protocol) setForm(prev => protocol === "tcp" ? { ...prev, protocol }
-                          : { ...prev, protocol, proxyAccept: 0, proxySend: 0, proxyTrustedCidrs: "" });
+                          : { ...prev, protocol, originTls: 0, originServerName: "", originRootCa: "", originAlpn: "", proxyAccept: 0, proxySend: 0, proxyTrustedCidrs: "" });
                       }}
                       variant="bordered"
                       description="可选 TCP、UDP；旧规则保持 TCP+UDP，编辑时也可切换"
@@ -2219,6 +2247,21 @@ export default function ForwardPage() {
                     </Select>
                     {form.protocol === "tcp" && (
                       <div className="space-y-3 rounded-lg border border-default-200 p-3">
+                        <Select label="回源 TLS" selectedKeys={[String(form.originTls)]}
+                          onSelectionChange={keys => { const value = Array.from(keys)[0];
+                            if (value !== undefined) setForm(prev => ({ ...prev, originTls: Number(value) })); }}>
+                          <SelectItem key="0">关闭</SelectItem>
+                          <SelectItem key="1">开启（验证目标证书）</SelectItem>
+                        </Select>
+                        {form.originTls === 1 && <>
+                          <Input label="TLS 校验名称 / SNI" placeholder="留空使用目标主机名"
+                            value={form.originServerName} onValueChange={value => setForm(prev => ({ ...prev, originServerName: value }))} />
+                          <Textarea label="自定义根证书（PEM）" placeholder="留空使用系统根证书"
+                            value={form.originRootCa} onValueChange={value => setForm(prev => ({ ...prev, originRootCa: value }))} />
+                          <Input label="ALPN（可选，逗号分隔）" placeholder="h2,http/1.1"
+                            value={form.originAlpn} onValueChange={value => setForm(prev => ({ ...prev, originAlpn: value }))} />
+                          <p className="text-xs text-default-500">仅加密至目标的连接；目标服务必须支持 TLS。发送 Proxy 头时，头部也在 TLS 内传输。</p>
+                        </>}
                         <p className="text-sm font-medium">Proxy Protocol</p>
                         <p className="text-xs text-default-500">入口节点需升级到支持版本。接收模式只信任下方填写的来源网段。</p>
                         <Select label="接收" selectedKeys={[String(form.proxyAccept)]}

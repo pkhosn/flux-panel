@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/tls"
 	"errors"
 	"net"
 	"time"
@@ -218,6 +219,23 @@ func (h *forwardHandler) Handle(ctx context.Context, conn net.Conn, opts ...hand
 		marker.Reset()
 	}
 	defer cc.Close()
+
+	if h.md.originTLS != nil {
+		if network != "tcp" {
+			return errors.New("origin TLS requires TCP")
+		}
+		cfg := h.md.originTLS.Clone()
+		if cfg.ServerName == "" {
+			cfg.ServerName, _, _ = net.SplitHostPort(addr)
+		}
+		secure := tls.Client(cc, cfg)
+		handshakeCtx, cancel := context.WithTimeout(ctx, h.md.readTimeout)
+		defer cancel()
+		if err := secure.HandshakeContext(handshakeCtx); err != nil {
+			return err
+		}
+		cc = secure
+	}
 
 	if network == "tcp" && h.md.proxyProtocol > 0 {
 		if err := proxyproto.WriteClientHeader(h.md.proxyProtocol, conn.RemoteAddr(), conn.LocalAddr(), cc); err != nil {

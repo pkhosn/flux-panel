@@ -85,6 +85,10 @@ public class SQLiteConfig implements ApplicationRunner {
 
     private void ensureSchema(Connection connection) throws Exception {
         ensureColumn(connection, "forward", "protocol", "VARCHAR(10) NOT NULL DEFAULT 'tcp_udp'");
+        ensureColumn(connection, "forward", "origin_tls", "INTEGER NOT NULL DEFAULT 0");
+        ensureColumn(connection, "forward", "origin_server_name", "TEXT NOT NULL DEFAULT ''");
+        ensureColumn(connection, "forward", "origin_root_ca", "TEXT NOT NULL DEFAULT ''");
+        ensureColumn(connection, "forward", "origin_alpn", "TEXT NOT NULL DEFAULT ''");
         ensureColumn(connection, "forward", "proxy_accept", "INTEGER NOT NULL DEFAULT 0");
         ensureColumn(connection, "forward", "proxy_send", "INTEGER NOT NULL DEFAULT 0");
         ensureColumn(connection, "forward", "proxy_trusted_cidrs", "TEXT NOT NULL DEFAULT ''");

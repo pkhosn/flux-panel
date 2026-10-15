@@ -100,7 +100,7 @@ public class ForwardBatchController {
                 if (tunnelId == null || tunnelId > Integer.MAX_VALUE) return R.err("目标隧道 ID 无效");
                 List<Map<String, Object>> selected = jdbc.queryForList(
                         "SELECT id, user_id, name, tunnel_id, remote_addr, strategy, protocol, " +
-                                "proxy_accept, proxy_send, proxy_trusted_cidrs, group_id, status " +
+                                "proxy_accept, proxy_send, proxy_trusted_cidrs, origin_tls, origin_server_name, origin_root_ca, origin_alpn, group_id, status " +
                                 "FROM forward WHERE " + scope + " ORDER BY id", scopedArgs);
                 if (selected.stream().anyMatch(row -> ((Number) row.get("status")).intValue() != 1)) {
                     return R.err("暂停中的规则请先恢复，再批量切换入口");
@@ -170,6 +170,10 @@ public class ForwardBatchController {
         update.setProtocol((String) row.get("protocol"));
         update.setProxyAccept(((Number) row.get("proxy_accept")).intValue());
         update.setProxySend(((Number) row.get("proxy_send")).intValue());
+        update.setOriginTls(((Number) row.get("origin_tls")).intValue());
+        update.setOriginServerName((String) row.get("origin_server_name"));
+        update.setOriginRootCa((String) row.get("origin_root_ca"));
+        update.setOriginAlpn((String) row.get("origin_alpn"));
         update.setProxyTrustedCidrs((String) row.get("proxy_trusted_cidrs"));
         Number group = (Number) row.get("group_id");
         update.setGroupId(group == null ? 0 : group.intValue());

@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/go-gost/core/bypass"
@@ -17,6 +18,7 @@ type metadata struct {
 	readTimeout   time.Duration
 	httpKeepalive bool
 	proxyProtocol int
+	originTLS     *tls.Config
 
 	sniffing                    bool
 	sniffingTimeout             time.Duration
@@ -39,6 +41,24 @@ func (h *forwardHandler) parseMetadata(md mdata.Metadata) (err error) {
 	h.md.proxyProtocol = mdutil.GetInt(md, "proxyProtocol")
 	if h.md.proxyProtocol != 0 && h.md.proxyProtocol != 1 && h.md.proxyProtocol != 2 {
 		return fmt.Errorf("unsupported proxyProtocol version: %d", h.md.proxyProtocol)
+	}
+
+	if mdutil.GetBool(md, "originTLS") {
+		cfg := &tls.Config{MinVersion: tls.VersionTLS12, ServerName: mdutil.GetString(md, "originServerName")}
+		if ca := mdutil.GetString(md, "originRootCA"); ca != "" {
+			pool, poolErr := x509.SystemCertPool()
+			if poolErr != nil {
+				pool = x509.NewCertPool()
+			}
+			if !pool.AppendCertsFromPEM([]byte(ca)) {
+				return fmt.Errorf("invalid origin TLS root certificate")
+			}
+			cfg.RootCAs = pool
+		}
+		if protocols := mdutil.GetString(md, "originALPN"); protocols != "" {
+			cfg.NextProtos = strings.Split(protocols, ",")
+		}
+		h.md.originTLS = cfg
 	}
 
 	h.md.sniffing = mdutil.GetBool(md, "sniffing")

@@ -35,6 +35,11 @@ public class ForwardUpdateDto {
 
     private String proxyTrustedCidrs;
 
+    private Integer originTls;
+    private String originServerName;
+    private String originRootCa;
+    private String originAlpn;
+
     private Integer groupId;
 
     private Integer inPort;
