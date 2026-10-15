@@ -2,11 +2,14 @@ package com.admin.controller;
 
 import com.admin.common.lang.R;
 import com.admin.common.utils.JwtUtil;
+import com.admin.service.ForwardService;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashSet;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -16,9 +19,11 @@ import java.util.Set;
 @RequestMapping("/api/v1/forward")
 public class ForwardBatchController {
     private final JdbcTemplate jdbc;
+    private final ForwardService forwardService;
 
-    public ForwardBatchController(JdbcTemplate jdbc) {
+    public ForwardBatchController(JdbcTemplate jdbc, ForwardService forwardService) {
         this.jdbc = jdbc;
+        this.forwardService = forwardService;
     }
 
     @PostMapping("/batch")
@@ -64,6 +69,31 @@ public class ForwardBatchController {
             }
             case "clear" -> changed = jdbc.update(
                     "UPDATE forward SET traffic_baseline=in_flow+out_flow WHERE " + scope, scopedArgs);
+            case "enable", "disable" -> {
+                int targetStatus = "enable".equals(action) ? 1 : 0;
+                List<Map<String, Object>> selected = jdbc.queryForList(
+                        "SELECT id, status FROM forward WHERE " + scope + " ORDER BY id", scopedArgs);
+                List<Long> completed = new ArrayList<>();
+                for (Map<String, Object> row : selected) {
+                    if (((Number) row.get("status")).intValue() == targetStatus) continue;
+                    Long id = ((Number) row.get("id")).longValue();
+                    R result = targetStatus == 1 ? forwardService.resumeForward(id) : forwardService.pauseForward(id);
+                    if (result.getCode() != 0) {
+                        completed.sort(Comparator.reverseOrder());
+                        List<Long> rollbackFailed = new ArrayList<>();
+                        for (Long completedId : completed) {
+                            R rollback = targetStatus == 1
+                                    ? forwardService.pauseForward(completedId) : forwardService.resumeForward(completedId);
+                            if (rollback.getCode() != 0) rollbackFailed.add(completedId);
+                        }
+                        return R.err("规则 " + id + " 操作失败：" + result.getMsg()
+                                + (rollbackFailed.isEmpty() ? "；已回退此前成功的规则"
+                                : "；回退失败的规则 ID：" + rollbackFailed));
+                    }
+                    completed.add(id);
+                }
+                return R.ok(Map.of("count", completed.size()));
+            }
             default -> {
                 return R.err("此批量操作尚未开放");
             }

@@ -517,7 +517,7 @@ export default function ForwardPage() {
     await loadData(false);
   };
 
-  const handleBatchMeta = async (action: "group" | "clear", groupId?: number) => {
+  const handleBatchMeta = async (action: "group" | "clear" | "enable" | "disable", groupId?: number) => {
     const ids = selectedForwardIds.filter(id => tableRules.some(row => row.id === id));
     if (!ids.length) return toast.error("请先选择规则");
     if (action === "clear" && !window.confirm("清空所选规则的展示流量？用户已消耗额度不会返还。")) return;
@@ -1711,6 +1711,8 @@ export default function ForwardPage() {
             <Button size="sm" variant="flat" onPress={handleImport}>批量导入</Button>
             <Button size="sm" variant="flat" onPress={handleExport}>批量导出</Button>
             <Button size="sm" variant="flat" isDisabled={!tableSelectedIds.length} onPress={() => handleBatchMeta("clear")}>清空选中流量</Button>
+            <Button size="sm" variant="flat" isDisabled={!tableSelectedIds.length} onPress={() => handleBatchMeta("enable")}>恢复选中</Button>
+            <Button size="sm" variant="flat" isDisabled={!tableSelectedIds.length} onPress={() => handleBatchMeta("disable")}>暂停选中</Button>
             <Select aria-label="批量移动到分组" size="sm" className="w-48" items={[{id: 0, name: "未分组"}, ...movableGroups]} selectedKeys={[String(batchGroupId)]} onSelectionChange={keys => {
               const value = Array.from(keys)[0];
               if (value !== undefined) setBatchGroupId(Number(value));
