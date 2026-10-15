@@ -403,7 +403,9 @@ func resumeServices(req resumeServicesRequest) error {
 	// 逐个恢复服务，如果失败则回滚
 	for _, str := range servicesToResume {
 		// 先关闭现有服务
-		str.service.Close()
+		if err := str.service.Close(); err != nil {
+			return fmt.Errorf("close paused service %s failed: %w", str.name, err)
+		}
 		registry.ServiceRegistry().Unregister(str.name)
 
 		// 等待端口释放
@@ -413,12 +415,14 @@ func resumeServices(req resumeServicesRequest) error {
 		svc, err := parser.ParseService(str.serviceConfig)
 		if err != nil {
 			// 恢复失败，回滚已恢复的服务
+			registry.ServiceRegistry().Register(str.name, str.service)
 			rollbackResumedServices(resumedServices)
 			return errors.New(fmt.Sprintf("resume service %s failed: %s", str.name, err.Error()))
 		}
 
 		if err := registry.ServiceRegistry().Register(str.name, svc); err != nil {
 			svc.Close()
+			registry.ServiceRegistry().Register(str.name, str.service)
 			// 恢复失败，回滚已恢复的服务
 			rollbackResumedServices(resumedServices)
 			return errors.New(fmt.Sprintf("service %s already exists", str.name))
@@ -510,9 +514,8 @@ func rollbackResumedServices(resumedServices []struct {
 }) {
 	for _, rss := range resumedServices {
 		// 关闭已恢复的服务
-		if svc := registry.ServiceRegistry().Get(rss.name); svc != nil {
-			svc.Close()
-		}
+		registry.ServiceRegistry().Unregister(rss.name)
+		registry.ServiceRegistry().Register(rss.name, rss.service)
 
 		// 重新标记为暂停状态
 		config.OnUpdate(func(c *config.Config) error {

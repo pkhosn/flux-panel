@@ -104,3 +104,43 @@ func TestPauseFailureRestoresEarlierService(t *testing.T) {
 	}
 	conn.Close()
 }
+
+func TestResumeFailureKeepsPausedServicesRegistered(t *testing.T) {
+	logger.SetDefault(xlogger.NewLogger(xlogger.OutputOption(io.Discard)))
+	config.Set(&config.Config{})
+	makeConfig := func(name string) config.ServiceConfig {
+		return config.ServiceConfig{
+			Name: name, Addr: "127.0.0.1:0",
+			Listener:  &config.ListenerConfig{Type: "tcp"},
+			Handler:   &config.HandlerConfig{Type: "tcp"},
+			Forwarder: &config.ForwarderConfig{Nodes: []*config.ForwardNodeConfig{{Name: "target", Addr: "127.0.0.1:9"}}},
+		}
+	}
+	if err := createServices(createServicesRequest{Data: []config.ServiceConfig{makeConfig("resume-first"), makeConfig("resume-second")}}); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		registry.ServiceRegistry().Unregister("resume-first")
+		registry.ServiceRegistry().Unregister("resume-second")
+		config.Set(&config.Config{})
+	}()
+	if err := pauseServices(pauseServicesRequest{Services: []string{"resume-first", "resume-second"}}); err != nil {
+		t.Fatal(err)
+	}
+	config.OnUpdate(func(c *config.Config) error {
+		for _, entry := range c.Services {
+			if entry.Name == "resume-second" {
+				entry.Addr = "invalid-address"
+			}
+		}
+		return nil
+	})
+	if err := resumeServices(resumeServicesRequest{Services: []string{"resume-first", "resume-second"}}); err == nil {
+		t.Fatal("invalid second service was resumed")
+	}
+	for _, name := range []string{"resume-first", "resume-second"} {
+		if registry.ServiceRegistry().Get(name) == nil {
+			t.Fatalf("%s disappeared after rollback", name)
+		}
+	}
+}
