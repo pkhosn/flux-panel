@@ -50,6 +50,61 @@ func TestCreateServicesClosesParsedListenersOnFailure(t *testing.T) {
 	rebound.Close()
 }
 
+func TestUpdateServicesRestoresListenersOnParseFailure(t *testing.T) {
+	logger.SetDefault(xlogger.NewLogger(xlogger.OutputOption(io.Discard)))
+	config.Set(&config.Config{})
+	makeConfig := func(name string) config.ServiceConfig {
+		return config.ServiceConfig{
+			Name: name, Addr: "127.0.0.1:0",
+			Listener:  &config.ListenerConfig{Type: "tcp"},
+			Handler:   &config.HandlerConfig{Type: "tcp"},
+			Forwarder: &config.ForwarderConfig{Nodes: []*config.ForwardNodeConfig{{Name: "target", Addr: "127.0.0.1:9"}}},
+		}
+	}
+	first := makeConfig("update-first")
+	second := makeConfig("update-second")
+	held, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	first.Addr = held.Addr().String()
+	held.Close()
+	if err := createServices(createServicesRequest{Data: []config.ServiceConfig{first, second}}); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		registry.ServiceRegistry().Unregister(first.Name)
+		registry.ServiceRegistry().Unregister(second.Name)
+		config.Set(&config.Config{})
+	}()
+	changed := first
+	changed.Forwarder = &config.ForwarderConfig{Nodes: []*config.ForwardNodeConfig{{Name: "new", Addr: "127.0.0.1:10"}}}
+	invalid := second
+	invalid.Addr = "invalid-address"
+	if err := updateServices(updateServicesRequest{Data: []config.ServiceConfig{changed, invalid}}); err == nil {
+		t.Fatal("invalid second service was accepted")
+	}
+	for _, original := range []config.ServiceConfig{first, second} {
+		if registry.ServiceRegistry().Get(original.Name) == nil {
+			t.Fatalf("%s disappeared during rollback", original.Name)
+		}
+		var stored *config.ServiceConfig
+		for _, entry := range config.Global().Services {
+			if entry.Name == original.Name {
+				stored = entry
+			}
+		}
+		if stored == nil || stored.Forwarder.Nodes[0].Addr != original.Forwarder.Nodes[0].Addr {
+			t.Fatalf("%s config changed after failed update", original.Name)
+		}
+	}
+	conn, err := net.DialTimeout("tcp", first.Addr, time.Second)
+	if err != nil {
+		t.Fatalf("original listener was not restored: %v", err)
+	}
+	conn.Close()
+}
+
 func TestPauseFailureRestoresEarlierService(t *testing.T) {
 	logger.SetDefault(xlogger.NewLogger(xlogger.OutputOption(io.Discard)))
 	config.Set(&config.Config{})

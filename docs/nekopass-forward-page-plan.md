@@ -14,7 +14,7 @@
 - Nekopass 的 `rule_groups`、原子批量事务、`rule_events`、TLS 入口与 SNI 数据结构在 Flux `forward` 表及转发 API 中不存在。Flux 的“分组”目前只是用户/隧道展示，不是持久化规则分组。
 - Flux 已有逐条流量累计，见 `FlowController.processFlowData`；没有每规则逐小时事件或“清空展示流量但不返还用户已用额度”的基线数据。两者应单独建模。
 - Nekopass 的共享 TLS 入口会在 Agent 侧读取 ClientHello 并按 SNI 选择目标；Flux 当前下发的是独立监听的 GOST TCP/UDP 服务。此能力需要 Agent 协议/配置和服务生命周期变更，不能只加表单字段。
-- Flux GOST 的 TCP listener 已能解析 Proxy Protocol，但当前只按开关解析，不按可信来源 CIDR 判断，不能直接对用户开放接收开关。已有 Proxy v1/v2 发送代码位于 remote handler；Flux 普通规则使用 local TCP handler，仍需沿实际路径实现。回源 TLS 需核对 GOST 节点连接及证书校验链路，不能把普通转发目标字符串直接当 TLS 配置。
+- Flux GOST 的 TCP listener 已有可信来源 CIDR 校验，普通 TCP handler 已能按配置发送 Proxy v1/v2；面板尚未开放这些选项，需先发布支持能力的 Agent 并设置版本门槛。回源 TLS 需核对 GOST 节点连接及证书校验链路，不能把普通转发目标字符串直接当 TLS 配置。
 - Flux 目前使用 SQLite、Spring Boot、React、GOST Agent；Nekopass 使用不同的存储、服务和前端架构。以行为对照逐项实现，不直接替换项目模块。
 
 ## 任务分解和 TODO
@@ -38,6 +38,7 @@
   - [x] 批量启停接入现有单条服务：预先校验所选规则归属，跳过目标状态已一致的规则；中途失败时尝试逆序回退已成功的规则，并返回回退失败 ID。前端构建与后端 Maven 测试通过；尚未做 Agent 故障注入，不能视为全局原子操作。
   - [x] 修正 Agent 暂停批次的回退：重建前注销同名已关闭服务，回退失败时返回具体错误；本地 Go 测试模拟第二个服务配置缺失并确认第一个服务恢复监听。
   - [x] 修正 Agent 恢复批次失败后服务注册表丢失：失败时保留原已暂停服务，回退此前已恢复服务；本地 Go 测试模拟第二个服务配置无效并确认两个服务仍可管理。
+  - [x] 修正 Agent 批量更新中第二个服务解析失败会留下部分新配置：保存旧配置，失败时恢复旧监听及注册表；本地 Go 测试验证旧配置和监听端口恢复。面板跨节点编辑流程仍待修复。
   - [ ] 批量启停、删除、入口切换及端到端流量上报验证。
 - [ ] 阶段三：实现规则级 Proxy Protocol 接收/发送、可信来源配置、回源 TLS 与相关校验；核查 Flux/GOST 现成能力并复用。完成本地网络行为验证。
   - [x] Agent 的普通 TCP 转发 handler 增加可选 PROXY v1/v2 头发送，默认关闭；头部格式本地 Go 测试通过。面板尚未下发此字段，需先落实 Agent 版本门槛。
