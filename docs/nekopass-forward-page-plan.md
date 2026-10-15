@@ -1,6 +1,6 @@
 # Flux 转发规则页面与底层能力复刻计划
 
-状态：用户已确认实施。各阶段按可验证的小步迭代推进；阶段一、二、三和五均有部分能力已推送到 beta。已完成本地 Agent 环回转发检查；面板到 Agent 的完整下发与生产环境未验证。
+状态：用户已确认实施。高级入口策略已实现并完成独立面板到真实 Agent 的本地验证，准备统一发布 2.0.15-beta。本文各阶段记录保留当时状态，以末尾最新验证记录为准；生产环境未执行验证。
 
 ## 目标
 
@@ -144,3 +144,28 @@ Release 2.0.14-beta 已创建并上传 amd64/arm64/SHA256SUMS，全部通过公�
 入口总开关沿用规则启停服务：关闭时记录原活跃规则 ID，并暂停；开启时只恢复这批仍属于原入口且仍暂停的规则。新建/恢复共享规则检查入口 enabled；保留手动暂停规则。失败逆序补偿，返回具体失败规则；不声明跨节点原子性。验证包括内存 SQLite 与模拟 ForwardService 的关闭/恢复行为以及全量 Maven/npm 本地构建。
 
 本轮验证通过：本地 `mvn -q test`、`NODE_OPTIONS=--max-old-space-size=768 npm run build`。新增测试确认手动暂停规则不被入口重新开启恢复，以及节点暂停失败时 enabled 保持原值。测试中重设 Mockito Answer 的副作用已修正为 doReturn；最终全量测试通过。入口总开关复用 Agent 2.0.14-beta，无需新增 Agent 版本。
+
+## 统一完成剩余策略
+
+用户要求连续完成，不再按每项功能请求确认。顺序：Agent 共享入口配置（可信 Proxy、默认规则、允许范围、握手限额/超时）→ 面板入口策略保存及向全部关联规则下发与失败恢复 → 节点仅 TLS 策略 → 本地网络及页面/接口回归 →统一推送和新 Agent Release。默认规则必须为入口内管理员规则，空/未知 SNI 仍受入口允许范围约束，暂停默认规则不会被回退选择。旧入口默认值保持现有拒绝行为。
+
+
+统一收尾验证记录：入口 Proxy、默认规则、空/未知 SNI 行为、握手限额/超时与节点仅 TLS 策略均已实现。修改高级策略时先停入口活跃规则、保存、再恢复；失败尝试还原旧策略。允许范围修改也重启相关规则，确保 Agent 与数据库一致。仅 TLS 开启前要求迁移已有普通 TCP 规则，避免自动停止用户业务；新建/恢复普通 TCP 会拒绝，UDP 保持可用。默认规则必须为此入口的管理员规则，普通删除前要求取消默认引用。
+
+本地独立端到端环境：面板端口 26365、独立 SQLite /tmp/flux-policy-e2e/panel.db、Agent 监听 28443、TLS 目标 29443；经真实 JWT HTTP API 创建共享入口与两条规则、WebSocket AES 下发，再做 TLS 握手和 HTTP 转发。Proxy+默认兜底、入口关开策略保留、节点仅 TLS、暂停默认规则拒绝未知 SNI及恢复均通过。端到端发现 JSON 数字被 Go 解码成 float64，metadata GetInt 不支持导致限额读为零；已修正 GetInt/GetBool 并新增 JSON 数字回归，修复后全链路通过。
+
+本地 Go race 测试 `go test -race -mod=mod -p=2 ./metadata/util ./listener/tcp ./handler/forward/local ./socket -count=1` 通过；Maven 全量测试通过；前端 build 通过。新 Agent 2.0.15-beta amd64/arm64 已本机构建，安装脚本校验和同步。发布前继续浏览器检查和下载校验。
+
+
+### 2.0.15-beta 发布前最终核对
+
+- [x] 共享入口可信 Proxy 接收、默认规则、空/未知 SNI 策略、并发/超时、范围即时下发；入口总开关保留手动暂停规则。
+- [x] 节点仅 TLS 策略；启用前拒绝存在普通 TCP 规则的节点。
+- [x] 本地独立后端/SQLite/真实 Agent/TLS 目标全链路，以及桌面浏览器保存策略、390px 手机视口表单、浏览器运行时错误检查。
+- [x] 本机 amd64/arm64 编译、ELF 架构、amd64 `-V`、SHA256、安装脚本语法检查。
+
+浏览器回归使用临时 Playwright 1.48.2（不新增项目依赖）；首次保存后数据刷新关闭弹窗，测试调整为重新打开后验证手机视口，最终通过。后端最后重跑需设置既有环境变量 `LOG_DIR=/tmp/flux-test-logs JWT_SECRET=local-test-secret DB_PATH=/tmp/flux-test.db mvn -q test`；未设置 LOG_DIR 的重跑因测试环境配置失败，补齐后重新验证。前端复现：`NODE_OPTIONS=--max-old-space-size=768 npm run build`；Go 复现：x 模块 `go test -race -mod=mod -p=2 ./metadata/util ./listener/tcp ./handler/forward/local ./socket -count=1`，Go 1.23。
+
+2.0.15-beta SHA256：amd64 `d7ace2238d45522a5885949542b995b431b61dfa71b4b49e14c356f1f0d78983`；arm64 `b1b41615fcbbefd6f9075df9c4dc1b161eb3ff834cf0513d8068a683b3afc889`。面板更新仍使用 `./panel_install.sh` 选项 2；高级策略需入口 Agent 更新到 2.0.15-beta，面板更新不自动替远程服务器更新 Agent。
+
+边界：现有跨节点启停/编辑/入口切换采用失败补偿；断网、响应丢失和数据库写入异常不具备分布式原子保证，相关故障矩阵仍需补齐。该限制不应标记成已完成。强制删除仍为原有数据库清理行为，需要人工确认 Agent 残留服务；节点仅 TLS 策略由面板规则接口执行。

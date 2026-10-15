@@ -62,7 +62,7 @@ func (l *tcpListener) Init(md md.Metadata) (err error) {
 		if l.options.ProxyProtocol > 0 {
 			return fmt.Errorf("shared SNI listener does not accept Proxy Protocol")
 		}
-		ln, err = listenSharedSNI(network, l.options.Addr, l.md.sniNames)
+		ln, err = listenSharedPolicy(network, l.options.Addr, l.md.sniNames, l.md.sniPolicy, l.md.sniDefault)
 	} else {
 		ln, err = lc.Listen(context.Background(), network, l.options.Addr)
 	}

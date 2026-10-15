@@ -1,6 +1,7 @@
 package util
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"time"
@@ -35,6 +36,11 @@ func GetBool(md metadata.Metadata, keys ...string) (v bool) {
 			v = vv
 		case int:
 			v = vv != 0
+		case float64:
+			v = vv != 0
+		case json.Number:
+			number, _ := vv.Float64()
+			v = number != 0
 		case string:
 			v, _ = strconv.ParseBool(vv)
 		}
@@ -60,6 +66,11 @@ func GetInt(md metadata.Metadata, keys ...string) (v int) {
 			}
 		case int:
 			v = vv
+		case float64:
+			v = int(vv)
+		case json.Number:
+			number, _ := vv.Int64()
+			v = int(number)
 		case string:
 			v, _ = strconv.Atoi(vv)
 		}

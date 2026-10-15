@@ -57,7 +57,7 @@ class GostUtilForwardProxyTest {
         forward.setSniNames("app.example.com,api.example.com");
         node.setVersion("2.0.13-beta");
         assertFalse(GostUtil.supportsForwardProxy(node, forward));
-        node.setVersion("2.0.14-beta");
+        node.setVersion("2.0.15-beta");
         assertTrue(GostUtil.supportsForwardProxy(node, forward));
         JSONObject sharedListener = GostUtil.forwardServiceConfig("shared", null, node, forward, port, tunnel)
                 .getJSONObject(0).getJSONObject("listener");

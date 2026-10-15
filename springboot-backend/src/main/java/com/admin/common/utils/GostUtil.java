@@ -205,6 +205,7 @@ public class GostUtil {
                 JSONObject metadata = listener.getJSONObject("metadata");
                 if (metadata == null) metadata = new JSONObject();
                 metadata.put("sniNames", Arrays.asList(forward.getSniNames().split(",")));
+                if (forward.getTlsPolicy() != null) metadata.putAll(forward.getTlsPolicy());
                 listener.put("metadata", metadata);
             }
             service.put("listener", listener);
@@ -324,7 +325,7 @@ public class GostUtil {
         int major = Integer.parseInt(match.group(1));
         int minor = Integer.parseInt(match.group(2));
         int patch = Integer.parseInt(match.group(3));
-        return major > 2 || (major == 2 && (minor > 0 || (minor == 0 && patch >= (forward.getTlsInboundId() != null && forward.getTlsInboundId() > 0 ? 14 : Integer.valueOf(1).equals(forward.getOriginTls()) ? 13 : 12))));
+        return major > 2 || (major == 2 && (minor > 0 || (minor == 0 && patch >= (forward.getTlsInboundId() != null && forward.getTlsInboundId() > 0 ? 15 : Integer.valueOf(1).equals(forward.getOriginTls()) ? 13 : 12))));
     }
 
     public static String[] forwardProtocols(String protocol) {

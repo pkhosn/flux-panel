@@ -45,6 +45,8 @@ public class Node extends BaseEntity {
 
     private String udpListenAddr;
 
+    private Integer tlsOnly;
+
     private Integer ownerUserId;
 
     private Integer createdByRole;

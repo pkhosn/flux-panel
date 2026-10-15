@@ -45,6 +45,9 @@ public class Forward extends BaseEntity{
 
     private String proxyTrustedCidrs;
 
+    @TableField(exist = false)
+    private com.alibaba.fastjson.JSONObject tlsPolicy;
+
     private Integer tlsInboundId;
     private String sniNames;
 

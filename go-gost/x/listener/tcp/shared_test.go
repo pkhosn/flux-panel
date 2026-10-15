@@ -121,3 +121,75 @@ func TestSharedSNICloseDuringClassification(t *testing.T) {
 		rebound.Close()
 	}
 }
+
+func TestSharedPolicyProxyAndFallback(t *testing.T) {
+	certServer := httptest.NewTLSServer(http.NotFoundHandler())
+	certificate := certServer.TLS.Certificates[0]
+	certServer.Close()
+	for _, tc := range []struct {
+		name       string
+		proxy      bool
+		trusted    string
+		serverName string
+		allowed    []string
+		accept     bool
+	}{
+		{"known-proxy", true, "127.0.0.0/8", "known.example.com", nil, true},
+		{"unknown-fallback", false, "", "unknown.example.com", nil, true},
+		{"empty-fallback", false, "", "", nil, true},
+		{"range-blocks-fallback", false, "", "unknown.invalid", []string{"example.com"}, false},
+		{"untrusted-proxy", true, "192.0.2.0/24", "known.example.com", nil, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			policy := defaultSNIPolicy()
+			policy.RejectEmpty = false
+			policy.UnknownDefault = true
+			policy.Allowed = tc.allowed
+			if tc.proxy {
+				policy.Proxy = 1
+				policy.Trusted = []string{tc.trusted}
+			}
+			ln, err := listenSharedPolicy("tcp", "127.0.0.1:0", []string{"known.example.com"}, policy, true)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer ln.Close()
+			go func() {
+				c, err := ln.Accept()
+				if err != nil {
+					return
+				}
+				defer c.Close()
+				c.SetDeadline(time.Now().Add(2 * time.Second))
+				secure := tls.Server(c, &tls.Config{Certificates: []tls.Certificate{certificate}})
+				if secure.Handshake() == nil {
+					secure.Write([]byte("fallback"))
+				}
+			}()
+			c, err := net.DialTimeout("tcp", ln.Addr().String(), time.Second)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer c.Close()
+			c.SetDeadline(time.Now().Add(2 * time.Second))
+			if tc.proxy {
+				io.WriteString(c, "PROXY TCP4 203.0.113.9 127.0.0.1 1234 443\r\n")
+			}
+			secure := tls.Client(c, &tls.Config{ServerName: tc.serverName, InsecureSkipVerify: true})
+			err = secure.Handshake()
+			if !tc.accept {
+				if err == nil {
+					t.Fatal("forbidden TLS accepted")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			data, err := io.ReadAll(secure)
+			if err != nil || string(data) != "fallback" {
+				t.Fatalf("bad response: %q %v", data, err)
+			}
+		})
+	}
+}

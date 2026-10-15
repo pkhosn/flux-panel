@@ -16,7 +16,7 @@ class ForwardSharedAllocationTest {
         SingleConnectionDataSource ds = new SingleConnectionDataSource("jdbc:sqlite::memory:", true);
         try {
             JdbcTemplate jdbc = new JdbcTemplate(ds);
-            jdbc.execute("CREATE TABLE forward_tls_inbound(id INTEGER,tunnel_id INTEGER,port INTEGER,allowed_sni TEXT,enabled INTEGER DEFAULT 1,suspended_ids TEXT DEFAULT '')");
+            jdbc.execute("CREATE TABLE forward_tls_inbound(id INTEGER,tunnel_id INTEGER,port INTEGER,allowed_sni TEXT,enabled INTEGER DEFAULT 1,suspended_ids TEXT DEFAULT '',policy TEXT DEFAULT '{}')");
             jdbc.execute("CREATE TABLE forward(id INTEGER,tls_inbound_id INTEGER,sni_names TEXT,status INTEGER)");
             jdbc.execute("CREATE TABLE chain_tunnel(node_id INTEGER,port INTEGER)");
             jdbc.execute("CREATE TABLE forward_port(node_id INTEGER,port INTEGER,forward_id INTEGER)");

@@ -90,6 +90,8 @@ public class SQLiteConfig implements ApplicationRunner {
         try (Statement statement = connection.createStatement()) {
             statement.execute("CREATE TABLE IF NOT EXISTS forward_tls_inbound (id INTEGER PRIMARY KEY AUTOINCREMENT, tunnel_id INTEGER NOT NULL, name TEXT NOT NULL, port INTEGER NOT NULL, allowed_sni TEXT NOT NULL DEFAULT '', UNIQUE(tunnel_id,port))");
         }
+        ensureColumn(connection, "forward_tls_inbound", "policy", "TEXT NOT NULL DEFAULT '{}'");
+        ensureColumn(connection, "node", "tls_only", "INTEGER NOT NULL DEFAULT 0");
         ensureColumn(connection, "forward_tls_inbound", "enabled", "INTEGER NOT NULL DEFAULT 1");
         ensureColumn(connection, "forward_tls_inbound", "suspended_ids", "TEXT NOT NULL DEFAULT ''");
         ensureColumn(connection, "forward", "origin_tls", "INTEGER NOT NULL DEFAULT 0");

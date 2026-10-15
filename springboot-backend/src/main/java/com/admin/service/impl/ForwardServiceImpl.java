@@ -204,6 +204,7 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
             entryNodes.put(node.getId(), node);
         }
         if (!this.save(forward)) return R.err("保存规则失败");
+        hydrateTlsPolicy(forward);
         String serviceName = buildServiceName(forward.getId(), forward.getUserId(), permissionResult.getUserTunnel());
         List<Long> attemptedNodes = new ArrayList<>();
         for (ChainTunnel chainTunnel : chainTunnels) {
@@ -454,6 +455,7 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
 
         Forward previousForward = new Forward();
         BeanUtils.copyProperties(existForward, previousForward);
+        hydrateTlsPolicy(previousForward);
         existForward.setRemoteAddr(forwardUpdateDto.getRemoteAddr());
         if (forwardUpdateDto.getGroupId() != null) {
             if (!validGroup(forwardUpdateDto.getGroupId(), existForward.getUserId())) return R.err("分组不存在或无权使用");
@@ -647,6 +649,10 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
         }
 
 
+        if (forward.getTlsInboundId() != null && forward.getTlsInboundId() > 0) {
+            String policy = jdbc.queryForObject("SELECT policy FROM forward_tls_inbound WHERE id=?", String.class, forward.getTlsInboundId());
+            if (JSONObject.parseObject(policy).getLongValue("defaultRuleId") == id) return R.err("请先取消共享入口的默认规则，再删除该规则");
+        }
         Tunnel tunnel = validateTunnel(forward.getTunnelId());
         if (tunnel == null) {
             return R.err("隧道不存在");
@@ -963,6 +969,10 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
             return R.err("隧道不存在");
         }
 
+        if (targetStatus == 1 && !"udp".equals(forward.getProtocol()) && (forward.getTlsInboundId() == null || forward.getTlsInboundId() == 0)) {
+            Integer restricted = jdbc.queryForObject("SELECT COUNT(*) FROM node n JOIN forward_port p ON p.node_id=n.id WHERE p.forward_id=? AND n.tls_only=1", Integer.class, id);
+            if (restricted != null && restricted > 0) return R.err("入口节点仅允许共享 TLS TCP 规则");
+        }
         if (targetStatus == 1 && forward.getTlsInboundId() != null && forward.getTlsInboundId() > 0) {
             Integer enabled = jdbc.queryForObject("SELECT enabled FROM forward_tls_inbound WHERE id=?", Integer.class, forward.getTlsInboundId());
             if (!Integer.valueOf(1).equals(enabled)) return R.err("共享 TLS 入口已关闭");
@@ -1008,7 +1018,13 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
             if (node == null) failure = "部分节点不存在";
             else {
                 attempted.add(node);
-                GostDto result = GostUtil.PauseAndResumeService(node.getId(), serviceName, forward.getProtocol(), gostMethod);
+                GostDto result;
+                if (targetStatus == 1 && forward.getTlsInboundId() != null && forward.getTlsInboundId() > 0) {
+                    hydrateTlsPolicy(forward);
+                    ForwardPort port = forwardPortService.getOne(new QueryWrapper<ForwardPort>().eq("forward_id", forward.getId()).eq("node_id", node.getId()));
+                    Integer limiter = userTunnel == null ? null : userTunnel.getSpeedId();
+                    result = GostUtil.AddAndUpdateService(serviceName, limiter, node, forward, port, tunnel, "UpdateService");
+                } else result = GostUtil.PauseAndResumeService(node.getId(), serviceName, forward.getProtocol(), gostMethod);
                 if (!Objects.equals(result.getMsg(), "OK")) failure = result.getMsg();
             }
             if (failure != null) {
@@ -1331,8 +1347,28 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
     }
 
 
+    private void hydrateTlsPolicy(Forward rule) {
+        if (rule.getTlsInboundId() == null || rule.getTlsInboundId() == 0) return;
+        var rows = jdbc.queryForList("SELECT policy,allowed_sni FROM forward_tls_inbound WHERE id=?", rule.getTlsInboundId());
+        if (rows.size() != 1) throw new IllegalArgumentException("共享入口不存在");
+        JSONObject policy = JSONObject.parseObject((String) rows.getFirst().get("policy"));
+        if (policy == null) policy = new JSONObject();
+        long defaultId = policy.getLongValue("defaultRuleId");
+        policy.remove("defaultRuleId");
+        policy.put("sniDefault", rule.getId() != null && rule.getId() == defaultId);
+        String allowed = (String) rows.getFirst().get("allowed_sni");
+        policy.put("sniAllowed", allowed == null || allowed.isBlank() ? List.of() : Arrays.asList(allowed.split(",")));
+        rule.setTlsPolicy(policy);
+    }
+
     private List<ChainTunnel> allocateForwardPorts(Forward rule, List<ChainTunnel> entries, Integer requested, Long excluding) {
         if (rule.getTlsInboundId() == null || rule.getTlsInboundId() == 0) {
+            if (!"udp".equals(rule.getProtocol())) {
+                for (ChainTunnel entry : entries) {
+                    Integer only = jdbc.queryForObject("SELECT tls_only FROM node WHERE id=?", Integer.class, entry.getNodeId());
+                    if (Integer.valueOf(1).equals(only)) throw new IllegalArgumentException("入口节点仅允许共享 TLS TCP 规则");
+                }
+            }
             rule.setSniNames("");
             return get_port(entries, requested, excluding);
         }
@@ -1340,7 +1376,7 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
                 || (rule.getProxyAccept() != null && rule.getProxyAccept() != 0)) {
             throw new IllegalArgumentException("共享 TLS 仅支持 TCP，不可同时使用回源 TLS 或接收 Proxy");
         }
-        var found = jdbc.queryForList("SELECT tunnel_id,port,allowed_sni,enabled FROM forward_tls_inbound WHERE id=?", rule.getTlsInboundId());
+        var found = jdbc.queryForList("SELECT tunnel_id,port,allowed_sni,enabled,policy FROM forward_tls_inbound WHERE id=?", rule.getTlsInboundId());
         if (found.size() != 1 || ((Number) found.getFirst().get("tunnel_id")).intValue() != rule.getTunnelId()) {
             throw new IllegalArgumentException("共享 TLS 入口不属于所选隧道");
         }
@@ -1366,6 +1402,7 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
             entry.setPort(port);
         }
         rule.setSniNames(names);
+        hydrateTlsPolicy(rule);
         return entries;
     }
 

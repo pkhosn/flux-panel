@@ -61,6 +61,7 @@ CREATE TABLE IF NOT EXISTS node (
   server_ip VARCHAR(100) NOT NULL DEFAULT '',
   detected_ipv4 VARCHAR(100),
   detected_ipv6 VARCHAR(100),
+  tls_only INTEGER NOT NULL DEFAULT 0,
   port TEXT NOT NULL,
   interface_name VARCHAR(200),
   version VARCHAR(100),
@@ -178,6 +179,7 @@ CREATE TABLE IF NOT EXISTS forward_tls_inbound (
   name TEXT NOT NULL,
   port INTEGER NOT NULL,
   allowed_sni TEXT NOT NULL DEFAULT '',
+  policy TEXT NOT NULL DEFAULT '{}',
   enabled INTEGER NOT NULL DEFAULT 1,
   suspended_ids TEXT NOT NULL DEFAULT '',
   UNIQUE(tunnel_id,port)

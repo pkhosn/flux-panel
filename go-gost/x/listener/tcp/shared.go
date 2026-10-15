@@ -3,8 +3,10 @@ package tcp
 import (
 	"bytes"
 	"fmt"
+	"github.com/go-gost/x/internal/net/proxyproto"
 	"io"
 	"net"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -15,7 +17,23 @@ var sharedPorts = struct {
 	hubs map[string]*sniHub
 }{hubs: make(map[string]*sniHub)}
 
+type sniPolicy struct {
+	Proxy          int
+	Trusted        []string
+	Allowed        []string
+	RejectEmpty    bool
+	UnknownDefault bool
+	MaxHandshakes  int
+	Timeout        time.Duration
+}
+
+func defaultSNIPolicy() sniPolicy {
+	return sniPolicy{RejectEmpty: true, MaxHandshakes: 128, Timeout: 5 * time.Second}
+}
+
 type sniHub struct {
+	policy   sniPolicy
+	fallback *sniListener
 	listener net.Listener
 	routes   map[string]*sniListener
 	slots    chan struct{}
@@ -50,6 +68,29 @@ func normalizeSNI(raw string) (string, error) {
 
 // Every rule keeps its own wrappers and service, while only classification shares a socket.
 func listenSharedSNI(network, address string, names []string) (net.Listener, error) {
+	return listenSharedPolicy(network, address, names, defaultSNIPolicy(), false)
+}
+func listenSharedPolicy(network, address string, names []string, policy sniPolicy, fallback bool) (net.Listener, error) {
+	if policy.MaxHandshakes < 1 || policy.MaxHandshakes > 4096 || policy.Timeout < time.Second || policy.Timeout > 60*time.Second {
+		return nil, fmt.Errorf("invalid SNI handshake limits")
+	}
+	trusted := make([]*net.IPNet, 0, len(policy.Trusted))
+	for _, cidr := range policy.Trusted {
+		_, n, err := net.ParseCIDR(cidr)
+		if err != nil {
+			return nil, err
+		}
+		trusted = append(trusted, n)
+	}
+	if policy.Proxy > 0 && len(trusted) == 0 {
+		return nil, fmt.Errorf("shared Proxy requires trusted CIDRs")
+	}
+	for _, suffix := range policy.Allowed {
+		if _, err := normalizeSNI(strings.TrimPrefix(suffix, ".")); err != nil {
+			return nil, err
+		}
+	}
+
 	if len(names) < 1 || len(names) > 32 {
 		return nil, fmt.Errorf("SNI requires 1-32 domains")
 	}
@@ -74,9 +115,16 @@ func listenSharedSNI(network, address string, names []string) (net.Listener, err
 		if err != nil {
 			return nil, err
 		}
-		hub = &sniHub{listener: ln, routes: make(map[string]*sniListener), slots: make(chan struct{}, 128)}
+		ln = proxyproto.WrapListenerTrusted(policy.Proxy, ln, policy.Timeout, trusted)
+		hub = &sniHub{policy: policy, listener: ln, routes: make(map[string]*sniListener), slots: make(chan struct{}, policy.MaxHandshakes)}
 		sharedPorts.hubs[key] = hub
 		go hub.serve()
+	}
+	if !reflect.DeepEqual(hub.policy, policy) {
+		return nil, fmt.Errorf("shared SNI entry policies differ")
+	}
+	if fallback && hub.fallback != nil {
+		return nil, fmt.Errorf("shared SNI default already registered")
 	}
 	for _, name := range normalized {
 		if hub.routes[name] != nil {
@@ -86,6 +134,9 @@ func listenSharedSNI(network, address string, names []string) (net.Listener, err
 	sub := &sniListener{hub: hub, key: key, names: normalized, queue: make(chan net.Conn, 32), closed: make(chan struct{})}
 	for _, name := range normalized {
 		hub.routes[name] = sub
+	}
+	if fallback {
+		hub.fallback = sub
 	}
 	return sub, nil
 }
@@ -107,9 +158,9 @@ func (h *sniHub) serve() {
 
 func (h *sniHub) classify(conn net.Conn) {
 	defer func() { <-h.slots }()
-	conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+	conn.SetReadDeadline(time.Now().Add(h.policy.Timeout))
 	name, prefix, err := ReadClientHello(conn)
-	if err != nil || name == "" {
+	if err != nil || (name == "" && h.policy.RejectEmpty) {
 		conn.Close()
 		return
 	}
@@ -117,7 +168,24 @@ func (h *sniHub) classify(conn net.Conn) {
 	replay := &helloConn{Conn: conn, reader: io.MultiReader(bytes.NewReader(prefix), conn)}
 	sharedPorts.Lock()
 	defer sharedPorts.Unlock()
+	if len(h.policy.Allowed) > 0 {
+		allowed := false
+		for _, suffix := range h.policy.Allowed {
+			if strings.HasPrefix(suffix, ".") {
+				allowed = allowed || strings.HasSuffix(name, suffix)
+			} else {
+				allowed = allowed || name == suffix || strings.HasSuffix(name, "."+suffix)
+			}
+		}
+		if !allowed {
+			conn.Close()
+			return
+		}
+	}
 	sub := h.routes[name]
+	if sub == nil && (h.policy.UnknownDefault || name == "") {
+		sub = h.fallback
+	}
 	if sub == nil {
 		conn.Close()
 		return
@@ -154,6 +222,9 @@ func (l *sniListener) Close() error {
 		sharedPorts.Lock()
 		defer sharedPorts.Unlock()
 		close(l.closed)
+		if l.hub.fallback == l {
+			l.hub.fallback = nil
+		}
 		for _, name := range l.names {
 			if l.hub.routes[name] == l {
 				delete(l.hub.routes, name)

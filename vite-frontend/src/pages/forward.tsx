@@ -44,7 +44,8 @@ import {
   resumeForwardService,
   diagnoseForward,
   updateForwardOrder,
-  getTlsInbounds, createTlsInbound, updateTlsInbound, toggleTlsInbound, deleteTlsInbound,
+  getNodeList,
+  getTlsInbounds, createTlsInbound, updateTlsInbound, toggleTlsInbound, saveTlsPolicy, saveNodeTlsPolicy, deleteTlsInbound,
   getForwardGroups,
   createForwardGroup,
   updateForwardGroup,
@@ -173,7 +174,11 @@ export default function ForwardPage() {
   const [loading, setLoading] = useState(true);
   const [forwards, setForwards] = useState<Forward[]>([]);
   const [tunnels, setTunnels] = useState<Tunnel[]>([]);
-  const [tlsInbounds, setTlsInbounds] = useState<{id: number; tunnelId: number; name: string; port: number; allowedSni: string; enabled: number}[]>([]);
+  const [tlsInbounds, setTlsInbounds] = useState<{id: number; tunnelId: number; name: string; port: number; allowedSni: string; enabled: number; policy: string}[]>([]);
+  const [tlsPolicyId, setTlsPolicyId] = useState(0);
+  const [tlsPolicy, setTlsPolicy] = useState({ proxyAccept: 0, trustedCidrs: "", defaultRuleId: "0", rejectEmpty: true, unknownDefault: false, maxHandshakes: "128", timeoutSeconds: "5" });
+  const [tlsNodes, setTlsNodes] = useState<{id: number; name: string; tlsOnly?: number}[]>([]);
+  const [tlsNodeId, setTlsNodeId] = useState("");
   const [tlsModalOpen, setTlsModalOpen] = useState(false);
   const [tlsDraft, setTlsDraft] = useState({ id: 0, name: "", tunnelId: "", port: "443", allowedSni: "" });
   const [ruleGroups, setRuleGroups] = useState<ForwardGroup[]>([]);
@@ -1806,7 +1811,7 @@ export default function ForwardPage() {
               <Chip size="sm" variant="flat">规则数：{forwards.length}</Chip>
               <Chip size="sm" variant="flat">已用流量：{formatFlow(forwards.reduce((sum, row) => sum + (row.inFlow || 0) + (row.outFlow || 0), 0))}</Chip>
               <Button size="sm" variant="bordered" onPress={() => setGroupModalOpen(true)}>管理分组</Button>
-              {isAdmin && <Button size="sm" variant="bordered" onPress={() => setTlsModalOpen(true)}>共享 TLS 入口</Button>}
+              {isAdmin && <Button size="sm" variant="bordered" onPress={async () => { setTlsModalOpen(true); const result = await getNodeList(); if (result.code === 0) setTlsNodes(result.data || []); }}>共享 TLS 入口</Button>}
               <Button size="sm" variant={activeGroupId === -1 ? "solid" : "flat"} onPress={() => { setActiveGroupId(-1); setRulePage(1); }}>全部</Button>
               <Button size="sm" variant={activeGroupId === 0 ? "solid" : "flat"} onPress={() => { setActiveGroupId(0); setRulePage(1); }}>未分组</Button>
               {filterRuleGroups.map(group => (
@@ -2200,6 +2205,12 @@ export default function ForwardPage() {
                 if (result.code === 0) { toast.success("入口状态已更新"); loadData(false); }
                 else toast.error(result.msg || "切换失败");
               }}>{item.enabled === 0 ? "开启" : "关闭"}</Button>
+              <Button size="sm" variant="light" onPress={() => {
+                const p = JSON.parse(item.policy || "{}");
+                setTlsPolicyId(item.id);
+                setTlsPolicy({ proxyAccept: p.sniProxy || 0, trustedCidrs: (p.sniTrustedCIDRs || []).join(","), defaultRuleId: String(p.defaultRuleId || 0),
+                  rejectEmpty: p.sniRejectEmpty !== false, unknownDefault: !!p.sniUnknownDefault, maxHandshakes: String(p.sniMaxHandshakes || 128), timeoutSeconds: String(p.sniTimeout || "5s").replace(/s$/, "") });
+              }}>策略</Button>
               <Button size="sm" variant="light" onPress={() => setTlsDraft({ id: item.id, name: item.name, tunnelId: String(item.tunnelId), port: String(item.port), allowedSni: item.allowedSni })}>编辑</Button>
               <Button size="sm" color="danger" variant="light" onPress={async () => {
                 const result = await deleteTlsInbound({ id: item.id });
@@ -2207,6 +2218,30 @@ export default function ForwardPage() {
                 else toast.error(result.msg || "删除失败");
               }}>删除</Button>
             </div>)}
+            {tlsPolicyId > 0 && <div className="space-y-3 rounded border p-3">
+              <p>入口 #{tlsPolicyId} 策略（保存时会短暂重启其活跃规则）</p>
+              <Switch isSelected={tlsPolicy.proxyAccept === 1} onValueChange={value => setTlsPolicy(p => ({ ...p, proxyAccept: value ? 1 : 0 }))}>接收 Proxy v1/v2</Switch>
+              <Textarea label="可信 Proxy 来源 CIDR（逗号分隔）" value={tlsPolicy.trustedCidrs} onValueChange={trustedCidrs => setTlsPolicy(p => ({ ...p, trustedCidrs }))} />
+              <Input label="管理员默认规则 ID（0 不设置）" value={tlsPolicy.defaultRuleId} onValueChange={defaultRuleId => setTlsPolicy(p => ({ ...p, defaultRuleId }))} />
+              <Switch isSelected={tlsPolicy.rejectEmpty} onValueChange={rejectEmpty => setTlsPolicy(p => ({ ...p, rejectEmpty }))}>拒绝无 SNI</Switch>
+              <Switch isSelected={tlsPolicy.unknownDefault} onValueChange={unknownDefault => setTlsPolicy(p => ({ ...p, unknownDefault }))}>未知 SNI 使用默认规则</Switch>
+              <Input label="ClientHello 并发上限" value={tlsPolicy.maxHandshakes} onValueChange={maxHandshakes => setTlsPolicy(p => ({ ...p, maxHandshakes }))} />
+              <Input label="读取超时（秒）" value={tlsPolicy.timeoutSeconds} onValueChange={timeoutSeconds => setTlsPolicy(p => ({ ...p, timeoutSeconds }))} />
+              <Button onPress={async () => {
+                const result = await saveTlsPolicy({ ...tlsPolicy, id: tlsPolicyId, defaultRuleId: Number(tlsPolicy.defaultRuleId), maxHandshakes: Number(tlsPolicy.maxHandshakes), timeoutSeconds: Number(tlsPolicy.timeoutSeconds) });
+                if (result.code === 0) { toast.success("策略已保存"); setTlsPolicyId(0); loadData(false); } else toast.error(result.msg || "保存失败");
+              }}>保存入口策略</Button>
+            </div>}
+            <div className="space-y-2 rounded border p-3">
+              <Select label="节点" selectedKeys={tlsNodeId ? [tlsNodeId] : []} onSelectionChange={keys => setTlsNodeId(String(Array.from(keys)[0] || ""))}>
+                {tlsNodes.map(node => <SelectItem key={String(node.id)}>{node.name}{node.tlsOnly ? "（仅 TLS）" : ""}</SelectItem>)}
+              </Select>
+              <p className="text-xs text-default-500">仅 TLS 模式禁止该节点新增或恢复普通 TCP 规则，UDP 不受影响。开启前须迁移现有普通 TCP 规则。</p>
+              {[1, 0].map(only => <Button key={only} size="sm" onPress={async () => {
+                const result = await saveNodeTlsPolicy({ nodeId: Number(tlsNodeId), tlsOnly: only });
+                if (result.code === 0) toast.success("节点策略已保存"); else toast.error(result.msg || "保存失败");
+              }}>{only ? "开启仅 TLS" : "关闭仅 TLS"}</Button>)}
+            </div>
             <Input label="入口名称" value={tlsDraft.name} onValueChange={name => setTlsDraft(prev => ({ ...prev, name }))} />
             <Select isDisabled={!!tlsDraft.id} label="所属隧道" selectedKeys={tlsDraft.tunnelId ? [tlsDraft.tunnelId] : []}
               onSelectionChange={keys => setTlsDraft(prev => ({ ...prev, tunnelId: String(Array.from(keys)[0] || "") }))}>

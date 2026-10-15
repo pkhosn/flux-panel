@@ -133,3 +133,5 @@ export const deleteTlsInbound = (data: any) => Network.post("/forward/tls-inboun
 export const updateTlsInbound = (data: any) => Network.post("/forward/tls-inbound/update", data);
 
 export const toggleTlsInbound = (data: any) => Network.post("/forward/tls-inbound/toggle", data);
+export const saveTlsPolicy = (data: any) => Network.post("/forward/tls-inbound/policy", data);
+export const saveNodeTlsPolicy = (data: any) => Network.post("/forward/tls-inbound/node-policy", data);
