@@ -181,7 +181,6 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
         forward.setUserName(currentUser.getUserName());
         forward.setCreatedTime(System.currentTimeMillis());
         forward.setUpdatedTime(System.currentTimeMillis());
-        List<JSONObject> success = new ArrayList<>();
         List<ChainTunnel> chainTunnels = chainTunnelService.list(new QueryWrapper<ChainTunnel>().eq("tunnel_id", tunnel.getId()).eq("chain_type", 1));
         if (chainTunnels.isEmpty()) return R.err("隧道未配置入口节点");
         chainTunnels = get_port(chainTunnels, forwardDto.getInPort(), 0L);
@@ -192,37 +191,44 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
             if (!GostUtil.supportsForwardProxy(node, forward)) return R.err("节点 " + node.getName() + " 需升级 Agent 后才能使用 Proxy Protocol");
             entryNodes.put(node.getId(), node);
         }
-        this.save(forward);
-
+        if (!this.save(forward)) return R.err("保存规则失败");
+        String serviceName = buildServiceName(forward.getId(), forward.getUserId(), permissionResult.getUserTunnel());
+        List<Long> attemptedNodes = new ArrayList<>();
         for (ChainTunnel chainTunnel : chainTunnels) {
-
             ForwardPort forwardPort = new ForwardPort();
             forwardPort.setForwardId(forward.getId());
             forwardPort.setNodeId(chainTunnel.getNodeId());
             forwardPort.setPort(chainTunnel.getPort());
-            forwardPortService.save(forwardPort);
-            String serviceName = buildServiceName(forward.getId(), forward.getUserId(), permissionResult.getUserTunnel());
-            Integer limiter = permissionResult.getLimiter();
-
-            Node node = entryNodes.get(chainTunnel.getNodeId());
-            GostDto gostDto = GostUtil.AddAndUpdateService(serviceName, limiter, node, forward, forwardPort, tunnel, "AddService");
-            if (Objects.equals(gostDto.getMsg(), "OK")) {
-                JSONObject data = new JSONObject();
-                data.put("node_id", node.getId());
-                data.put("name", serviceName);
-                success.add(data);
-            } else {
-                this.removeById(forward.getId());
-                forwardPortService.remove(new QueryWrapper<ForwardPort>().eq("forward_id", forward.getId()));
-                for (JSONObject jsonObject : success) {
-                    JSONArray se = GostUtil.forwardServiceNames(jsonObject.getString("name"), forward.getProtocol());
-                    GostUtil.DeleteService(jsonObject.getLong("node_id"), se);
-                }
-                return R.err(gostDto.getMsg());
+            if (!forwardPortService.save(forwardPort)) {
+                return cleanupFailedForwardCreate(forward, serviceName, attemptedNodes, "保存入口端口失败");
             }
-
+            Node node = entryNodes.get(chainTunnel.getNodeId());
+            attemptedNodes.add(node.getId());
+            GostDto gostDto = GostUtil.AddAndUpdateService(serviceName, permissionResult.getLimiter(),
+                    node, forward, forwardPort, tunnel, "AddService");
+            if (!Objects.equals(gostDto.getMsg(), "OK")) {
+                return cleanupFailedForwardCreate(forward, serviceName, attemptedNodes, gostDto.getMsg());
+            }
         }
         return R.ok();
+    }
+
+    private R cleanupFailedForwardCreate(Forward forward, String serviceName,
+                                         List<Long> attemptedNodes, String error) {
+        List<String> rollbackFailures = new ArrayList<>();
+        Collections.reverse(attemptedNodes);
+        for (Long nodeId : attemptedNodes) {
+            GostDto result = GostUtil.DeleteService(nodeId,
+                    GostUtil.forwardServiceNames(serviceName, forward.getProtocol()));
+            if (!Objects.equals(result.getMsg(), "OK")) rollbackFailures.add(String.valueOf(nodeId));
+        }
+        if (!rollbackFailures.isEmpty()) {
+            return R.err(error + "；节点清理失败：" + String.join(",", rollbackFailures)
+                    + "；已保留规则 " + forward.getId() + " 供诊断和强制删除");
+        }
+        forwardPortService.remove(new QueryWrapper<ForwardPort>().eq("forward_id", forward.getId()));
+        this.removeById(forward.getId());
+        return R.err(error);
     }
 
     @Override
