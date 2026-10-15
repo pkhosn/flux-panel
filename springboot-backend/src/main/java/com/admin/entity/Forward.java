@@ -41,6 +41,8 @@ public class Forward extends BaseEntity{
 
     private Integer groupId;
 
+    private Long trafficBaseline;
+
     private Long inFlow;
 
     private Long outFlow;

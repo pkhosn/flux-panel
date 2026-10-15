@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS forward (
   group_id INTEGER,
   in_flow INTEGER NOT NULL DEFAULT 0,
   out_flow INTEGER NOT NULL DEFAULT 0,
+  traffic_baseline INTEGER NOT NULL DEFAULT 0,
   created_time INTEGER NOT NULL,
   updated_time INTEGER NOT NULL,
   status INTEGER NOT NULL,
@@ -25,6 +26,17 @@ CREATE TABLE IF NOT EXISTS forward_group (
   name VARCHAR(64) NOT NULL,
   UNIQUE(user_id, name)
 );
+
+CREATE TABLE IF NOT EXISTS forward_flow_hour (
+  forward_id INTEGER NOT NULL,
+  user_id INTEGER NOT NULL,
+  hour_start INTEGER NOT NULL,
+  bytes INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (forward_id, hour_start)
+);
+
+CREATE INDEX IF NOT EXISTS idx_forward_flow_hour_user_time
+ON forward_flow_hour(user_id, hour_start);
 
 CREATE TABLE IF NOT EXISTS forward_port (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

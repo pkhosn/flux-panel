@@ -90,5 +90,9 @@ public class ForwardWithTunnelDto {
 
     private Integer groupId;
 
+    private Long trafficBaseline;
+
+    private Long trafficBytes;
+
     private Integer inx;
 }

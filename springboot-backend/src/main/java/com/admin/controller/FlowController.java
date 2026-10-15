@@ -14,6 +14,8 @@ import com.alibaba.fastjson.JSONObject;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import lombok.extern.slf4j.Slf4j;
 
@@ -69,6 +71,9 @@ public class FlowController extends BaseController {
     @Resource
     @Lazy
     ChainTunnelService chainTunnelService;
+
+    @Resource
+    JdbcTemplate jdbc;
 
     /**
      * 加密消息包装器
@@ -142,6 +147,7 @@ public class FlowController extends BaseController {
      */
     @RequestMapping("/upload")
     @LogAnnotation
+    @Transactional
     public String uploadFlowData(@RequestBody String rawData, String secret) {
         // 1. 验证节点权限
         if (!isValidNode(secret)) {
@@ -325,12 +331,24 @@ public class FlowController extends BaseController {
     private void updateForwardFlow(String forwardId, FlowDto flowStats) {
         // 对相同转发的流量更新进行同步，避免并发覆盖
         synchronized (getForwardLock(forwardId)) {
+            if (flowStats.getD() == null || flowStats.getU() == null ||
+                    flowStats.getD() < 0 || flowStats.getU() < 0) {
+                log.warn("忽略无效的转发流量上报: {}", forwardId);
+                return;
+            }
+            long bytes = flowStats.getD() + flowStats.getU();
+            long hourStart = System.currentTimeMillis() / 3600000L * 3600000L;
             UpdateWrapper<Forward> updateWrapper = new UpdateWrapper<>();
             updateWrapper.eq("id", forwardId);
             updateWrapper.setSql("in_flow = in_flow + " + flowStats.getD());
             updateWrapper.setSql("out_flow = out_flow + " + flowStats.getU());
 
-            forwardService.update(null, updateWrapper);
+            if (forwardService.update(null, updateWrapper) && bytes > 0) {
+                jdbc.update("INSERT INTO forward_flow_hour(forward_id,user_id,hour_start,bytes) " +
+                                "SELECT id,user_id,?,? FROM forward WHERE id=? " +
+                                "ON CONFLICT(forward_id,hour_start) DO UPDATE SET bytes=bytes+excluded.bytes",
+                        hourStart, bytes, Long.valueOf(forwardId));
+            }
         }
     }
 

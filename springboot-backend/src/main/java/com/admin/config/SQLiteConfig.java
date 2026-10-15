@@ -86,7 +86,9 @@ public class SQLiteConfig implements ApplicationRunner {
     private void ensureSchema(Connection connection) throws Exception {
         ensureColumn(connection, "forward", "protocol", "VARCHAR(10) NOT NULL DEFAULT 'tcp_udp'");
         ensureColumn(connection, "forward", "group_id", "INTEGER");
+        ensureColumn(connection, "forward", "traffic_baseline", "INTEGER NOT NULL DEFAULT 0");
         ensureForwardGroupTable(connection);
+        ensureForwardFlowHourTable(connection);
         ensureColumn(connection, "node", "owner_user_id", "INTEGER");
         ensureColumn(connection, "node", "created_by_role", "INTEGER NOT NULL DEFAULT 0");
         ensureColumn(connection, "node", "detected_ipv4", "VARCHAR(100)");
@@ -106,6 +108,19 @@ public class SQLiteConfig implements ApplicationRunner {
                     "user_id INTEGER NOT NULL," +
                     "name VARCHAR(64) NOT NULL," +
                     "UNIQUE(user_id, name))");
+        }
+    }
+
+    private void ensureForwardFlowHourTable(Connection connection) throws Exception {
+        try (Statement statement = connection.createStatement()) {
+            statement.execute("CREATE TABLE IF NOT EXISTS forward_flow_hour (" +
+                    "forward_id INTEGER NOT NULL," +
+                    "user_id INTEGER NOT NULL," +
+                    "hour_start INTEGER NOT NULL," +
+                    "bytes INTEGER NOT NULL DEFAULT 0," +
+                    "PRIMARY KEY (forward_id, hour_start))");
+            statement.execute("CREATE INDEX IF NOT EXISTS idx_forward_flow_hour_user_time " +
+                    "ON forward_flow_hour(user_id, hour_start)");
         }
     }
 

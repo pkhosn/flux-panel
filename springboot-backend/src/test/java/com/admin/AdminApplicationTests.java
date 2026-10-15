@@ -43,6 +43,10 @@ class AdminApplicationTests {
                 "SELECT COUNT(*) FROM pragma_table_info('forward') WHERE name='group_id'", Integer.class));
         assertEquals(1, jdbc.queryForObject(
                 "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='forward_group'", Integer.class));
+        assertEquals(1, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM pragma_table_info('forward') WHERE name='traffic_baseline'", Integer.class));
+        assertEquals(1, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='forward_flow_hour'", Integer.class));
     }
 
 

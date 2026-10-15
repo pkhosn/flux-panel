@@ -18,6 +18,8 @@
             f.strategy AS strategy,
             f.protocol AS protocol,
             f.group_id AS groupId,
+            f.traffic_baseline AS trafficBaseline,
+            MAX(0, f.in_flow + f.out_flow - f.traffic_baseline) AS trafficBytes,
             f.out_flow AS outFlow,
             f.inx AS inx,
             t.name AS tunnelName,
@@ -47,6 +49,8 @@
             f.strategy AS strategy,
             f.protocol AS protocol,
             f.group_id AS groupId,
+            f.traffic_baseline AS trafficBaseline,
+            MAX(0, f.in_flow + f.out_flow - f.traffic_baseline) AS trafficBytes,
             f.inx AS inx,
             t.name AS tunnelName,
             t.type

@@ -377,6 +377,7 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
         }
         forwardPortService.remove(new QueryWrapper<ForwardPort>().eq("forward_id", id));
         this.removeById(id);
+        jdbc.update("DELETE FROM forward_flow_hour WHERE forward_id=?", id);
         return R.ok();
     }
 
@@ -398,6 +399,7 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
             return R.err("端口转发不存在");
         }
         this.removeById(id);
+        jdbc.update("DELETE FROM forward_flow_hour WHERE forward_id=?", id);
         forwardPortService.remove(new QueryWrapper<ForwardPort>().eq("forward_id", id));
         return R.ok();
     }
