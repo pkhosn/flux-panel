@@ -1,8 +1,9 @@
+import { translate } from '@/utils/locale';
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@heroui/button';
 import { Card, CardBody, CardHeader } from '@heroui/card';
 import { Input } from '@heroui/input';
-import { Select, SelectItem } from '@heroui/select';
+import { Select, SelectItem } from '@/components/select';
 import { Table, TableBody, TableCell, TableColumn, TableHeader, TableRow } from '@heroui/table';
 import toast from 'react-hot-toast';
 import {
@@ -146,7 +147,7 @@ export default function BillingPage() {
         toast.error(res.msg || '获取套餐失败');
       }
     } catch (e) {
-      toast.error('获取套餐失败');
+      toast.error(translate("获取套餐失败"));
     } finally {
       setLoading(false);
     }
@@ -162,7 +163,7 @@ export default function BillingPage() {
         toast.error(res.msg || '获取订单失败');
       }
     } catch (e) {
-      toast.error('获取订单失败');
+      toast.error(translate("获取订单失败"));
     } finally {
       setOrderLoading(false);
     }
@@ -215,7 +216,7 @@ export default function BillingPage() {
 
   const openPayUrl = async (payUrl?: string, payWindow?: Window | null) => {
     if (!payUrl) {
-      toast.error('未获取到支付链接');
+      toast.error(translate("未获取到支付链接"));
       closePayWindow(payWindow);
       return;
     }
@@ -229,23 +230,23 @@ export default function BillingPage() {
     }
     const copied = await copyText(payUrl);
     if (copied) {
-      toast.error('浏览器拦截了支付弹窗，已复制支付链接，请手动打开');
+      toast.error(translate("浏览器拦截了支付弹窗，已复制支付链接，请手动打开"));
     } else {
-      toast.error('浏览器拦截了支付弹窗，请允许弹窗后重试');
+      toast.error(translate("浏览器拦截了支付弹窗，请允许弹窗后重试"));
     }
   };
 
   const createOrder = async () => {
     if (paymentMethods.length === 0 || !payType) {
-      toast.error('暂无可用支付方式，请联系管理员在网站配置中添加并启用支付');
+      toast.error(translate("暂无可用支付方式，请联系管理员在网站配置中添加并启用支付"));
       return;
     }
     if (!selectedPlanId) {
-      toast.error('请选择套餐');
+      toast.error(translate("请选择套餐"));
       return;
     }
     if (selectedPlan?.stock === 0) {
-      toast.error('套餐已售罄，请选择其他套餐');
+      toast.error(translate("套餐已售罄，请选择其他套餐"));
       return;
     }
     const payWindow = openPendingPayWindow();
@@ -257,7 +258,7 @@ export default function BillingPage() {
       });
       if (res.code === 0) {
         await openPayUrl(res.data?.payUrl, payWindow);
-        toast.success('订单已创建，请完成支付');
+        toast.success(translate("订单已创建，请完成支付"));
         loadOrders();
       } else {
         closePayWindow(payWindow);
@@ -265,7 +266,7 @@ export default function BillingPage() {
       }
     } catch (e) {
       closePayWindow(payWindow);
-      toast.error('创建订单失败');
+      toast.error(translate("创建订单失败"));
     } finally {
       setSubmitLoading(false);
     }
@@ -284,7 +285,7 @@ export default function BillingPage() {
       }
     } catch (e) {
       closePayWindow(payWindow);
-      toast.error('继续支付失败');
+      toast.error(translate("继续支付失败"));
     } finally {
       setSubmitLoading(false);
     }
@@ -292,20 +293,20 @@ export default function BillingPage() {
 
   const redeem = async () => {
     if (!redeemCode.trim()) {
-      toast.error('请输入兑换码');
+      toast.error(translate("请输入兑换码"));
       return;
     }
     setSubmitLoading(true);
     try {
       const res = await useRedeemCode(redeemCode.trim());
       if (res.code === 0) {
-        toast.success('兑换成功，额度已发放');
+        toast.success(translate("兑换成功，额度已发放"));
         setRedeemCode('');
       } else {
         toast.error(res.msg || '兑换失败');
       }
     } catch (e) {
-      toast.error('兑换失败');
+      toast.error(translate("兑换失败"));
     } finally {
       setSubmitLoading(false);
     }
@@ -317,7 +318,7 @@ export default function BillingPage() {
     }
     const res = await deleteOrder(id);
     if (res.code === 0) {
-      toast.success('订单已删除');
+      toast.success(translate("订单已删除"));
       loadOrders();
     } else {
       toast.error(res.msg || '删除失败');
@@ -337,7 +338,7 @@ export default function BillingPage() {
     }
     const res = await clearOrders(payload);
     if (res.code === 0) {
-      toast.success('订单已清理');
+      toast.success(translate("订单已清理"));
       loadOrders();
     } else {
       toast.error(res.msg || '清理失败');
@@ -345,9 +346,9 @@ export default function BillingPage() {
   };
 
   const statusText = (status: number) => {
-    if (status === 1) return '已支付';
-    if (status === 2) return '已关闭';
-    return '待支付';
+    if (status === 1) return translate("已支付");
+    if (status === 2) return translate("已关闭");
+    return translate("待支付");
   };
 
   const formatDateTime = (value?: number | string) => {
@@ -359,20 +360,20 @@ export default function BillingPage() {
 
   const formatFlowLimit = (value?: number) => {
     if (value === undefined || value === null) return '-';
-    if (Number(value) === 99999) return '无限制';
+    if (Number(value) === 99999) return translate("无限制");
     return `${value} GB`;
   };
 
   const formatResetDay = (value?: number) => {
     if (value === undefined || value === null) return '-';
-    return value === 0 ? '不重置' : `每月${value}号`;
+    return value === 0 ? translate("不重置") : `每月${value}号`;
   };
 
   const packageStatus = useMemo(() => {
-    if (!userInfo) return '未开通';
+    if (!userInfo) return translate("未开通");
     const exp = Number(userInfo.expTime || 0);
-    if (exp <= 0) return '未开通';
-    return exp > Date.now() ? '有效中' : '已过期';
+    if (exp <= 0) return translate("未开通");
+    return exp > Date.now() ? translate("有效中") : translate("已过期");
   }, [userInfo]);
 
   return (
@@ -380,53 +381,53 @@ export default function BillingPage() {
       {!admin && (
         <>
           <Card>
-            <CardHeader className="text-lg font-semibold">当前套餐信息</CardHeader>
+            <CardHeader className="text-lg font-semibold">{translate("当前套餐信息")}</CardHeader>
             <CardBody className="space-y-2">
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-x-6 gap-y-2 text-sm leading-6">
                 <div className="flex items-center gap-2">
-                  <span className="text-default-500 shrink-0">用户名:</span>
+                  <span className="text-default-500 shrink-0">{translate("用户名:")}</span>
                   <span className="text-default-900 truncate">{userInfo?.user || userInfo?.name || localStorage.getItem('name') || '-'}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-default-500 shrink-0">套餐状态:</span>
+                  <span className="text-default-500 shrink-0">{translate("套餐状态:")}</span>
                   <span className={packageStatus === '有效中' ? 'text-success' : 'text-danger'}>{packageStatus}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-default-500 shrink-0">到期时间:</span>
+                  <span className="text-default-500 shrink-0">{translate("到期时间:")}</span>
                   <span className="text-default-900 truncate">{formatDateTime(userInfo?.expTime)}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-default-500 shrink-0">流量配额:</span>
+                  <span className="text-default-500 shrink-0">{translate("流量配额:")}</span>
                   <span className="text-default-900">{formatFlowLimit(userInfo?.flow)}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-default-500 shrink-0">剩余流量:</span>
-                  <span className="text-default-900">{remainFlowGb === 99999 ? '无限制' : `${remainFlowGb ?? '-'} GB`}</span>
+                  <span className="text-default-500 shrink-0">{translate("剩余流量:")}</span>
+                  <span className="text-default-900">{remainFlowGb === 99999 ? translate("无限制") : `${remainFlowGb ?? '-'} GB`}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-default-500 shrink-0">规则数配额:</span>
-                  <span className="text-default-900">{userInfo?.num ?? '-'} 条</span>
+                  <span className="text-default-500 shrink-0">{translate("规则数配额:")}</span>
+                  <span className="text-default-900">{userInfo?.num ?? '-'}{translate("条")}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-default-500 shrink-0">流量重置日:</span>
+                  <span className="text-default-500 shrink-0">{translate("流量重置日:")}</span>
                   <span className="text-default-900">{formatResetDay(userInfo?.flowResetTime)}</span>
                 </div>
               </div>
 
               {packageStatus !== '有效中' && (
                 <div className="text-sm text-danger">
-                  {packageStatus === '已过期' ? '当前套餐已过期，请先续费后再使用购买/兑换功能。' : '当前没有有效套餐。'}
+                  {packageStatus === '已过期' ? translate("当前套餐已过期，请先续费后再使用购买/兑换功能。") : translate("当前没有有效套餐。")}
                 </div>
               )}
             </CardBody>
           </Card>
           <Card>
-            <CardHeader className="text-lg font-semibold">购买套餐</CardHeader>
+            <CardHeader className="text-lg font-semibold">{translate("购买套餐")}</CardHeader>
             <CardBody className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <Select
-                  label="选择套餐"
-                  placeholder="请选择套餐"
+                  label={translate("选择套餐")}
+                  placeholder={translate("请选择套餐")}
                   selectedKeys={selectedPlanId ? new Set([selectedPlanId]) : new Set()}
                   onSelectionChange={(keys) => {
                     if (keys === 'all') {
@@ -440,15 +441,15 @@ export default function BillingPage() {
                   {plans.map((plan) => (
                     <SelectItem
                       key={String(plan.id)}
-                      textValue={`${plan.name} - ¥${plan.price}${plan.stock === 0 ? '（售罄）' : ''}`}
+                      textValue={`${plan.name} - ¥${plan.price}${plan.stock === 0 ? translate("（售罄）") : ''}`}
                       isDisabled={plan.stock === 0}
                     >
-                      {plan.name} - ¥{plan.price}{plan.stock === 0 ? '（售罄）' : ''}
+                      {plan.name} - ¥{plan.price}{plan.stock === 0 ? translate("（售罄）") : ''}
                     </SelectItem>
                   ))}
                 </Select>
                 <Select
-                  label="支付方式"
+                  label={translate("支付方式")}
                   selectedKeys={[payType]}
                   onSelectionChange={(keys) => setPayType(String(Array.from(keys)[0] || paymentMethods[0]?.value || 'alipay'))}
                 >
@@ -463,23 +464,21 @@ export default function BillingPage() {
                   className="h-14"
                   isDisabled={!selectedPlanId || selectedPlan?.stock === 0}
                 >
-                  {selectedPlan?.stock === 0 ? '已售罄' : '立即下单'}
+                  {selectedPlan?.stock === 0 ? translate("已售罄") : translate("立即下单")}
                 </Button>
               </div>
               {selectedPlan && (
-                <div className="text-sm text-default-500">
-                  套餐内容: {selectedPlan.flowGb}GB 流量 / {selectedPlan.forwardNum} 条转发 / {selectedPlan.durationDays} 天
-                  {selectedPlan.stock === -1 ? ' / 库存不限' : ` / 剩余库存 ${selectedPlan.stock}`}
+                <div className="text-sm text-default-500">{translate("套餐内容:")}{selectedPlan.flowGb}{translate("GB 流量 /")}{selectedPlan.forwardNum}{translate("条转发 /")}{selectedPlan.durationDays}{translate("天")}{selectedPlan.stock === -1 ? translate(" / 库存不限") : ` / 剩余库存 ${selectedPlan.stock}`}
                 </div>
               )}
             </CardBody>
           </Card>
 
           <Card>
-            <CardHeader className="text-lg font-semibold">兑换码</CardHeader>
+            <CardHeader className="text-lg font-semibold">{translate("兑换码")}</CardHeader>
             <CardBody className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3">
-              <Input label="输入兑换码" placeholder="例如 FXABCD1234..." value={redeemCode} onValueChange={setRedeemCode} />
-              <Button color="secondary" onPress={redeem} isLoading={submitLoading} className="h-14">立即兑换</Button>
+              <Input label={translate("输入兑换码")} placeholder={translate("例如 FXABCD1234...")} value={redeemCode} onValueChange={setRedeemCode} />
+              <Button color="secondary" onPress={redeem} isLoading={submitLoading} className="h-14">{translate("立即兑换")}</Button>
             </CardBody>
           </Card>
         </>
@@ -487,49 +486,45 @@ export default function BillingPage() {
 
       <Card>
         <CardHeader className="flex justify-between">
-          <div className="text-lg font-semibold">{admin ? '订单管理' : '我的订单'}</div>
+          <div className="text-lg font-semibold">{admin ? translate("订单管理") : translate("我的订单")}</div>
           <div className="flex gap-2">
             {admin && (
-              <Button size="sm" color="danger" variant="flat" onPress={clearOrderData}>
-                清理订单
-              </Button>
+              <Button size="sm" color="danger" variant="flat" onPress={clearOrderData}>{translate("清理订单")}</Button>
             )}
-            <Button size="sm" variant="flat" onPress={loadOrders} isLoading={orderLoading}>刷新</Button>
+            <Button size="sm" variant="flat" onPress={loadOrders} isLoading={orderLoading}>{translate("刷新")}</Button>
           </div>
         </CardHeader>
         <CardBody className="space-y-3">
           {admin && (
             <div className="grid grid-cols-1 md:grid-cols-[1fr_180px_auto] gap-2">
               <Input
-                placeholder="筛选: 订单号/用户名/套餐名"
+                placeholder={translate("筛选: 订单号/用户名/套餐名")}
                 value={filterKeyword}
                 onValueChange={setFilterKeyword}
               />
-              <Select label="状态筛选" selectedKeys={[filterStatus]} onSelectionChange={(keys) => setFilterStatus(String(Array.from(keys)[0] || 'all'))}>
-                <SelectItem key="all">全部状态</SelectItem>
-                <SelectItem key="0">待支付</SelectItem>
-                <SelectItem key="1">已支付</SelectItem>
-                <SelectItem key="2">已关闭</SelectItem>
+              <Select label={translate("状态筛选")} selectedKeys={[filterStatus]} onSelectionChange={(keys) => setFilterStatus(String(Array.from(keys)[0] || 'all'))}>
+                <SelectItem key="all">{translate("全部状态")}</SelectItem>
+                <SelectItem key="0">{translate("待支付")}</SelectItem>
+                <SelectItem key="1">{translate("已支付")}</SelectItem>
+                <SelectItem key="2">{translate("已关闭")}</SelectItem>
               </Select>
-              <Button variant="flat" onPress={() => { setFilterKeyword(''); setFilterStatus('all'); }}>
-                重置筛选
-              </Button>
+              <Button variant="flat" onPress={() => { setFilterKeyword(''); setFilterStatus('all'); }}>{translate("重置筛选")}</Button>
             </div>
           )}
 
           {admin ? (
-            <Table aria-label="订单列表" isStriped>
+            <Table aria-label={translate("订单列表")} isStriped>
               <TableHeader>
-                <TableColumn>订单号</TableColumn>
-                <TableColumn>用户</TableColumn>
-                <TableColumn>套餐</TableColumn>
-                <TableColumn>金额</TableColumn>
-                <TableColumn>支付方式</TableColumn>
-                <TableColumn>状态</TableColumn>
-                <TableColumn>创建时间</TableColumn>
-                <TableColumn>操作</TableColumn>
+                <TableColumn>{translate("订单号")}</TableColumn>
+                <TableColumn>{translate("用户")}</TableColumn>
+                <TableColumn>{translate("套餐")}</TableColumn>
+                <TableColumn>{translate("金额")}</TableColumn>
+                <TableColumn>{translate("支付方式")}</TableColumn>
+                <TableColumn>{translate("状态")}</TableColumn>
+                <TableColumn>{translate("创建时间")}</TableColumn>
+                <TableColumn>{translate("操作")}</TableColumn>
               </TableHeader>
-              <TableBody isLoading={orderLoading} emptyContent="暂无订单">
+              <TableBody isLoading={orderLoading} emptyContent={translate("暂无订单")}>
                 {filteredOrders.map((item) => (
                   <TableRow key={item.id}>
                     <TableCell>{item.orderNo}</TableCell>
@@ -540,26 +535,24 @@ export default function BillingPage() {
                     <TableCell>{statusText(item.status)}</TableCell>
                     <TableCell>{new Date(item.createdTime).toLocaleString()}</TableCell>
                     <TableCell>
-                      <Button size="sm" color="danger" variant="flat" onPress={() => removeOrder(item.id)}>
-                        删除
-                      </Button>
+                      <Button size="sm" color="danger" variant="flat" onPress={() => removeOrder(item.id)}>{translate("删除")}</Button>
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
           ) : (
-            <Table aria-label="订单列表" isStriped>
+            <Table aria-label={translate("订单列表")} isStriped>
               <TableHeader>
-                <TableColumn>订单号</TableColumn>
-                <TableColumn>套餐</TableColumn>
-                <TableColumn>金额</TableColumn>
-                <TableColumn>支付方式</TableColumn>
-                <TableColumn>状态</TableColumn>
-                <TableColumn>创建时间</TableColumn>
-                <TableColumn>操作</TableColumn>
+                <TableColumn>{translate("订单号")}</TableColumn>
+                <TableColumn>{translate("套餐")}</TableColumn>
+                <TableColumn>{translate("金额")}</TableColumn>
+                <TableColumn>{translate("支付方式")}</TableColumn>
+                <TableColumn>{translate("状态")}</TableColumn>
+                <TableColumn>{translate("创建时间")}</TableColumn>
+                <TableColumn>{translate("操作")}</TableColumn>
               </TableHeader>
-              <TableBody isLoading={orderLoading} emptyContent="暂无订单">
+              <TableBody isLoading={orderLoading} emptyContent={translate("暂无订单")}>
                 {orders.map((item) => (
                   <TableRow key={item.id}>
                     <TableCell>{item.orderNo}</TableCell>
@@ -570,9 +563,7 @@ export default function BillingPage() {
                     <TableCell>{new Date(item.createdTime).toLocaleString()}</TableCell>
                     <TableCell>
                       {item.status === 0 ? (
-                        <Button size="sm" color="primary" variant="flat" isLoading={submitLoading} onPress={() => continuePay(item.id)}>
-                          继续支付
-                        </Button>
+                        <Button size="sm" color="primary" variant="flat" isLoading={submitLoading} onPress={() => continuePay(item.id)}>{translate("继续支付")}</Button>
                       ) : (
                         '-'
                       )}

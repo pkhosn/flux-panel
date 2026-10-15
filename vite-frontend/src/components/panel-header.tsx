@@ -5,18 +5,23 @@ import { Modal, ModalContent, ModalHeader, ModalBody } from '@heroui/modal';
 import { useTheme } from '@heroui/use-theme';
 import { Logo } from '@/components/icons';
 import { siteConfig } from '@/config/site';
-import { getConfigByName, getConfigs } from '@/api';
+import { getConfigByName, getConfigs, getUserPackageInfo } from '@/api';
 import { applyTheme, saveTheme } from '@/utils/theme';
 import { safeLogout } from '@/utils/logout';
 import './panel-header.css';
 
-export function PanelHeader({ onToggleSidebar, sidebarExpanded = true, onPassword }: {
+export function PanelHeader({ onToggleSidebar, sidebarExpanded = true, onPassword, sidebarCompact = false, onBrandEnter, onBrandLeave }: {
   onToggleSidebar?: () => void; sidebarExpanded?: boolean; onPassword?: () => void;
+  sidebarCompact?: boolean; onBrandEnter?: () => void; onBrandLeave?: () => void;
 }) {
   const navigate = useNavigate();
   const { theme, setTheme } = useTheme();
   const [english, setEnglish] = useState(localStorage.getItem('panel_locale') === 'en-US');
   const [brand, setBrand] = useState({ name: siteConfig.name, logo: localStorage.getItem('vite_config_app_logo') || '' });
+  const [account, setAccount] = useState<{user?: string; name?: string; status?: number; expTime?: number}>({ user: localStorage.getItem('name') || '' });
+  const [now, setNow] = useState(Date.now());
+  const avatarLetter = Array.from((account.user || account.name || '?').trim())[0]?.toLocaleUpperCase() || '?';
+  const vip = account.status === 1 && Number(account.expTime || 0) > now;
   const [announcement, setAnnouncement] = useState({ title: '', content: '' });
   const [noticeOpen, setNoticeOpen] = useState(false);
   const [noticeLoading, setNoticeLoading] = useState(false);
@@ -33,6 +38,16 @@ export function PanelHeader({ onToggleSidebar, sidebarExpanded = true, onPasswor
     window.addEventListener('configUpdated', load);
     return () => { active = false; window.removeEventListener('configUpdated', load); };
   }, []);
+  useEffect(() => {
+    let active = true;
+    const refresh = () => { setNow(Date.now()); void getUserPackageInfo().then(result => {
+      if (active && result.code === 0) setAccount(result.data?.userInfo || {});
+    }).catch(() => { if (active) setAccount(value => ({ ...value, expTime: 0 })); }); };
+    refresh();
+    const timer = window.setInterval(refresh, 60000);
+    window.addEventListener('focus', refresh);
+    return () => { active = false; clearInterval(timer); window.removeEventListener('focus', refresh); };
+  }, []);
   const showAnnouncement = async () => {
     setNoticeOpen(true); setNoticeLoading(true); setNoticeError(false);
     try {
@@ -45,7 +60,7 @@ export function PanelHeader({ onToggleSidebar, sidebarExpanded = true, onPasswor
   const icon = (children: ReactNode) => <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">{children}</svg>;
   return <>
     <header className="panel-header" aria-label={text('顶部导航', 'Top navigation')}>
-      <div className="panel-header-brand">
+      <div className={`panel-header-brand ${sidebarCompact ? 'is-compact' : ''}`} onMouseEnter={onBrandEnter} onMouseLeave={onBrandLeave}>
         <a href="/dashboard" className="panel-header-brand-link" aria-label={brand.name}>
           {brand.logo ? <img src={brand.logo} alt="" className="panel-header-logo" onError={() => setBrand(value => ({ ...value, logo: '' }))} /> : <Logo size={26} className="panel-header-logo" />}
           <span>{brand.name}</span>
@@ -64,7 +79,7 @@ export function PanelHeader({ onToggleSidebar, sidebarExpanded = true, onPasswor
           </Dropdown>
           <button className="panel-header-tool" aria-label={text('切换主题', 'Toggle theme')} aria-pressed={theme === 'dark'} title={text('切换主题', 'Toggle theme')} onClick={() => { const next = theme === 'dark' ? 'light' : 'dark'; saveTheme(next); applyTheme(next); setTheme(next); }}>{icon(<><circle cx="12" cy="12" r="4" /><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5" /></>)}</button>
         </div>
-        <Dropdown placement="bottom-end"><DropdownTrigger><button className="panel-header-avatar" aria-label={text('用户菜单', 'User menu')}><span>D</span><span className="panel-header-vip">AVIP</span></button></DropdownTrigger>
+        <Dropdown placement="bottom-end"><DropdownTrigger><button className={`panel-header-avatar ${vip ? 'is-vip' : ''}`} title={account.user || account.name} aria-label={text('用户菜单', 'User menu')}><span>{avatarLetter}</span>{vip && <span className="panel-header-vip">AVIP</span>}</button></DropdownTrigger>
           <DropdownMenu aria-label={text('用户菜单', 'User menu')}>
             <DropdownItem key="profile" onPress={() => navigate('/profile')}>{text('个人中心', 'Profile')}</DropdownItem>
             <DropdownItem key="password" onPress={() => onPassword ? onPassword() : navigate('/profile')}>{text('修改密码', 'Change password')}</DropdownItem>

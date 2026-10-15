@@ -31,7 +31,7 @@ export function Provider({ children }: ProvidersProps) {
     <I18nProvider locale={locale}>
       <HeroUIProvider navigate={navigate} useHref={useHref}>
         <ThemeProvider>
-          {children}
+          <React.Fragment key={locale}>{children}</React.Fragment>
           <Toaster 
             position="top-center"
             toastOptions={{

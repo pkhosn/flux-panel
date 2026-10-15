@@ -1,9 +1,19 @@
 # 顶部导航栏
 
-使用现有 React、HeroUI、Tailwind/CSS、React Router 实现。桌面 AdminLayout 和 H5 布局共用 PanelHeader；桌面侧栏宽度与 240px 品牌区对齐。H5 延续底部导航，没有侧栏折叠按钮。
+使用现有 React、HeroUI、Tailwind/CSS、React Router。桌面和 H5 共用 PanelHeader。网站配置提供应用名称、Logo 和公告；铃铛通过现有配置 API 打开纯文本公告。
 
-网站配置提供应用名称、品牌 Logo 地址、公告标题和公告内容。Logo 留空或加载失败使用现有 Logo。公告通过现有配置 API 读取，以纯文本显示并保留换行；未配置显示“暂无公告”，网络失败显示重试说明。头像沿用已有个人中心、修改密码和退出功能；D/AVIP 按视觉要求固定显示，不作为账户权限判断。
+## 本次修正
 
-主题按钮沿用 saveTheme/applyTheme/useTheme。语言菜单保存 panel_locale，切换导航栏文本、HTML lang 和 React Aria 组件语言；业务页面正文维持现有中文，未实现全站翻译。
+- [x] 桌面收起后品牌区同步缩窄，隐藏折叠按钮；悬停临时展开，离开收起，点击展开时的按钮固定展开。
+- [x] 头像取用户名首个字符，拉丁字母大写；仅启用且套餐到期时间晚于当前时间时显示 AVIP 边框，每分钟及窗口重新激活时刷新。
+- [x] 深色导航背景、品牌区、工具按钮和分割线跟随现有主题。
+- [x] 静态界面文字使用本地中英词典；切换语言重新挂载页面。用户填写内容和服务端消息不翻译；部分动态拼接提示仍沿用中文。
+- [x] 所有 Select 共用组件：禁止弹层挂载时的失焦和自动滚动关闭，保留选择、Esc、点击外部关闭。
 
-本地验证：vite-frontend 中 `NODE_OPTIONS=--max-old-space-size=768 npm run build`；仓库根目录 `git diff --check`。临时 Playwright 浏览器检查验证 56px 高、240px 品牌、32px 工具、42px 头像、无阴影，以及侧栏折叠、公告纯文本、多语言、主题、修改密码。1280/768/390/320px 检查通过，无按钮越界或浏览器运行时错误；API 响应用浏览器路由拦截模拟，未修改生产数据。检查文件 /tmp/flux-browser-check/header.cjs、截图 header-desktop.png 和 header-{768,390,320}.png。首次浏览器检查使用已过期的本地测试 JWT 跳转登录，更新临时 JWT 后通过。
+## 本地验证
+
+仓库根目录执行 `NODE_OPTIONS=--max-old-space-size=768 npm --prefix vite-frontend run build` 和 `git diff --check`。
+
+浏览器验证使用本机构建产物和模拟 API，不改生产数据：在转发页面添加规则，展开协议菜单，等待超过一秒后选择 UDP；重新展开，分别按 Esc 和点击弹窗空白处，菜单应关闭。检查侧栏收起、悬停、离开和固定展开；切换主题、语言；用无有效套餐及有效套餐的用户分别检查头像边框；320px 视口检查导航按钮不溢出。
+
+临时自动化检查：`/tmp/flux-browser-check/select-regression.cjs`、`/tmp/flux-browser-check/fixes.cjs`。组件滚动关闭行为依据现有 HeroUI popover 的 shouldCloseOnScroll 选项修正。

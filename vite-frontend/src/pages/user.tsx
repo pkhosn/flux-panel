@@ -1,39 +1,40 @@
+import { translate } from '@/utils/locale';
 import { useState, useEffect, useMemo } from 'react';
 import { Button } from "@heroui/button";
 import { Card, CardBody } from "@heroui/card";
 import { Input } from "@heroui/input";
-import { 
-  Table, 
-  TableHeader, 
-  TableColumn, 
-  TableBody, 
-  TableRow, 
-  TableCell 
+import {
+  Table,
+  TableHeader,
+  TableColumn,
+  TableBody,
+  TableRow,
+  TableCell
 } from "@heroui/table";
-import { 
-  Modal, 
-  ModalContent, 
-  ModalHeader, 
-  ModalBody, 
+import {
+  Modal,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
   ModalFooter,
-  useDisclosure 
+  useDisclosure
 } from "@heroui/modal";
 import { Chip } from "@heroui/chip";
-import { Select, SelectItem } from "@heroui/select";
+import { Select, SelectItem } from "@/components/select";
 import { RadioGroup, Radio } from "@heroui/radio";
 import { DatePicker } from "@heroui/date-picker";
 import { Spinner } from "@heroui/spinner";
 import { Progress } from "@heroui/progress";
 
 import toast from 'react-hot-toast';
-import { 
-  User, 
-  UserForm, 
-  UserTunnel, 
-  UserTunnelForm, 
-  Tunnel, 
-  SpeedLimit, 
-  Pagination as PaginationType 
+import {
+  User,
+  UserForm,
+  UserTunnel,
+  UserTunnelForm,
+  Tunnel,
+  SpeedLimit,
+  Pagination as PaginationType
 } from '@/types';
 import {
   getAllUsers,
@@ -77,21 +78,21 @@ const formatDate = (timestamp: number): string => {
 const getExpireStatus = (expTime: number) => {
   const now = Date.now();
   if (expTime < now) {
-    return { color: 'danger' as const, text: '已过期' };
+    return { color: 'danger' as const, text: translate("已过期") };
   }
   const diffDays = Math.ceil((expTime - now) / (1000 * 60 * 60 * 24));
   if (diffDays <= 7) {
     return { color: 'warning' as const, text: `${diffDays}天后过期` };
   }
-  return { color: 'success' as const, text: '正常' };
+  return { color: 'success' as const, text: translate("正常") };
 };
 
 // 获取用户状态（根据status字段）
 const getUserStatus = (user: User) => {
   if (user.status === 1) {
-    return { color: 'success' as const, text: '正常' };
+    return { color: 'success' as const, text: translate("正常") };
   } else {
-    return { color: 'danger' as const, text: '禁用' };
+    return { color: 'danger' as const, text: translate("禁用") };
   }
 };
 
@@ -102,7 +103,7 @@ const calculateUserTotalUsedFlow = (user: User): number => {
 const calculateTunnelUsedFlow = (tunnel: UserTunnel): number => {
   const inFlow = tunnel.inFlow || 0;
   const outFlow = tunnel.outFlow || 0;
-  
+
   // 后端已按计费类型处理流量，前端直接使用入站+出站总和
   return inFlow + outFlow;
 };
@@ -147,8 +148,8 @@ export default function UserPage() {
   const { isOpen: isTunnelModalOpen, onOpen: onTunnelModalOpen, onClose: onTunnelModalClose } = useDisclosure();
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [userTunnels, setUserTunnels] = useState<UserTunnel[]>([]);
-  const [tunnelListLoading, setTunnelListLoading] = useState(false);  
-  
+  const [tunnelListLoading, setTunnelListLoading] = useState(false);
+
   // 分配新隧道权限相关状态
   const [tunnelForm, setTunnelForm] = useState<UserTunnelForm>({
     tunnelId: null,
@@ -216,7 +217,7 @@ export default function UserPage() {
         size: pagination.size,
         keyword: searchKeyword
       });
-      
+
       if (response.code === 0) {
         const data = response.data || {};
         const list = data || [];
@@ -226,7 +227,7 @@ export default function UserPage() {
         toast.error(response.msg || '获取用户列表失败');
       }
     } catch (error) {
-      toast.error('获取用户列表失败');
+      toast.error(translate("获取用户列表失败"));
     } finally {
       setLoading(false);
     }
@@ -275,7 +276,7 @@ export default function UserPage() {
         toast.error(response.msg || '获取隧道权限列表失败');
       }
     } catch (error) {
-      toast.error('获取隧道权限列表失败');
+      toast.error(translate("获取隧道权限列表失败"));
     } finally {
       setTunnelListLoading(false);
     }
@@ -291,7 +292,7 @@ export default function UserPage() {
         toast.error(response.msg || '获取节点权限列表失败');
       }
     } catch (error) {
-      toast.error('获取节点权限列表失败');
+      toast.error(translate("获取节点权限列表失败"));
     } finally {
       setNodePermissionLoading(false);
     }
@@ -343,7 +344,7 @@ export default function UserPage() {
     try {
       const response = await deleteUser(userToDelete.id);
       if (response.code === 0) {
-        toast.success('删除成功');
+        toast.success(translate("删除成功"));
         loadUsers();
         onDeleteModalClose();
         setUserToDelete(null);
@@ -351,13 +352,13 @@ export default function UserPage() {
         toast.error(response.msg || '删除失败');
       }
     } catch (error) {
-      toast.error('删除失败');
+      toast.error(translate("删除失败"));
     }
   };
 
   const handleSubmitUser = async () => {
     if (!userForm.user || (!userForm.pwd && !isEdit) || !userForm.expTime) {
-      toast.error('请填写完整信息');
+      toast.error(translate("请填写完整信息"));
       return;
     }
 
@@ -373,16 +374,16 @@ export default function UserPage() {
       }
 
       const response = isEdit ? await updateUser(submitData) : await createUser(submitData);
-      
+
       if (response.code === 0) {
-        toast.success(isEdit ? '更新成功' : '创建成功');
+        toast.success(isEdit ? translate("更新成功") : translate("创建成功"));
         onUserModalClose();
         loadUsers();
       } else {
-        toast.error(response.msg || (isEdit ? '更新失败' : '创建失败'));
+        toast.error(response.msg || (isEdit ? translate("更新失败") : translate("创建失败")));
       }
     } catch (error) {
-      toast.error(isEdit ? '更新失败' : '创建失败');
+      toast.error(isEdit ? translate("更新失败") : translate("创建失败"));
     } finally {
       setUserFormLoading(false);
     }
@@ -416,7 +417,7 @@ export default function UserPage() {
 
   const handleAssignTunnel = async () => {
     if (!tunnelForm.tunnelId || !tunnelForm.expTime || !currentUser) {
-      toast.error('请填写完整信息');
+      toast.error(translate("请填写完整信息"));
       return;
     }
 
@@ -433,7 +434,7 @@ export default function UserPage() {
       });
 
       if (response.code === 0) {
-        toast.success('分配成功');
+        toast.success(translate("分配成功"));
         setTunnelForm({
           tunnelId: null,
           flow: 100,
@@ -447,7 +448,7 @@ export default function UserPage() {
         toast.error(response.msg || '分配失败');
       }
     } catch (error) {
-      toast.error('分配失败');
+      toast.error(translate("分配失败"));
     } finally {
       setAssignLoading(false);
     }
@@ -479,7 +480,7 @@ export default function UserPage() {
       });
 
       if (response.code === 0) {
-        toast.success('更新成功');
+        toast.success(translate("更新成功"));
         onEditTunnelModalClose();
         if (currentUser) {
           loadUserTunnels(currentUser.id);
@@ -488,7 +489,7 @@ export default function UserPage() {
         toast.error(response.msg || '更新失败');
       }
     } catch (error) {
-      toast.error('更新失败');
+      toast.error(translate("更新失败"));
     } finally {
       setEditTunnelLoading(false);
     }
@@ -505,7 +506,7 @@ export default function UserPage() {
     try {
       const response = await removeUserTunnel({ id: tunnelToDelete.id });
       if (response.code === 0) {
-        toast.success('删除成功');
+        toast.success(translate("删除成功"));
         if (currentUser) {
           loadUserTunnels(currentUser.id);
         }
@@ -515,7 +516,7 @@ export default function UserPage() {
         toast.error(response.msg || '删除失败');
       }
     } catch (error) {
-      toast.error('删除失败');
+      toast.error(translate("删除失败"));
     }
   };
 
@@ -530,13 +531,13 @@ export default function UserPage() {
 
     setResetFlowLoading(true);
     try {
-      const response = await resetUserFlow({ 
-        id: userToReset.id, 
+      const response = await resetUserFlow({
+        id: userToReset.id,
         type: 1 // 1表示重置用户流量
       });
-      
+
       if (response.code === 0) {
-        toast.success('流量重置成功');
+        toast.success(translate("流量重置成功"));
         onResetFlowModalClose();
         setUserToReset(null);
         loadUsers(); // 重新加载用户列表
@@ -544,7 +545,7 @@ export default function UserPage() {
         toast.error(response.msg || '重置失败');
       }
     } catch (error) {
-      toast.error('重置失败');
+      toast.error(translate("重置失败"));
     } finally {
       setResetFlowLoading(false);
     }
@@ -561,13 +562,13 @@ export default function UserPage() {
 
     setResetTunnelFlowLoading(true);
     try {
-      const response = await resetUserFlow({ 
-        id: tunnelToReset.id, 
+      const response = await resetUserFlow({
+        id: tunnelToReset.id,
         type: 2 // 2表示重置隧道流量
       });
-      
+
       if (response.code === 0) {
-        toast.success('隧道流量重置成功');
+        toast.success(translate("隧道流量重置成功"));
         onResetTunnelFlowModalClose();
         setTunnelToReset(null);
         if (currentUser) {
@@ -577,7 +578,7 @@ export default function UserPage() {
         toast.error(response.msg || '重置失败');
       }
     } catch (error) {
-      toast.error('重置失败');
+      toast.error(translate("重置失败"));
     } finally {
       setResetTunnelFlowLoading(false);
     }
@@ -585,11 +586,11 @@ export default function UserPage() {
 
   const handleAssignNodePermission = async () => {
     if (!currentUser || !nodePermissionForm.nodeId) {
-      toast.error('请先选择节点');
+      toast.error(translate("请先选择节点"));
       return;
     }
     if (nodePermissionForm.allowIn === 0 && nodePermissionForm.allowOut === 0) {
-      toast.error('入口或出口至少开启一项');
+      toast.error(translate("入口或出口至少开启一项"));
       return;
     }
     setNodeAssignLoading(true);
@@ -601,7 +602,7 @@ export default function UserPage() {
         allowOut: nodePermissionForm.allowOut
       });
       if (response.code === 0) {
-        toast.success('节点权限分配成功');
+        toast.success(translate("节点权限分配成功"));
         setNodePermissionForm({
           nodeId: null,
           allowIn: 1,
@@ -612,7 +613,7 @@ export default function UserPage() {
         toast.error(response.msg || '分配失败');
       }
     } catch (error) {
-      toast.error('分配失败');
+      toast.error(translate("分配失败"));
     } finally {
       setNodeAssignLoading(false);
     }
@@ -622,7 +623,7 @@ export default function UserPage() {
     const newAllowIn = field === 'allowIn' ? value : item.allowIn;
     const newAllowOut = field === 'allowOut' ? value : item.allowOut;
     if (newAllowIn === 0 && newAllowOut === 0) {
-      toast.error('入口或出口至少开启一项');
+      toast.error(translate("入口或出口至少开启一项"));
       return;
     }
     try {
@@ -639,7 +640,7 @@ export default function UserPage() {
         toast.error(response.msg || '更新失败');
       }
     } catch (error) {
-      toast.error('更新失败');
+      toast.error(translate("更新失败"));
     }
   };
 
@@ -647,7 +648,7 @@ export default function UserPage() {
     try {
       const response = await removeUserNodePermission({ id });
       if (response.code === 0) {
-        toast.success('删除成功');
+        toast.success(translate("删除成功"));
         if (currentUser) {
           loadUserNodePermissions(currentUser.id);
         }
@@ -655,7 +656,7 @@ export default function UserPage() {
         toast.error(response.msg || '删除失败');
       }
     } catch (error) {
-      toast.error('删除失败');
+      toast.error(translate("删除失败"));
     }
   };
 
@@ -714,19 +715,19 @@ export default function UserPage() {
   }, [pagination.current, totalPages]);
 
   return (
-    
+
       <div className="px-3 lg:px-6 py-8">
       {/* 页面头部 */}
       <div className="flex flex-col gap-4 mb-6">
         <div className="flex items-center gap-3">
         </div>
-        
+
         <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
           <div className="flex items-center gap-3 flex-1 max-w-md">
             <Input
               value={searchKeyword}
               onChange={(e) => setSearchKeyword(e.target.value)}
-              placeholder="搜索用户名"
+              placeholder={translate("搜索用户名")}
               startContent={<SearchIcon className="w-4 h-4 text-default-400" />}
               onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
               className="flex-1"
@@ -746,15 +747,13 @@ export default function UserPage() {
               <SearchIcon className="w-4 h-4" />
             </Button>
           </div>
-          
+
           <Button
               variant="flat"
               color="primary"
               onPress={handleAdd}
-             
-            >
-              新增
-            </Button>
+
+            >{translate("新增")}</Button>
         </div>
       </div>
 
@@ -763,7 +762,7 @@ export default function UserPage() {
         <div className="flex items-center justify-center h-64">
           <div className="flex items-center gap-3">
             <Spinner size="sm" />
-            <span className="text-default-600">正在加载...</span>
+            <span className="text-default-600">{translate("正在加载...")}</span>
           </div>
         </div>
       ) : filteredUsers.length === 0 ? (
@@ -774,8 +773,8 @@ export default function UserPage() {
                 <UserIcon className="w-8 h-8 text-default-400" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-foreground">暂无用户数据</h3>
-                <p className="text-default-500 text-sm mt-1">还没有创建任何用户，点击上方按钮开始创建</p>
+                <h3 className="text-lg font-semibold text-foreground">{translate("暂无用户数据")}</h3>
+                <p className="text-default-500 text-sm mt-1">{translate("还没有创建任何用户，点击上方按钮开始创建")}</p>
               </div>
             </div>
           </CardBody>
@@ -805,20 +804,20 @@ export default function UserPage() {
                     <div className="flex-1 min-w-0">
                       <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-sm">
                         <div>
-                          <div className="text-default-500">流量</div>
+                          <div className="text-default-500">{translate("流量")}</div>
                           <div className="font-medium">{formatFlow(user.flow, 'gb')}</div>
                         </div>
                         <div>
-                          <div className="text-default-500">已用</div>
+                          <div className="text-default-500">{translate("已用")}</div>
                           <div className="font-medium text-danger">{formatFlow(usedFlow)}</div>
                         </div>
                         <div>
-                          <div className="text-default-500">转发数</div>
+                          <div className="text-default-500">{translate("转发数")}</div>
                           <div className="font-medium">{user.num}</div>
                         </div>
                         <div>
-                          <div className="text-default-500">重置日</div>
-                          <div className="font-medium">{user.flowResetTime === 0 ? '不重置' : `每月${user.flowResetTime}号`}</div>
+                          <div className="text-default-500">{translate("重置日")}</div>
+                          <div className="font-medium">{user.flowResetTime === 0 ? translate("不重置") : `每月${user.flowResetTime}号`}</div>
                         </div>
                       </div>
                       <div className="mt-2">
@@ -831,7 +830,7 @@ export default function UserPage() {
                       </div>
                       {user.expTime && (
                         <div className="mt-2 text-sm flex items-center gap-2">
-                          <span className="text-default-500">过期:</span>
+                          <span className="text-default-500">{translate("过期:")}</span>
                           {expStatus && expStatus.color === 'success' ? (
                             <span>{formatDate(user.expTime)}</span>
                           ) : (
@@ -845,9 +844,7 @@ export default function UserPage() {
 
                     <div className="xl:w-[360px]">
                       <div className="grid grid-cols-2 md:grid-cols-5 xl:grid-cols-5 gap-2">
-                        <Button size="sm" variant="flat" color="primary" onPress={() => handleEdit(user)} startContent={<EditIcon className="w-3 h-3" />}>
-                          编辑
-                        </Button>
+                        <Button size="sm" variant="flat" color="primary" onPress={() => handleEdit(user)} startContent={<EditIcon className="w-3 h-3" />}>{translate("编辑")}</Button>
                         <Button
                           size="sm"
                           variant="flat"
@@ -858,18 +855,10 @@ export default function UserPage() {
                               <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
                             </svg>
                           }
-                        >
-                          重置
-                        </Button>
-                        <Button size="sm" variant="flat" color="success" onPress={() => handleManageTunnels(user)} startContent={<SettingsIcon className="w-3 h-3" />}>
-                          隧道权
-                        </Button>
-                        <Button size="sm" variant="flat" color="secondary" onPress={() => handleManageNodes(user)} startContent={<SettingsIcon className="w-3 h-3" />}>
-                          节点权
-                        </Button>
-                        <Button size="sm" variant="flat" color="danger" onPress={() => handleDelete(user)} startContent={<DeleteIcon className="w-3 h-3" />}>
-                          删除
-                        </Button>
+                        >{translate("重置")}</Button>
+                        <Button size="sm" variant="flat" color="success" onPress={() => handleManageTunnels(user)} startContent={<SettingsIcon className="w-3 h-3" />}>{translate("隧道权")}</Button>
+                        <Button size="sm" variant="flat" color="secondary" onPress={() => handleManageNodes(user)} startContent={<SettingsIcon className="w-3 h-3" />}>{translate("节点权")}</Button>
+                        <Button size="sm" variant="flat" color="danger" onPress={() => handleDelete(user)} startContent={<DeleteIcon className="w-3 h-3" />}>{translate("删除")}</Button>
                       </div>
                     </div>
                   </div>
@@ -883,7 +872,7 @@ export default function UserPage() {
       {!loading && filteredUsers.length > 0 && (
         <div className="mt-6 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <div className="flex items-center gap-2 text-sm text-default-600">
-            <span>每页</span>
+            <span>{translate("每页")}</span>
             <Select
               size="sm"
               className="w-24"
@@ -897,7 +886,7 @@ export default function UserPage() {
                 <SelectItem key={String(size)}>{String(size)}</SelectItem>
               ))}
             </Select>
-            <span>共 {filteredUsers.length} 条</span>
+            <span>{translate("共")}{filteredUsers.length}{translate("条")}</span>
           </div>
 
           <div className="flex items-center gap-1 overflow-x-auto">
@@ -906,17 +895,13 @@ export default function UserPage() {
               variant="flat"
               isDisabled={pagination.current === 1}
               onPress={() => setPagination((prev) => ({ ...prev, current: 1 }))}
-            >
-              首页
-            </Button>
+            >{translate("首页")}</Button>
             <Button
               size="sm"
               variant="flat"
               isDisabled={pagination.current === 1}
               onPress={() => setPagination((prev) => ({ ...prev, current: Math.max(1, prev.current - 1) }))}
-            >
-              上一页
-            </Button>
+            >{translate("上一页")}</Button>
             {visiblePages.map((page) => (
               <Button
                 key={page}
@@ -933,17 +918,13 @@ export default function UserPage() {
               variant="flat"
               isDisabled={pagination.current === totalPages}
               onPress={() => setPagination((prev) => ({ ...prev, current: Math.min(totalPages, prev.current + 1) }))}
-            >
-              下一页
-            </Button>
+            >{translate("下一页")}</Button>
             <Button
               size="sm"
               variant="flat"
               isDisabled={pagination.current === totalPages}
               onPress={() => setPagination((prev) => ({ ...prev, current: totalPages }))}
-            >
-              末页
-            </Button>
+            >{translate("末页")}</Button>
           </div>
         </div>
       )}
@@ -960,26 +941,26 @@ export default function UserPage() {
       >
         <ModalContent>
           <ModalHeader>
-            {isEdit ? '编辑用户' : '新增用户'}
+            {isEdit ? translate("编辑用户") : translate("新增用户")}
           </ModalHeader>
           <ModalBody>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Input
-                label="用户名"
+                label={translate("用户名")}
                 value={userForm.user}
                 onChange={(e) => setUserForm(prev => ({ ...prev, user: e.target.value }))}
                 isRequired
               />
               <Input
-                label="密码"
+                label={translate("密码")}
                 type="password"
                 value={userForm.pwd}
                 onChange={(e) => setUserForm(prev => ({ ...prev, pwd: e.target.value }))}
-                placeholder={isEdit ? '留空则不修改密码' : '请输入密码'}
+                placeholder={isEdit ? translate("留空则不修改密码") : translate("请输入密码")}
                 isRequired={!isEdit}
               />
               <Input
-                label="流量限制(GB)"
+                label={translate("流量限制(GB)")}
                 type="number"
                 value={userForm.flow.toString()}
                 onChange={(e) => {
@@ -991,7 +972,7 @@ export default function UserPage() {
                 isRequired
               />
               <Input
-                label="转发数量"
+                label={translate("转发数量")}
                 type="number"
                 value={userForm.num.toString()}
                 onChange={(e) => {
@@ -1003,7 +984,7 @@ export default function UserPage() {
                 isRequired
               />
               <Select
-                label="流量重置日期"
+                label={translate("流量重置日期")}
                 selectedKeys={[userForm.flowResetTime.toString()]}
                 onSelectionChange={(keys) => {
                   const value = Array.from(keys)[0] as string;
@@ -1011,18 +992,14 @@ export default function UserPage() {
                 }}
               >
                 <>
-                  <SelectItem key="0" textValue="不重置">
-                    不重置
-                  </SelectItem>
+                  <SelectItem key="0" textValue={translate("不重置")}>{translate("不重置")}</SelectItem>
                 {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
-                  <SelectItem key={day.toString()} textValue={`每月${day}号（0点重置）`}>
-                    每月{day}号（0点重置）
-                  </SelectItem>
+                  <SelectItem key={day.toString()} textValue={`每月${day}号（0点重置）`}>{translate("每月")}{day}{translate("号（0点重置）")}</SelectItem>
                 ))}
                 </>
               </Select>
               <DatePicker
-                label="过期时间"
+                label={translate("过期时间")}
                 value={userForm.expTime ? parseDate(userForm.expTime.toISOString().split('T')[0]) as any : null}
                 onChange={(date) => {
                   if (date) {
@@ -1037,28 +1014,24 @@ export default function UserPage() {
                 className="cursor-pointer"
               />
             </div>
-            
+
             <RadioGroup
-              label="状态"
+              label={translate("状态")}
               value={userForm.status.toString()}
               onValueChange={(value: string) => setUserForm(prev => ({ ...prev, status: Number(value) }))}
               orientation="horizontal"
             >
-              <Radio value="1">正常</Radio>
-              <Radio value="0">禁用</Radio>
+              <Radio value="1">{translate("正常")}</Radio>
+              <Radio value="0">{translate("禁用")}</Radio>
             </RadioGroup>
           </ModalBody>
           <ModalFooter>
-            <Button onPress={onUserModalClose}>
-              取消
-            </Button>
+            <Button onPress={onUserModalClose}>{translate("取消")}</Button>
             <Button
               color="primary"
               onPress={handleSubmitUser}
               isLoading={userFormLoading}
-            >
-              确定
-            </Button>
+            >{translate("确定")}</Button>
           </ModalFooter>
         </ModalContent>
       </Modal>
@@ -1077,18 +1050,16 @@ export default function UserPage() {
         }}
       >
         <ModalContent>
-          <ModalHeader>
-            用户 {currentUser?.user} 的隧道权限管理
-          </ModalHeader>
+          <ModalHeader>{translate("用户")}{currentUser?.user}{translate("的隧道权限管理")}</ModalHeader>
           <ModalBody>
             <div className="space-y-6">
               {/* 分配新权限部分 */}
               <div>
-                <h3 className="text-lg font-semibold mb-4">分配新权限</h3>
+                <h3 className="text-lg font-semibold mb-4">{translate("分配新权限")}</h3>
                 <div className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <Select
-                      label="选择隧道"
+                      label={translate("选择隧道")}
                       selectedKeys={tunnelForm.tunnelId ? [tunnelForm.tunnelId.toString()] : []}
                       onSelectionChange={(keys) => {
                         const value = Array.from(keys)[0] as string;
@@ -1101,9 +1072,9 @@ export default function UserPage() {
                         </SelectItem>
                       ))}
                     </Select>
-                    
+
                     <Select
-                      label="限速规则"
+                      label={translate("限速规则")}
                       selectedKeys={tunnelForm.speedId ? [tunnelForm.speedId.toString()] : ["null"]}
                       onSelectionChange={(keys) => {
                         const value = Array.from(keys)[0] as string;
@@ -1112,7 +1083,7 @@ export default function UserPage() {
                       isDisabled={!tunnelForm.tunnelId}
                     >
                       {[
-                        <SelectItem key="null" textValue="不限速">不限速</SelectItem>,
+                        <SelectItem key="null" textValue={translate("不限速")}>{translate("不限速")}</SelectItem>,
                         ...availableSpeedLimits.map(speedLimit => (
                           <SelectItem key={speedLimit.id.toString()} textValue={speedLimit.name}>
                             {speedLimit.name}
@@ -1120,9 +1091,9 @@ export default function UserPage() {
                         ))
                       ]}
                     </Select>
-                    
+
                     <Input
-                      label="流量限制(GB)"
+                      label={translate("流量限制(GB)")}
                       type="number"
                       value={tunnelForm.flow.toString()}
                       onChange={(e) => {
@@ -1132,9 +1103,9 @@ export default function UserPage() {
                       min="1"
                       max="99999"
                     />
-                    
+
                     <Input
-                      label="转发数量"
+                      label={translate("转发数量")}
                       type="number"
                       value={tunnelForm.num.toString()}
                       onChange={(e) => {
@@ -1144,9 +1115,9 @@ export default function UserPage() {
                       min="1"
                       max="99999"
                     />
-                    
+
                     <Select
-                      label="流量重置日期"
+                      label={translate("流量重置日期")}
                       selectedKeys={[tunnelForm.flowResetTime.toString()]}
                       onSelectionChange={(keys) => {
                         const value = Array.from(keys)[0] as string;
@@ -1154,19 +1125,15 @@ export default function UserPage() {
                       }}
                     >
                       <>
-                        <SelectItem key="0" textValue="不重置">
-                          不重置
-                        </SelectItem>
+                        <SelectItem key="0" textValue={translate("不重置")}>{translate("不重置")}</SelectItem>
                       {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
-                        <SelectItem key={day.toString()} textValue={`每月${day}号（0点重置）`}>
-                          每月{day}号（0点重置）
-                        </SelectItem>
+                        <SelectItem key={day.toString()} textValue={`每月${day}号（0点重置）`}>{translate("每月")}{day}{translate("号（0点重置）")}</SelectItem>
                       ))}
                       </>
                     </Select>
-                    
+
                     <DatePicker
-                      label="到期时间"
+                      label={translate("到期时间")}
                       value={tunnelForm.expTime ? parseDate(tunnelForm.expTime.toISOString().split('T')[0]) as any : null}
                       onChange={(date) => {
                         if (date) {
@@ -1180,42 +1147,40 @@ export default function UserPage() {
                       className="cursor-pointer"
                     />
                   </div>
-                  
+
                   <Button
                     color="primary"
                     onPress={handleAssignTunnel}
                     isLoading={assignLoading}
-                  >
-                    分配权限
-                  </Button>
+                  >{translate("分配权限")}</Button>
                 </div>
               </div>
 
               {/* 已有权限部分 */}
               <div>
-                <h3 className="text-lg font-semibold mb-4">已有权限</h3>
+                <h3 className="text-lg font-semibold mb-4">{translate("已有权限")}</h3>
                 <Table
-                  aria-label="用户隧道权限列表"
+                  aria-label={translate("用户隧道权限列表")}
                   classNames={{
                     wrapper: "shadow-none",
                     th: "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 font-medium"
                   }}
                 >
                   <TableHeader>
-                    <TableColumn>隧道名称</TableColumn>
-                    <TableColumn>流量统计</TableColumn>
-                    <TableColumn>转发数量</TableColumn>
-                    <TableColumn>状态</TableColumn>
-                    <TableColumn>限速规则</TableColumn>
-                    <TableColumn>重置时间</TableColumn>
-                    <TableColumn>到期时间</TableColumn>
-                    <TableColumn>操作</TableColumn>
+                    <TableColumn>{translate("隧道名称")}</TableColumn>
+                    <TableColumn>{translate("流量统计")}</TableColumn>
+                    <TableColumn>{translate("转发数量")}</TableColumn>
+                    <TableColumn>{translate("状态")}</TableColumn>
+                    <TableColumn>{translate("限速规则")}</TableColumn>
+                    <TableColumn>{translate("重置时间")}</TableColumn>
+                    <TableColumn>{translate("到期时间")}</TableColumn>
+                    <TableColumn>{translate("操作")}</TableColumn>
                   </TableHeader>
                   <TableBody
                     items={userTunnels}
                     isLoading={tunnelListLoading}
                     loadingContent={<Spinner />}
-                    emptyContent="暂无隧道权限"
+                    emptyContent={translate("暂无隧道权限")}
                   >
                     {(userTunnel) => (
                       <TableRow key={userTunnel.id}>
@@ -1223,11 +1188,11 @@ export default function UserPage() {
                         <TableCell>
                           <div className="flex flex-col gap-1">
                             <div className="flex justify-between text-small">
-                              <span className="text-gray-600">限制:</span>
+                              <span className="text-gray-600">{translate("限制:")}</span>
                               <span className="font-medium">{formatFlow(userTunnel.flow, 'gb')}</span>
                             </div>
                             <div className="flex justify-between text-small">
-                              <span className="text-gray-600">已用:</span>
+                              <span className="text-gray-600">{translate("已用:")}</span>
                               <span className="font-medium text-danger">
                                 {formatFlow(calculateTunnelUsedFlow(userTunnel))}
                               </span>
@@ -1241,7 +1206,7 @@ export default function UserPage() {
                             size="sm"
                             variant="flat"
                           >
-                            {userTunnel.status === 1 ? '正常' : '禁用'}
+                            {userTunnel.status === 1 ? translate("正常") : translate("禁用")}
                           </Chip>
                         </TableCell>
                         <TableCell>
@@ -1253,7 +1218,7 @@ export default function UserPage() {
                             {userTunnel.speedLimitName || '不限速'}
                           </Chip>
                         </TableCell>
-                        <TableCell>{userTunnel.flowResetTime === 0 ? '不重置' : `每月${userTunnel.flowResetTime}号`}</TableCell>
+                        <TableCell>{userTunnel.flowResetTime === 0 ? translate("不重置") : `每月${userTunnel.flowResetTime}号`}</TableCell>
                         <TableCell>{formatDate(userTunnel.expTime)}</TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
@@ -1272,7 +1237,7 @@ export default function UserPage() {
                               color="warning"
                               isIconOnly
                               onClick={() => handleResetTunnelFlow(userTunnel)}
-                              title="重置流量"
+                              title={translate("重置流量")}
                             >
                               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                                 <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
@@ -1298,9 +1263,7 @@ export default function UserPage() {
             </div>
           </ModalBody>
           <ModalFooter>
-            <Button onPress={onTunnelModalClose}>
-              关闭
-            </Button>
+            <Button onPress={onTunnelModalClose}>{translate("关闭")}</Button>
           </ModalFooter>
         </ModalContent>
       </Modal>
@@ -1316,16 +1279,14 @@ export default function UserPage() {
         isDismissable={false}
       >
         <ModalContent>
-          <ModalHeader>
-            用户 {currentUser?.user} 的节点权限管理
-          </ModalHeader>
+          <ModalHeader>{translate("用户")}{currentUser?.user}{translate("的节点权限管理")}</ModalHeader>
           <ModalBody>
             <div className="space-y-6">
               <div>
-                <h3 className="text-lg font-semibold mb-4">分配新节点权限</h3>
+                <h3 className="text-lg font-semibold mb-4">{translate("分配新节点权限")}</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <Select
-                    label="选择节点"
+                    label={translate("选择节点")}
                     selectedKeys={nodePermissionForm.nodeId ? [nodePermissionForm.nodeId.toString()] : []}
                     onSelectionChange={(keys) => {
                       const value = Array.from(keys)[0] as string;
@@ -1339,26 +1300,26 @@ export default function UserPage() {
                     ))}
                   </Select>
                   <Select
-                    label="入口权限"
+                    label={translate("入口权限")}
                     selectedKeys={[nodePermissionForm.allowIn.toString()]}
                     onSelectionChange={(keys) => {
                       const value = Array.from(keys)[0] as string;
                       setNodePermissionForm(prev => ({ ...prev, allowIn: Number(value) }));
                     }}
                   >
-                    <SelectItem key="1">允许</SelectItem>
-                    <SelectItem key="0">禁止</SelectItem>
+                    <SelectItem key="1">{translate("允许")}</SelectItem>
+                    <SelectItem key="0">{translate("禁止")}</SelectItem>
                   </Select>
                   <Select
-                    label="出口权限"
+                    label={translate("出口权限")}
                     selectedKeys={[nodePermissionForm.allowOut.toString()]}
                     onSelectionChange={(keys) => {
                       const value = Array.from(keys)[0] as string;
                       setNodePermissionForm(prev => ({ ...prev, allowOut: Number(value) }));
                     }}
                   >
-                    <SelectItem key="1">允许</SelectItem>
-                    <SelectItem key="0">禁止</SelectItem>
+                    <SelectItem key="1">{translate("允许")}</SelectItem>
+                    <SelectItem key="0">{translate("禁止")}</SelectItem>
                   </Select>
                 </div>
                 <Button
@@ -1366,31 +1327,29 @@ export default function UserPage() {
                   className="mt-4"
                   onPress={handleAssignNodePermission}
                   isLoading={nodeAssignLoading}
-                >
-                  分配节点权限
-                </Button>
+                >{translate("分配节点权限")}</Button>
               </div>
 
               <div>
-                <h3 className="text-lg font-semibold mb-4">已有节点权限</h3>
+                <h3 className="text-lg font-semibold mb-4">{translate("已有节点权限")}</h3>
                 <Table
-                  aria-label="用户节点权限列表"
+                  aria-label={translate("用户节点权限列表")}
                   classNames={{
                     wrapper: "shadow-none",
                     th: "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 font-medium"
                   }}
                 >
                   <TableHeader>
-                    <TableColumn>节点名称</TableColumn>
-                    <TableColumn>入口权限</TableColumn>
-                    <TableColumn>出口权限</TableColumn>
-                    <TableColumn>操作</TableColumn>
+                    <TableColumn>{translate("节点名称")}</TableColumn>
+                    <TableColumn>{translate("入口权限")}</TableColumn>
+                    <TableColumn>{translate("出口权限")}</TableColumn>
+                    <TableColumn>{translate("操作")}</TableColumn>
                   </TableHeader>
                   <TableBody
                     items={nodePermissions}
                     isLoading={nodePermissionLoading}
                     loadingContent={<Spinner />}
-                    emptyContent="暂无节点权限"
+                    emptyContent={translate("暂无节点权限")}
                   >
                     {(item) => (
                       <TableRow key={item.id}>
@@ -1404,8 +1363,8 @@ export default function UserPage() {
                               handleToggleNodePermission(item, 'allowIn', Number(value));
                             }}
                           >
-                            <SelectItem key="1">允许</SelectItem>
-                            <SelectItem key="0">禁止</SelectItem>
+                            <SelectItem key="1">{translate("允许")}</SelectItem>
+                            <SelectItem key="0">{translate("禁止")}</SelectItem>
                           </Select>
                         </TableCell>
                         <TableCell>
@@ -1417,8 +1376,8 @@ export default function UserPage() {
                               handleToggleNodePermission(item, 'allowOut', Number(value));
                             }}
                           >
-                            <SelectItem key="1">允许</SelectItem>
-                            <SelectItem key="0">禁止</SelectItem>
+                            <SelectItem key="1">{translate("允许")}</SelectItem>
+                            <SelectItem key="0">{translate("禁止")}</SelectItem>
                           </Select>
                         </TableCell>
                         <TableCell>
@@ -1427,9 +1386,7 @@ export default function UserPage() {
                             color="danger"
                             variant="flat"
                             onPress={() => handleRemoveNodePermission(item.id)}
-                          >
-                            删除
-                          </Button>
+                          >{translate("删除")}</Button>
                         </TableCell>
                       </TableRow>
                     )}
@@ -1439,9 +1396,7 @@ export default function UserPage() {
             </div>
           </ModalBody>
           <ModalFooter>
-            <Button onPress={onNodeModalClose}>
-              关闭
-            </Button>
+            <Button onPress={onNodeModalClose}>{translate("关闭")}</Button>
           </ModalFooter>
         </ModalContent>
       </Modal>
@@ -1457,15 +1412,14 @@ export default function UserPage() {
         isDismissable={false}
       >
         <ModalContent>
-          <ModalHeader>
-            编辑隧道权限 - {editTunnelForm?.tunnelName}
+          <ModalHeader>{translate("编辑隧道权限 -")}{editTunnelForm?.tunnelName}
           </ModalHeader>
           <ModalBody>
             {editTunnelForm && (
               <>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Input
-                    label="流量限制(GB)"
+                    label={translate("流量限制(GB)")}
                     type="number"
                     value={editTunnelForm.flow.toString()}
                     onChange={(e) => {
@@ -1475,9 +1429,9 @@ export default function UserPage() {
                     min="1"
                     max="99999"
                   />
-                  
+
                   <Input
-                    label="转发数量"
+                    label={translate("转发数量")}
                     type="number"
                     value={editTunnelForm.num.toString()}
                     onChange={(e) => {
@@ -1487,9 +1441,9 @@ export default function UserPage() {
                     min="1"
                     max="99999"
                   />
-                  
+
                   <Select
-                    label="限速规则"
+                    label={translate("限速规则")}
                     selectedKeys={editTunnelForm.speedId ? [editTunnelForm.speedId.toString()] : ['null']}
                     onSelectionChange={(keys) => {
                       const value = Array.from(keys)[0] as string;
@@ -1497,7 +1451,7 @@ export default function UserPage() {
                     }}
                   >
                     {[
-                      <SelectItem key="null" textValue="不限速">不限速</SelectItem>,
+                      <SelectItem key="null" textValue={translate("不限速")}>{translate("不限速")}</SelectItem>,
                       ...editAvailableSpeedLimits.map(speedLimit => (
                         <SelectItem key={speedLimit.id.toString()} textValue={speedLimit.name}>
                           {speedLimit.name}
@@ -1505,9 +1459,9 @@ export default function UserPage() {
                       ))
                     ]}
                   </Select>
-                  
+
                   <Select
-                    label="流量重置日期"
+                    label={translate("流量重置日期")}
                     selectedKeys={[editTunnelForm.flowResetTime.toString()]}
                     onSelectionChange={(keys) => {
                       const value = Array.from(keys)[0] as string;
@@ -1515,19 +1469,15 @@ export default function UserPage() {
                     }}
                   >
                     <>
-                      <SelectItem key="0" textValue="不重置">
-                        不重置
-                      </SelectItem>
+                      <SelectItem key="0" textValue={translate("不重置")}>{translate("不重置")}</SelectItem>
                     {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
-                      <SelectItem key={day.toString()} textValue={`每月${day}号（0点重置）`}>
-                        每月{day}号（0点重置）
-                      </SelectItem>
+                      <SelectItem key={day.toString()} textValue={`每月${day}号（0点重置）`}>{translate("每月")}{day}{translate("号（0点重置）")}</SelectItem>
                     ))}
                     </>
                   </Select>
-                  
+
                   <DatePicker
-                    label="到期时间"
+                    label={translate("到期时间")}
                     value={editTunnelForm.expTime ? parseDate(new Date(editTunnelForm.expTime).toISOString().split('T')[0]) as any : null}
                     onChange={(date) => {
                       if (date) {
@@ -1542,30 +1492,26 @@ export default function UserPage() {
                     isRequired
                   />
                 </div>
-                
+
                 <RadioGroup
-                  label="状态"
+                  label={translate("状态")}
                   value={editTunnelForm.status.toString()}
                   onValueChange={(value: string) => setEditTunnelForm(prev => prev ? { ...prev, status: Number(value) } : null)}
                   orientation="horizontal"
                 >
-                  <Radio value="1">正常</Radio>
-                  <Radio value="0">禁用</Radio>
+                  <Radio value="1">{translate("正常")}</Radio>
+                  <Radio value="0">{translate("禁用")}</Radio>
                 </RadioGroup>
               </>
             )}
           </ModalBody>
           <ModalFooter>
-            <Button onPress={onEditTunnelModalClose}>
-              取消
-            </Button>
+            <Button onPress={onEditTunnelModalClose}>{translate("取消")}</Button>
             <Button
               color="primary"
               onPress={handleUpdateTunnel}
               isLoading={editTunnelLoading}
-            >
-              确定
-            </Button>
+            >{translate("确定")}</Button>
           </ModalFooter>
         </ModalContent>
       </Modal>
@@ -1580,37 +1526,27 @@ export default function UserPage() {
       placement="center"
       >
         <ModalContent>
-          <ModalHeader className="flex flex-col gap-1">
-            确认删除用户
-          </ModalHeader>
+          <ModalHeader className="flex flex-col gap-1">{translate("确认删除用户")}</ModalHeader>
           <ModalBody>
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 bg-danger-100 rounded-full flex items-center justify-center">
                 <DeleteIcon className="w-6 h-6 text-danger" />
               </div>
               <div className="flex-1">
-                <p className="text-foreground">
-                  确定要删除用户 <span className="font-semibold text-danger">"{userToDelete?.user}"</span> 吗？
-                </p>
-                <p className="text-small text-default-500 mt-1">
-                  此操作不可撤销，用户的所有数据将被永久删除。
-                </p>
+                <p className="text-foreground">{translate("确定要删除用户")}<span className="font-semibold text-danger">"{userToDelete?.user}"</span>{translate("吗？")}</p>
+                <p className="text-small text-default-500 mt-1">{translate("此操作不可撤销，用户的所有数据将被永久删除。")}</p>
               </div>
             </div>
           </ModalBody>
           <ModalFooter>
-            <Button 
-              variant="light" 
+            <Button
+              variant="light"
               onPress={onDeleteModalClose}
-            >
-              取消
-            </Button>
-            <Button 
-              color="danger" 
+            >{translate("取消")}</Button>
+            <Button
+              color="danger"
               onPress={handleConfirmDelete}
-            >
-              确认删除
-            </Button>
+            >{translate("确认删除")}</Button>
           </ModalFooter>
         </ModalContent>
       </Modal>
@@ -1625,37 +1561,27 @@ export default function UserPage() {
       placement="center"
       >
         <ModalContent>
-          <ModalHeader className="flex flex-col gap-1">
-            确认删除隧道权限
-          </ModalHeader>
+          <ModalHeader className="flex flex-col gap-1">{translate("确认删除隧道权限")}</ModalHeader>
           <ModalBody>
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 bg-danger-100 rounded-full flex items-center justify-center">
                 <DeleteIcon className="w-6 h-6 text-danger" />
               </div>
               <div className="flex-1">
-                <p className="text-foreground">
-                  确定要删除用户 <span className="font-semibold">{currentUser?.user}</span> 对隧道 <span className="font-semibold text-danger">"{tunnelToDelete?.tunnelName}"</span> 的权限吗？
-                </p>
-                <p className="text-small text-default-500 mt-1">
-                  删除后该用户将无法使用此隧道创建转发，此操作不可撤销。
-                </p>
+                <p className="text-foreground">{translate("确定要删除用户")}<span className="font-semibold">{currentUser?.user}</span>{translate("对隧道")}<span className="font-semibold text-danger">"{tunnelToDelete?.tunnelName}"</span>{translate("的权限吗？")}</p>
+                <p className="text-small text-default-500 mt-1">{translate("删除后该用户将无法使用此隧道创建转发，此操作不可撤销。")}</p>
               </div>
             </div>
           </ModalBody>
           <ModalFooter>
-            <Button 
-              variant="light" 
+            <Button
+              variant="light"
               onPress={onDeleteTunnelModalClose}
-            >
-              取消
-            </Button>
-            <Button 
-              color="danger" 
+            >{translate("取消")}</Button>
+            <Button
+              color="danger"
               onPress={handleConfirmRemoveTunnel}
-            >
-              确认删除
-            </Button>
+            >{translate("确认删除")}</Button>
           </ModalFooter>
         </ModalContent>
       </Modal>
@@ -1670,9 +1596,7 @@ export default function UserPage() {
       placement="center"
       >
         <ModalContent>
-          <ModalHeader className="flex flex-col gap-1">
-            确认重置流量
-          </ModalHeader>
+          <ModalHeader className="flex flex-col gap-1">{translate("确认重置流量")}</ModalHeader>
           <ModalBody>
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 bg-warning-100 rounded-full flex items-center justify-center">
@@ -1681,27 +1605,21 @@ export default function UserPage() {
                 </svg>
               </div>
               <div className="flex-1">
-                <p className="text-foreground">
-                  确定要重置用户 <span className="font-semibold text-warning">"{userToReset?.user}"</span> 的流量吗？
-                </p>
-                <p className="text-small text-default-500 mt-1">
-                  该操作只会重置账号流量不会重置隧道权限流量，重置后该用户的上下行流量将归零，此操作不可撤销。
-                </p>
+                <p className="text-foreground">{translate("确定要重置用户")}<span className="font-semibold text-warning">"{userToReset?.user}"</span>{translate("的流量吗？")}</p>
+                <p className="text-small text-default-500 mt-1">{translate("该操作只会重置账号流量不会重置隧道权限流量，重置后该用户的上下行流量将归零，此操作不可撤销。")}</p>
                 <div className="mt-2 p-2 bg-warning-50 dark:bg-warning-100/10 rounded text-xs">
-                  <div className="text-warning-700 dark:text-warning-300">
-                    当前流量使用情况：
-                  </div>
+                  <div className="text-warning-700 dark:text-warning-300">{translate("当前流量使用情况：")}</div>
                   <div className="mt-1 space-y-1">
                     <div className="flex justify-between">
-                      <span>上行流量：</span>
+                      <span>{translate("上行流量：")}</span>
                       <span className="font-mono">{userToReset ? formatFlow(userToReset.inFlow || 0) : '-'}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span>下行流量：</span>
+                      <span>{translate("下行流量：")}</span>
                       <span className="font-mono">{userToReset ? formatFlow(userToReset.outFlow || 0) : '-'}</span>
                     </div>
                     <div className="flex justify-between font-medium">
-                      <span>总计：</span>
+                      <span>{translate("总计：")}</span>
                       <span className="font-mono text-warning-700 dark:text-warning-300">
                         {userToReset ? formatFlow(calculateUserTotalUsedFlow(userToReset)) : '-'}
                       </span>
@@ -1712,19 +1630,15 @@ export default function UserPage() {
             </div>
           </ModalBody>
           <ModalFooter>
-            <Button 
-              variant="light" 
+            <Button
+              variant="light"
               onPress={onResetFlowModalClose}
-            >
-              取消
-            </Button>
-            <Button 
-              color="warning" 
+            >{translate("取消")}</Button>
+            <Button
+              color="warning"
               onPress={handleConfirmResetFlow}
               isLoading={resetFlowLoading}
-            >
-              确认重置
-            </Button>
+            >{translate("确认重置")}</Button>
           </ModalFooter>
         </ModalContent>
       </Modal>
@@ -1739,9 +1653,7 @@ export default function UserPage() {
       placement="center"
       >
         <ModalContent>
-          <ModalHeader className="flex flex-col gap-1">
-            确认重置隧道流量
-          </ModalHeader>
+          <ModalHeader className="flex flex-col gap-1">{translate("确认重置隧道流量")}</ModalHeader>
           <ModalBody>
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 bg-warning-100 rounded-full flex items-center justify-center">
@@ -1750,27 +1662,21 @@ export default function UserPage() {
                 </svg>
               </div>
               <div className="flex-1">
-                <p className="text-foreground">
-                  确定要重置用户 <span className="font-semibold">{currentUser?.user}</span> 对隧道 <span className="font-semibold text-warning">"{tunnelToReset?.tunnelName}"</span> 的流量吗？
-                </p>
-                <p className="text-small text-default-500 mt-1">
-                  该操作只会重置隧道权限流量不会重置账号流量，重置后该隧道权限的上下行流量将归零，此操作不可撤销。
-                </p>
+                <p className="text-foreground">{translate("确定要重置用户")}<span className="font-semibold">{currentUser?.user}</span>{translate("对隧道")}<span className="font-semibold text-warning">"{tunnelToReset?.tunnelName}"</span>{translate("的流量吗？")}</p>
+                <p className="text-small text-default-500 mt-1">{translate("该操作只会重置隧道权限流量不会重置账号流量，重置后该隧道权限的上下行流量将归零，此操作不可撤销。")}</p>
                 <div className="mt-2 p-2 bg-warning-50 dark:bg-warning-100/10 rounded text-xs">
-                  <div className="text-warning-700 dark:text-warning-300">
-                    当前流量使用情况：
-                  </div>
+                  <div className="text-warning-700 dark:text-warning-300">{translate("当前流量使用情况：")}</div>
                   <div className="mt-1 space-y-1">
                     <div className="flex justify-between">
-                      <span>上行流量：</span>
+                      <span>{translate("上行流量：")}</span>
                       <span className="font-mono">{tunnelToReset ? formatFlow(tunnelToReset.inFlow || 0) : '-'}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span>下行流量：</span>
+                      <span>{translate("下行流量：")}</span>
                       <span className="font-mono">{tunnelToReset ? formatFlow(tunnelToReset.outFlow || 0) : '-'}</span>
                     </div>
                     <div className="flex justify-between font-medium">
-                      <span>总计：</span>
+                      <span>{translate("总计：")}</span>
                       <span className="font-mono text-warning-700 dark:text-warning-300">
                         {tunnelToReset ? formatFlow(calculateTunnelUsedFlow(tunnelToReset)) : '-'}
                       </span>
@@ -1781,23 +1687,19 @@ export default function UserPage() {
             </div>
           </ModalBody>
           <ModalFooter>
-            <Button 
-              variant="light" 
+            <Button
+              variant="light"
               onPress={onResetTunnelFlowModalClose}
-            >
-              取消
-            </Button>
-            <Button 
-              color="warning" 
+            >{translate("取消")}</Button>
+            <Button
+              color="warning"
               onPress={handleConfirmResetTunnelFlow}
               isLoading={resetTunnelFlowLoading}
-            >
-              确认重置
-            </Button>
+            >{translate("确认重置")}</Button>
           </ModalFooter>
         </ModalContent>
       </Modal>
       </div>
-    
+
   );
-} 
+}

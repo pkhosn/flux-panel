@@ -1,3 +1,4 @@
+import { translate } from '@/utils/locale';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from "@heroui/button";
@@ -7,7 +8,7 @@ import { Input } from "@heroui/input";
 import { Spinner } from "@heroui/spinner";
 import { Divider } from "@heroui/divider";
 import { Switch } from "@heroui/switch";
-import { Select, SelectItem } from "@heroui/select";
+import { Select, SelectItem } from "@/components/select";
 import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, useDisclosure } from "@heroui/modal";
 import toast from 'react-hot-toast';
 import { updateConfigs } from '@/api';
@@ -51,19 +52,19 @@ interface PaymentMethodItem {
   enabled: boolean;
 }
 
-const PAYMENT_PROVIDER_OPTIONS: { label: string; value: string; description?: string }[] = [
-  { label: 'MGate', value: 'mgate', description: '使用 MGate API 创建支付并处理回调' },
-  { label: 'EPay', value: 'epay', description: '易支付兼容通道' },
-  { label: 'BEPUSDT', value: 'bepusdt', description: 'BEPUSDT 通道' },
+const PAYMENT_PROVIDER_OPTIONS = (): { label: string; value: string; description?: string }[] => ([
+  { label: 'MGate', value: 'mgate', description: translate("使用 MGate API 创建支付并处理回调") },
+  { label: 'EPay', value: 'epay', description: translate("易支付兼容通道") },
+  { label: 'BEPUSDT', value: 'bepusdt', description: translate("BEPUSDT 通道") },
   { label: 'BTCPay', value: 'btcpay', description: 'BTCPay Server' },
-  { label: 'CoinPayments', value: 'coinpayments', description: 'CoinPayments 加密货币支付' },
+  { label: 'CoinPayments', value: 'coinpayments', description: translate("CoinPayments 加密货币支付") },
   { label: 'Coinbase', value: 'coinbase', description: 'Coinbase Commerce' },
   { label: 'Stripe Checkout', value: 'stripe_checkout', description: 'Stripe Checkout' },
-  { label: 'Stripe Alipay', value: 'stripe_alipay', description: 'Stripe 支付宝' },
-  { label: 'Stripe WePay', value: 'stripe_wepay', description: 'Stripe 微信' },
-  { label: 'Stripe Credit', value: 'stripe_credit', description: 'Stripe 信用卡' },
-  { label: 'Stripe ALL', value: 'stripe_all', description: 'Stripe 多支付方式' }
-];
+  { label: 'Stripe Alipay', value: 'stripe_alipay', description: translate("Stripe 支付宝") },
+  { label: 'Stripe WePay', value: 'stripe_wepay', description: translate("Stripe 微信") },
+  { label: 'Stripe Credit', value: 'stripe_credit', description: translate("Stripe 信用卡") },
+  { label: 'Stripe ALL', value: 'stripe_all', description: translate("Stripe 多支付方式") }
+]);
 
 const PAYMENT_PROVIDER_FIELD_KEYS: Record<string, string[]> = {
   mgate: ['payment_mgate_url', 'payment_mgate_app_id', 'payment_mgate_app_secret', 'payment_mgate_source_currency'],
@@ -79,13 +80,13 @@ const PAYMENT_PROVIDER_FIELD_KEYS: Record<string, string[]> = {
   stripe_all: ['payment_stripe_sk_live', 'payment_stripe_currency', 'payment_stripe_webhook_key']
 };
 
-const PAYMENT_CHANNEL_OPTIONS: { value: string; label: string }[] = [
-  { value: 'alipay', label: '支付宝' },
-  { value: 'wxpay', label: '微信支付' },
-  { value: 'qqpay', label: 'QQ支付' },
+const PAYMENT_CHANNEL_OPTIONS = (): { value: string; label: string }[] => ([
+  { value: 'alipay', label: translate("支付宝") },
+  { value: 'wxpay', label: translate("微信支付") },
+  { value: 'qqpay', label: translate("QQ支付") },
   { value: 'usdt', label: 'USDT' },
-  { value: 'bank', label: '银行卡' }
-];
+  { value: 'bank', label: translate("银行卡") }
+]);
 
 const parsePaymentMethods = (raw?: string): PaymentMethodItem[] => {
   if (!raw || !raw.trim()) return [];
@@ -120,85 +121,85 @@ const serializePaymentMethods = (items: PaymentMethodItem[]): string => {
 };
 
 // 网站配置项定义
-const CONFIG_ITEMS: ConfigItem[] = [
+const CONFIG_ITEMS = (): ConfigItem[] => ([
   {
     key: 'ip',
-    label: '面板后端地址',
-    placeholder: '请输入面板后端IP:PORT',
-    description: '格式“ip:port”,用于对接节点时使用,ip是你安装面板服务器的公网ip,端口是安装脚本内输入的后端端口。不要套CDN,不支持https,通讯数据有加密',
+    label: translate("面板后端地址"),
+    placeholder: translate("请输入面板后端IP:PORT"),
+    description: translate("格式“ip:port”,用于对接节点时使用,ip是你安装面板服务器的公网ip,端口是安装脚本内输入的后端端口。不要套CDN,不支持https,通讯数据有加密"),
     type: 'input'
   },
   {
     key: 'app_name',
-    label: '应用名称',
-    placeholder: '请输入应用名称',
-    description: '在浏览器标签页和导航栏显示的应用名称',
+    label: translate("应用名称"),
+    placeholder: translate("请输入应用名称"),
+    description: translate("在浏览器标签页和导航栏显示的应用名称"),
     type: 'input'
   },
-  { key: 'app_logo', label: '品牌 Logo 地址', placeholder: 'https://example.com/logo.svg', description: '导航栏 Logo 图片地址，留空使用默认 Logo', type: 'input' },
-  { key: 'announcement_title', label: '公告标题', placeholder: '网站公告', description: '顶部铃铛打开的公告标题', type: 'input' },
-  { key: 'announcement_content', label: '公告内容', placeholder: '请输入公告内容', description: '顶部铃铛展示的公告，支持换行纯文本', type: 'textarea' },
+  { key: 'app_logo', label: translate("品牌 Logo 地址"), placeholder: 'https://example.com/logo.svg', description: translate("导航栏 Logo 图片地址，留空使用默认 Logo"), type: 'input' },
+  { key: 'announcement_title', label: translate("公告标题"), placeholder: translate("网站公告"), description: translate("顶部铃铛打开的公告标题"), type: 'input' },
+  { key: 'announcement_content', label: translate("公告内容"), placeholder: translate("请输入公告内容"), description: translate("顶部铃铛展示的公告，支持换行纯文本"), type: 'textarea' },
   {
     key: 'captcha_enabled',
-    label: '启用验证码',
-    description: '开启后，用户登录时需要完成验证码验证',
+    label: translate("启用验证码"),
+    description: translate("开启后，用户登录时需要完成验证码验证"),
     type: 'switch'
   },
   {
     key: 'captcha_type',
-    label: '验证码类型',
-    description: '选择验证码的显示类型，不同类型有不同的安全级别',
+    label: translate("验证码类型"),
+    description: translate("选择验证码的显示类型，不同类型有不同的安全级别"),
     type: 'select',
     dependsOn: 'captcha_enabled',
     dependsValue: 'true',
     options: [
-      { 
-        label: '随机类型', 
-        value: 'RANDOM', 
-        description: '系统随机选择验证码类型' 
+      {
+        label: translate("随机类型"),
+        value: 'RANDOM',
+        description: translate("系统随机选择验证码类型")
       },
-      { 
-        label: '滑块验证码', 
-        value: 'SLIDER', 
-        description: '拖动滑块完成拼图验证' 
+      {
+        label: translate("滑块验证码"),
+        value: 'SLIDER',
+        description: translate("拖动滑块完成拼图验证")
       },
-      { 
-        label: '文字点选验证码', 
-        value: 'WORD_IMAGE_CLICK', 
-        description: '按顺序点击指定文字' 
+      {
+        label: translate("文字点选验证码"),
+        value: 'WORD_IMAGE_CLICK',
+        description: translate("按顺序点击指定文字")
       },
-      { 
-        label: '旋转验证码', 
-        value: 'ROTATE', 
-        description: '旋转图片到正确角度' 
+      {
+        label: translate("旋转验证码"),
+        value: 'ROTATE',
+        description: translate("旋转图片到正确角度")
       },
-      { 
-        label: '拼图验证码', 
-        value: 'CONCAT', 
-        description: '拖动滑块完成图片拼接' 
+      {
+        label: translate("拼图验证码"),
+        value: 'CONCAT',
+        description: translate("拖动滑块完成图片拼接")
       }
     ]
   },
   {
     key: 'payment_enabled',
-    label: '启用支付',
-    description: '开启后用户可创建支付订单',
+    label: translate("启用支付"),
+    description: translate("开启后用户可创建支付订单"),
     type: 'switch'
   },
   {
     key: 'payment_provider',
-    label: '支付通道',
-    description: '当前支持 MGate 兼容通道',
+    label: translate("支付通道"),
+    description: translate("当前支持 MGate 兼容通道"),
     type: 'select',
     dependsOn: 'payment_enabled',
     dependsValue: 'true',
-    options: PAYMENT_PROVIDER_OPTIONS
+    options: PAYMENT_PROVIDER_OPTIONS()
   },
   {
     key: 'payment_mgate_url',
-    label: 'MGate API 地址',
-    placeholder: '如: https://pay.example.com',
-    description: '支付网关基础地址，不包含 /v1/gateway/fetch',
+    label: translate("MGate API 地址"),
+    placeholder: translate("如: https://pay.example.com"),
+    description: translate("支付网关基础地址，不包含 /v1/gateway/fetch"),
     type: 'input',
     dependsOn: 'payment_provider',
     dependsValue: 'mgate'
@@ -206,8 +207,8 @@ const CONFIG_ITEMS: ConfigItem[] = [
   {
     key: 'payment_mgate_app_id',
     label: 'MGate App ID',
-    placeholder: '请输入 app_id',
-    description: 'MGate 分配的应用 ID',
+    placeholder: translate("请输入 app_id"),
+    description: translate("MGate 分配的应用 ID"),
     type: 'input',
     dependsOn: 'payment_provider',
     dependsValue: 'mgate'
@@ -215,34 +216,34 @@ const CONFIG_ITEMS: ConfigItem[] = [
   {
     key: 'payment_mgate_app_secret',
     label: 'MGate App Secret',
-    placeholder: '请输入 app_secret',
-    description: '用于签名与回调验签',
+    placeholder: translate("请输入 app_secret"),
+    description: translate("用于签名与回调验签"),
     type: 'input',
     dependsOn: 'payment_provider',
     dependsValue: 'mgate'
   },
   {
     key: 'payment_mgate_source_currency',
-    label: 'MGate 源货币',
-    placeholder: '默认 CNY',
-    description: '下单时传递给网关的 source_currency',
+    label: translate("MGate 源货币"),
+    placeholder: translate("默认 CNY"),
+    description: translate("下单时传递给网关的 source_currency"),
     type: 'input',
     dependsOn: 'payment_provider',
     dependsValue: 'mgate'
   },
   {
     key: 'payment_notify_base_url',
-    label: '支付回调基础地址',
-    placeholder: '如: http://your-domain:6365',
-    description: '后端可被支付网关访问的地址，系统会拼接 /api/v1/order/notify/mgate',
+    label: translate("支付回调基础地址"),
+    placeholder: translate("如: http://your-domain:6365"),
+    description: translate("后端可被支付网关访问的地址，系统会拼接 /api/v1/order/notify/mgate"),
     type: 'input',
     dependsOn: 'payment_enabled',
     dependsValue: 'true'
   },
   {
     key: 'payment_epay_url',
-    label: 'EPay 地址',
-    placeholder: '如: https://epay.example.com',
+    label: translate("EPay 地址"),
+    placeholder: translate("如: https://epay.example.com"),
     type: 'input',
     dependsOn: 'payment_provider',
     dependsValue: 'epay'
@@ -263,7 +264,7 @@ const CONFIG_ITEMS: ConfigItem[] = [
   },
   {
     key: 'payment_bepusdt_url',
-    label: 'BEPUSDT 地址',
+    label: translate("BEPUSDT 地址"),
     type: 'input',
     dependsOn: 'payment_provider',
     dependsValue: 'bepusdt'
@@ -277,7 +278,7 @@ const CONFIG_ITEMS: ConfigItem[] = [
   },
   {
     key: 'payment_btcpay_url',
-    label: 'BTCPay 地址',
+    label: translate("BTCPay 地址"),
     type: 'input',
     dependsOn: 'payment_provider',
     dependsValue: 'btcpay'
@@ -305,8 +306,8 @@ const CONFIG_ITEMS: ConfigItem[] = [
   },
   {
     key: 'payment_btcpay_currency',
-    label: 'BTCPay 货币',
-    placeholder: '默认 USD',
+    label: translate("BTCPay 货币"),
+    placeholder: translate("默认 USD"),
     type: 'input',
     dependsOn: 'payment_provider',
     dependsValue: 'btcpay'
@@ -328,7 +329,7 @@ const CONFIG_ITEMS: ConfigItem[] = [
   {
     key: 'payment_coinbase_url',
     label: 'Coinbase Endpoint',
-    placeholder: '如: https://api.commerce.coinbase.com/charges',
+    placeholder: translate("如: https://api.commerce.coinbase.com/charges"),
     type: 'input',
     dependsOn: 'payment_provider',
     dependsValue: 'coinbase'
@@ -356,8 +357,8 @@ const CONFIG_ITEMS: ConfigItem[] = [
   },
   {
     key: 'payment_stripe_currency',
-    label: 'Stripe 货币',
-    placeholder: '如 usd',
+    label: translate("Stripe 货币"),
+    placeholder: translate("如 usd"),
     type: 'input',
     dependsOn: 'payment_provider',
     dependsValue: 'stripe_checkout'
@@ -371,28 +372,28 @@ const CONFIG_ITEMS: ConfigItem[] = [
   },
   {
     key: 'payment_return_base_url',
-    label: '支付返回基础地址',
-    placeholder: '如: http://your-domain:6366',
-    description: '支付完成后跳转前端地址，系统会拼接 /billing?orderNo=xxx',
+    label: translate("支付返回基础地址"),
+    placeholder: translate("如: http://your-domain:6366"),
+    description: translate("支付完成后跳转前端地址，系统会拼接 /billing?orderNo=xxx"),
     type: 'input',
     dependsOn: 'payment_enabled',
     dependsValue: 'true'
   },
   {
     key: 'payment_methods',
-    label: '支付方式配置',
-    placeholder: '如: alipay:支付宝,wxpay:微信支付,qqpay:QQ支付',
-    description: '格式: 渠道值:显示名，多个用英文逗号分隔。示例 alipay:支付宝,wxpay:微信支付',
+    label: translate("支付方式配置"),
+    placeholder: translate("如: alipay:支付宝,wxpay:微信支付,qqpay:QQ支付"),
+    description: translate("格式: 渠道值:显示名，多个用英文逗号分隔。示例 alipay:支付宝,wxpay:微信支付"),
     type: 'input',
     dependsOn: 'payment_enabled',
     dependsValue: 'true'
   }
-];
+]);
 
 // 初始化时从缓存读取配置，避免闪烁
 const getInitialConfigs = (): Record<string, string> => {
   if (typeof window === 'undefined') return {};
-  
+
   const configKeys = [
     'app_name',
     'app_logo',
@@ -430,7 +431,7 @@ const getInitialConfigs = (): Record<string, string> => {
     'payment_stripe_webhook_key'
   ];
   const initialConfigs: Record<string, string> = {};
-  
+
   try {
     configKeys.forEach(key => {
       const cachedValue = localStorage.getItem('vite_config_' + key);
@@ -440,7 +441,7 @@ const getInitialConfigs = (): Record<string, string> => {
     });
   } catch (error) {
   }
-  
+
   return initialConfigs;
 };
 
@@ -460,7 +461,7 @@ export default function ConfigPage() {
   // 权限检查
   useEffect(() => {
     if (!isAdmin()) {
-      toast.error('权限不足，只有管理员可以访问此页面');
+      toast.error(translate("权限不足，只有管理员可以访问此页面"));
       navigate('/dashboard', { replace: true });
       return;
     }
@@ -470,15 +471,15 @@ export default function ConfigPage() {
   const loadConfigs = async (currentConfigs?: Record<string, string>) => {
     const configsToCompare = currentConfigs || configs;
     const hasInitialData = Object.keys(configsToCompare).length > 0;
-    
+
     // 如果已有缓存数据，不显示loading，静默更新
     if (!hasInitialData) {
       setLoading(true);
     }
-    
+
     try {
       const configData = await getCachedConfigs();
-      
+
       // 只有在数据有变化时才更新
       const hasDataChanged = JSON.stringify(configData) !== JSON.stringify(configsToCompare);
       if (hasDataChanged) {
@@ -490,7 +491,7 @@ export default function ConfigPage() {
     } catch (error) {
       // 只有在没有缓存数据时才显示错误
       if (!hasInitialData) {
-        toast.error('加载配置出错，请重试');
+        toast.error(translate("加载配置出错，请重试"));
       }
     } finally {
       setLoading(false);
@@ -539,33 +540,33 @@ export default function ConfigPage() {
     try {
       const response = await updateConfigs(configs);
       if (response.code === 0) {
-        toast.success('配置保存成功');
-        
+        toast.success(translate("配置保存成功"));
+
         // 清除所有配置缓存，强制下次重新获取
         clearConfigCache();
-        
+
         // 获取变更的配置项
         const changedKeys = Object.keys(configs).filter(
           key => configs[key] !== originalConfigs[key]
         );
-        
+
         setOriginalConfigs({ ...configs });
         setHasChanges(false);
-        
+
         // 如果应用名称发生变化，立即更新网站配置
         if (changedKeys.includes('app_name')) {
           await updateSiteConfig();
         }
-        
+
         // 触发配置更新事件，通知其他组件
-        window.dispatchEvent(new CustomEvent('configUpdated', { 
-          detail: { changedKeys } 
+        window.dispatchEvent(new CustomEvent('configUpdated', {
+          detail: { changedKeys }
         }));
       } else {
         toast.error('保存配置失败: ' + response.msg);
       }
     } catch (error) {
-      toast.error('保存配置出错，请重试');
+      toast.error(translate("保存配置出错，请重试"));
     } finally {
       setSaving(false);
     }
@@ -597,16 +598,16 @@ export default function ConfigPage() {
     const label = paymentForm.label.trim();
     const provider = paymentForm.provider.trim();
     if (!value || !label) {
-      toast.error('请填写完整的支付信息');
+      toast.error(translate("请填写完整的支付信息"));
       return;
     }
     if (!provider) {
-      toast.error('请选择支付通道');
+      toast.error(translate("请选择支付通道"));
       return;
     }
     const duplicated = paymentMethodsEditor.some((item) => item.value === value && item.id !== editingPaymentId);
     if (duplicated) {
-      toast.error('支付标识已存在');
+      toast.error(translate("支付标识已存在"));
       return;
     }
     if (editingPaymentId) {
@@ -632,7 +633,7 @@ export default function ConfigPage() {
   // 渲染不同类型的配置项
   const renderConfigItem = (item: ConfigItem) => {
     const isChanged = hasChanges && configs[item.key] !== originalConfigs[item.key];
-    
+
     switch (item.type) {
       case 'textarea':
         return <Textarea aria-label={item.label} value={configs[item.key] || ''} placeholder={item.placeholder} onValueChange={value => handleConfigChange(item.key, value)} variant="bordered" />;
@@ -641,20 +642,18 @@ export default function ConfigPage() {
           return (
             <div className="space-y-3">
               <div className="flex justify-between items-center">
-                <div className="text-sm text-default-600">支付方式列表</div>
-                <Button color="primary" variant="flat" onClick={openCreatePaymentModal}>
-                  添加支付
-                </Button>
+                <div className="text-sm text-default-600">{translate("支付方式列表")}</div>
+                <Button color="primary" variant="flat" onClick={openCreatePaymentModal}>{translate("添加支付")}</Button>
               </div>
               {paymentMethodsEditor.length === 0 && (
-                <div className="text-sm text-default-500">暂未配置支付方式，可点击“添加支付”。</div>
+                <div className="text-sm text-default-500">{translate("暂未配置支付方式，可点击“添加支付”。")}</div>
               )}
               {paymentMethodsEditor.map((method) => (
                 <div key={method.id} className="flex items-center justify-between border border-default-200 rounded-lg p-3">
                   <div className="min-w-0">
                     <div className="font-medium text-default-900">{method.label}</div>
-                    <div className="text-xs text-default-500">标识: {method.value}</div>
-                    <div className="text-xs text-default-500">状态: {method.enabled ? '已启用' : '已停用'}</div>
+                    <div className="text-xs text-default-500">{translate("标识:")}{method.value}</div>
+                    <div className="text-xs text-default-500">{translate("状态:")}{method.enabled ? translate("已启用") : translate("已停用")}</div>
                   </div>
                   <div className="flex items-center gap-2">
                     <Switch
@@ -664,14 +663,10 @@ export default function ConfigPage() {
                         updatePaymentMethods(paymentMethodsEditor.map((item) => item.id === method.id ? { ...item, enabled: checked } : item));
                       }}
                     >
-                      {method.enabled ? '启用' : '停用'}
+                      {method.enabled ? translate("启用") : translate("停用")}
                     </Switch>
-                    <Button size="sm" variant="flat" color="primary" onClick={() => openEditPaymentModal(method)}>
-                      编辑
-                    </Button>
-                    <Button size="sm" color="danger" variant="flat" onClick={() => removePaymentMethod(method.id)}>
-                      删除
-                    </Button>
+                    <Button size="sm" variant="flat" color="primary" onClick={() => openEditPaymentModal(method)}>{translate("编辑")}</Button>
+                    <Button size="sm" color="danger" variant="flat" onClick={() => removePaymentMethod(method.id)}>{translate("删除")}</Button>
                   </div>
                 </div>
               ))}
@@ -687,8 +682,8 @@ export default function ConfigPage() {
             size="md"
             classNames={{
               input: "text-sm",
-              inputWrapper: isChanged 
-                ? "border-warning-300 data-[hover=true]:border-warning-400" 
+              inputWrapper: isChanged
+                ? "border-warning-300 data-[hover=true]:border-warning-400"
                 : ""
             }}
           />
@@ -706,7 +701,7 @@ export default function ConfigPage() {
             }}
           >
             <span className="text-sm text-gray-700 dark:text-gray-300">
-              {configs[item.key] === 'true' ? '已启用' : '已禁用'}
+              {configs[item.key] === 'true' ? translate("已启用") : translate("已禁用")}
             </span>
           </Switch>
         );
@@ -721,17 +716,17 @@ export default function ConfigPage() {
                 handleConfigChange(item.key, selectedKey);
               }
             }}
-            placeholder="请选择验证码类型"
+            placeholder={translate("请选择验证码类型")}
             variant="bordered"
             size="md"
             classNames={{
-              trigger: isChanged 
-                ? "border-warning-300 data-[hover=true]:border-warning-400" 
+              trigger: isChanged
+                ? "border-warning-300 data-[hover=true]:border-warning-400"
                 : ""
             }}
           >
             {item.options?.map((option) => (
-              <SelectItem 
+              <SelectItem
                 key={option.value}
                 description={option.description}
               >
@@ -748,11 +743,11 @@ export default function ConfigPage() {
 
   if (loading) {
     return (
-      
+
         <div className="flex items-center justify-center min-h-[400px]">
-          <Spinner size="lg" label="加载配置中..." />
+          <Spinner size="lg" label={translate("加载配置中...")} />
         </div>
-      
+
     );
   }
 
@@ -763,10 +758,8 @@ export default function ConfigPage() {
         <div className="flex items-center gap-3 mb-6">
           <SettingsIcon className="w-8 h-8 text-primary" />
           <div>
-            <h1 className="text-2xl font-bold">网站配置</h1>
-            <p className="text-gray-600 dark:text-gray-400">
-              管理网站的基本信息和显示设置
-            </p>
+            <h1 className="text-2xl font-bold">{translate("网站配置")}</h1>
+            <p className="text-gray-600 dark:text-gray-400">{translate("管理网站的基本信息和显示设置")}</p>
           </div>
         </div>
 
@@ -774,10 +767,8 @@ export default function ConfigPage() {
           <CardHeader className="pb-4">
             <div className="flex justify-between items-center w-full">
               <div>
-                <h2 className="text-xl font-semibold">基本设置</h2>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  配置网站的基本信息，这些设置会影响网站的显示效果
-                </p>
+                <h2 className="text-xl font-semibold">{translate("基本设置")}</h2>
+                <p className="text-sm text-gray-600 dark:text-gray-400">{translate("配置网站的基本信息，这些设置会影响网站的显示效果")}</p>
               </div>
               <div className="flex gap-2">
 
@@ -788,7 +779,7 @@ export default function ConfigPage() {
                   isLoading={saving}
                   disabled={!hasChanges}
                 >
-                  {saving ? '保存中...' : '保存配置'}
+                  {saving ? translate("保存中...") : translate("保存配置")}
                 </Button>
               </div>
             </div>
@@ -797,7 +788,7 @@ export default function ConfigPage() {
           <Divider />
 
           <CardBody className="space-y-6 pt-6">
-            {CONFIG_ITEMS.map((item, index) => {
+            {CONFIG_ITEMS().map((item, index) => {
               if (item.key === 'payment_enabled' || item.key === 'payment_provider') return null;
               if (item.key !== 'payment_methods' && item.key.startsWith('payment_')) return null;
               // 检查配置项是否应该显示
@@ -806,7 +797,7 @@ export default function ConfigPage() {
               }
 
               // 计算是否是最后一个显示的项目（用于决定是否显示分隔线）
-              const remainingItems = CONFIG_ITEMS.slice(index + 1).filter(shouldShowItem);
+              const remainingItems = CONFIG_ITEMS().slice(index + 1).filter(shouldShowItem);
               const isLastItem = remainingItems.length === 0;
 
               return (
@@ -821,10 +812,10 @@ export default function ConfigPage() {
                       </p>
                     )}
                   </div>
-                  
+
                   {/* 渲染配置项 */}
                   {renderConfigItem(item)}
-                  
+
                   {/* 分隔线 */}
                   {!isLastItem && (
                     <Divider className="mt-6" />
@@ -841,9 +832,7 @@ export default function ConfigPage() {
             <CardBody className="py-3">
               <div className="flex items-center gap-2 text-warning-700 dark:text-warning-300">
                 <div className="w-2 h-2 bg-warning-500 rounded-full animate-pulse" />
-                <span className="text-sm">
-                  检测到配置变更，请记得保存您的修改
-                </span>
+                <span className="text-sm">{translate("检测到配置变更，请记得保存您的修改")}</span>
               </div>
             </CardBody>
           </Card>
@@ -852,10 +841,10 @@ export default function ConfigPage() {
 
       <Modal isOpen={isPaymentModalOpen} onClose={onPaymentModalClose} size="md">
         <ModalContent>
-          <ModalHeader>{editingPaymentId ? '编辑支付' : '添加支付'}</ModalHeader>
+          <ModalHeader>{editingPaymentId ? translate("编辑支付") : translate("添加支付")}</ModalHeader>
           <ModalBody className="space-y-3">
             <Select
-              label="支付渠道"
+              label={translate("支付渠道")}
               selectedKeys={paymentForm.value ? [paymentForm.value] : []}
               onSelectionChange={(keys) => {
                 const selectedKey = Array.from(keys)[0] as string;
@@ -865,15 +854,15 @@ export default function ConfigPage() {
               }}
               variant="bordered"
             >
-              {PAYMENT_CHANNEL_OPTIONS.map((option) => (
+              {PAYMENT_CHANNEL_OPTIONS().map((option) => (
                 <SelectItem key={option.value}>
                   {option.label}
                 </SelectItem>
               ))}
             </Select>
             <Input
-              label="支付名称"
-              placeholder="如: 支付宝 / 微信支付"
+              label={translate("支付名称")}
+              placeholder={translate("如: 支付宝 / 微信支付")}
               value={paymentForm.label}
               onValueChange={(v) => setPaymentForm((p) => ({ ...p, label: v }))}
             />
@@ -881,10 +870,10 @@ export default function ConfigPage() {
               isSelected={paymentForm.enabled}
               onValueChange={(checked) => setPaymentForm((p) => ({ ...p, enabled: checked }))}
             >
-              {paymentForm.enabled ? '启用该支付方式' : '停用该支付方式'}
+              {paymentForm.enabled ? translate("启用该支付方式") : translate("停用该支付方式")}
             </Switch>
             <Select
-              label="支付通道"
+              label={translate("支付通道")}
               selectedKeys={paymentForm.provider ? [paymentForm.provider] : []}
               onSelectionChange={(keys) => {
                 const selectedKey = Array.from(keys)[0] as string;
@@ -894,26 +883,26 @@ export default function ConfigPage() {
               }}
               variant="bordered"
             >
-              {PAYMENT_PROVIDER_OPTIONS.map((option) => (
+              {PAYMENT_PROVIDER_OPTIONS().map((option) => (
                 <SelectItem key={option.value} description={option.description}>
                   {option.label}
                 </SelectItem>
               ))}
             </Select>
             <Input
-              label="支付回调基础地址"
-              placeholder="如: http://your-domain:6365"
+              label={translate("支付回调基础地址")}
+              placeholder={translate("如: http://your-domain:6365")}
               value={configs.payment_notify_base_url || ''}
               onValueChange={(v) => handleConfigChange('payment_notify_base_url', v)}
             />
             <Input
-              label="支付返回基础地址"
-              placeholder="如: http://your-domain:6366"
+              label={translate("支付返回基础地址")}
+              placeholder={translate("如: http://your-domain:6366")}
               value={configs.payment_return_base_url || ''}
               onValueChange={(v) => handleConfigChange('payment_return_base_url', v)}
             />
             {(PAYMENT_PROVIDER_FIELD_KEYS[paymentForm.provider] || []).map((key) => {
-              const item = CONFIG_ITEMS.find((configItem) => configItem.key === key);
+              const item = CONFIG_ITEMS().find((configItem) => configItem.key === key);
               if (!item) return null;
               return (
                 <Input
@@ -927,11 +916,11 @@ export default function ConfigPage() {
             })}
           </ModalBody>
           <ModalFooter>
-            <Button variant="flat" onPress={onPaymentModalClose}>取消</Button>
-            <Button color="primary" onPress={savePaymentMethod}>保存</Button>
+            <Button variant="flat" onPress={onPaymentModalClose}>{translate("取消")}</Button>
+            <Button color="primary" onPress={savePaymentMethod}>{translate("保存")}</Button>
           </ModalFooter>
         </ModalContent>
       </Modal>
     </>
   );
-} 
+}

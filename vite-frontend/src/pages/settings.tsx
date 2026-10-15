@@ -1,3 +1,4 @@
+import { translate } from '@/utils/locale';
 import { useState, useEffect } from 'react';
 import { Input } from "@heroui/input";
 import { Button } from "@heroui/button";
@@ -5,17 +6,17 @@ import { Card, CardBody } from "@heroui/card";
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { reinitializeBaseURL } from '@/api/network';
-import { 
-  getPanelAddresses, 
-  savePanelAddress, 
-  setCurrentPanelAddress, 
-  deletePanelAddress, 
+import {
+  getPanelAddresses,
+  savePanelAddress,
+  setCurrentPanelAddress,
+  deletePanelAddress,
   validatePanelAddress,
 } from '@/utils/panel';
 
 interface PanelAddress {
   name: string;
-  address: string;   
+  address: string;
   inx: boolean;
 }
 
@@ -28,7 +29,7 @@ export const SettingsPage = () => {
 
 
   const setPanelAddressesFunc = (newAddress: PanelAddress[]) => {
-    setPanelAddresses(newAddress); 
+    setPanelAddresses(newAddress);
   }
 
   // 加载面板地址列表
@@ -40,20 +41,20 @@ export const SettingsPage = () => {
   // 添加新面板地址
   const addPanelAddress = async () => {
     if (!newName.trim() || !newAddress.trim()) {
-      toast.error('请输入名称和地址');
+      toast.error(translate("请输入名称和地址"));
       return;
     }
 
     // 验证地址格式
     if (!validatePanelAddress(newAddress.trim())) {
-      toast.error('地址格式不正确，请检查：\n• 必须是完整的URL格式\n• 必须以 http:// 或 https:// 开头\n• 支持域名、IPv4、IPv6 地址\n• 端口号范围：1-65535\n• 示例：http://192.168.1.100:3000');
+      toast.error(translate("地址格式不正确，请检查：\n• 必须是完整的URL格式\n• 必须以 http:// 或 https:// 开头\n• 支持域名、IPv4、IPv6 地址\n• 端口号范围：1-65535\n• 示例：http://192.168.1.100:3000"));
       return;
     }
     (window as any).setPanelAddresses = setPanelAddressesFunc
     savePanelAddress(newName.trim(), newAddress.trim());
     setNewName('');
     setNewAddress('');
-    toast.success('添加成功');
+    toast.success(translate("添加成功"));
   };
 
   // 设置当前面板地址
@@ -68,7 +69,7 @@ export const SettingsPage = () => {
     (window as any).setPanelAddresses = setPanelAddressesFunc
     deletePanelAddress(name);
     reinitializeBaseURL();
-    toast.success('删除成功');
+    toast.success(translate("删除成功"));
   };
 
   // 页面加载时获取数据
@@ -92,7 +93,7 @@ export const SettingsPage = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
             </Button>
-            <h1 className="text-xl font-semibold text-gray-900 dark:text-white">面板设置</h1>
+            <h1 className="text-xl font-semibold text-gray-900 dark:text-white">{translate("面板设置")}</h1>
           </div>
         </div>
       </div>
@@ -103,25 +104,23 @@ export const SettingsPage = () => {
           {/* 添加新地址 */}
           <Card className="border border-gray-200 dark:border-gray-700">
             <CardBody className="p-6">
-              <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-4">添加新面板地址</h2>
+              <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-4">{translate("添加新面板地址")}</h2>
               <div className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Input
-                    label="名称"
-                    placeholder="请输入面板名称"
+                    label={translate("名称")}
+                    placeholder={translate("请输入面板名称")}
                     value={newName}
                     onChange={(e) => setNewName(e.target.value)}
                   />
                   <Input
-                    label="地址"
+                    label={translate("地址")}
                     placeholder="http://192.168.1.100:3000"
                     value={newAddress}
                     onChange={(e) => setNewAddress(e.target.value)}
                   />
                 </div>
-                <Button color="primary" onClick={addPanelAddress}>
-                  添加
-                </Button>
+                <Button color="primary" onClick={addPanelAddress}>{translate("添加")}</Button>
               </div>
             </CardBody>
           </Card>
@@ -129,9 +128,9 @@ export const SettingsPage = () => {
           {/* 地址列表 */}
           <Card className="border border-gray-200 dark:border-gray-700">
             <CardBody className="p-6">
-              <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-4">已保存的面板地址</h2>
+              <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-4">{translate("已保存的面板地址")}</h2>
               {panelAddresses.length === 0 ? (
-                <p className="text-gray-500 dark:text-gray-400 text-center py-8">暂无保存的面板地址</p>
+                <p className="text-gray-500 dark:text-gray-400 text-center py-8">{translate("暂无保存的面板地址")}</p>
               ) : (
                 <div className="space-y-3">
                   {panelAddresses.map((panel, index) => (
@@ -141,9 +140,7 @@ export const SettingsPage = () => {
                           <div className="flex items-center gap-2">
                             <span className="font-medium text-gray-900 dark:text-white">{panel.name}</span>
                             {panel.inx && (
-                              <span className="px-2 py-1 bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-300 text-xs rounded">
-                                当前
-                              </span>
+                              <span className="px-2 py-1 bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-300 text-xs rounded">{translate("当前")}</span>
                             )}
                           </div>
                           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{panel.address}</p>
@@ -155,18 +152,14 @@ export const SettingsPage = () => {
                               color="primary"
                               variant="flat"
                               onClick={() => setCurrentPanel(panel.name)}
-                            >
-                              设为当前
-                            </Button>
+                            >{translate("设为当前")}</Button>
                           )}
                           <Button
                             size="sm"
                             color="danger"
                             variant="light"
                             onClick={() => handleDeletePanelAddress(panel.name)}
-                          >
-                            删除
-                          </Button>
+                          >{translate("删除")}</Button>
                         </div>
                       </div>
                     </div>

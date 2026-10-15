@@ -1,20 +1,21 @@
+import { translate } from '@/utils/locale';
 import { useState, useEffect } from "react";
 import { Card, CardBody, CardHeader } from "@heroui/card";
 import { Button } from "@heroui/button";
 import { Input } from "@heroui/input";
-import { Select, SelectItem } from "@heroui/select";
+import { Select, SelectItem } from "@/components/select";
 import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from "@heroui/modal";
 import { Chip } from "@heroui/chip";
 import { Spinner } from "@heroui/spinner";
 import toast from 'react-hot-toast';
 
 
-import { 
-  createSpeedLimit, 
-  getSpeedLimitList, 
-  updateSpeedLimit, 
-  deleteSpeedLimit, 
-  getTunnelList 
+import {
+  createSpeedLimit,
+  getSpeedLimitList,
+  updateSpeedLimit,
+  deleteSpeedLimit,
+  getTunnelList
 } from "@/api";
 
 interface SpeedLimitRule {
@@ -46,7 +47,7 @@ export default function LimitPage() {
   const [loading, setLoading] = useState(true);
   const [rules, setRules] = useState<SpeedLimitRule[]>([]);
   const [tunnels, setTunnels] = useState<Tunnel[]>([]);
-  
+
   // 模态框状态
   const [modalOpen, setModalOpen] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -54,7 +55,7 @@ export default function LimitPage() {
   const [submitLoading, setSubmitLoading] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [ruleToDelete, setRuleToDelete] = useState<SpeedLimitRule | null>(null);
-  
+
   // 表单状态
   const [form, setForm] = useState<SpeedLimitForm>({
     name: '',
@@ -63,7 +64,7 @@ export default function LimitPage() {
     tunnelName: '',
     status: 1
   });
-  
+
   // 表单验证错误
   const [errors, setErrors] = useState<{[key: string]: string}>({});
 
@@ -79,13 +80,13 @@ export default function LimitPage() {
         getSpeedLimitList(),
         getTunnelList()
       ]);
-      
+
       if (rulesRes.code === 0) {
         setRules(rulesRes.data || []);
       } else {
         toast.error(rulesRes.msg || '获取限速规则失败');
       }
-      
+
       if (tunnelsRes.code === 0) {
         setTunnels(tunnelsRes.data || []);
       } else {
@@ -93,7 +94,7 @@ export default function LimitPage() {
       }
     } catch (error) {
       console.error('加载数据失败:', error);
-      toast.error('加载数据失败');
+      toast.error(translate("加载数据失败"));
     } finally {
       setLoading(false);
     }
@@ -102,21 +103,21 @@ export default function LimitPage() {
   // 表单验证
   const validateForm = (): boolean => {
     const newErrors: {[key: string]: string} = {};
-    
+
     if (!form.name.trim()) {
       newErrors.name = '请输入规则名称';
     } else if (form.name.length < 2 || form.name.length > 50) {
       newErrors.name = '规则名称长度应在2-50个字符之间';
     }
-    
+
     if (!form.speed || form.speed < 1) {
       newErrors.speed = '请输入有效的速度限制（≥1 Mbps）';
     }
-    
+
     if (!form.tunnelId) {
       newErrors.tunnelId = '请选择要绑定的隧道';
     }
-    
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -159,12 +160,12 @@ export default function LimitPage() {
   // 确认删除规则
   const confirmDelete = async () => {
     if (!ruleToDelete) return;
-    
+
     setDeleteLoading(true);
     try {
       const res = await deleteSpeedLimit(ruleToDelete.id);
       if (res.code === 0) {
-        toast.success('删除成功');
+        toast.success(translate("删除成功"));
         setDeleteModalOpen(false);
         loadData();
       } else {
@@ -172,7 +173,7 @@ export default function LimitPage() {
       }
     } catch (error) {
       console.error('删除失败:', error);
-      toast.error('删除失败');
+      toast.error(translate("删除失败"));
     } finally {
       setDeleteLoading(false);
     }
@@ -181,7 +182,7 @@ export default function LimitPage() {
   // 提交表单
   const handleSubmit = async () => {
     if (!validateForm()) return;
-    
+
     setSubmitLoading(true);
     try {
       let res;
@@ -191,9 +192,9 @@ export default function LimitPage() {
         const { id, ...createData } = form;
         res = await createSpeedLimit(createData);
       }
-      
+
       if (res.code === 0) {
-        toast.success(isEdit ? '修改成功' : '创建成功');
+        toast.success(isEdit ? translate("修改成功") : translate("创建成功"));
         setModalOpen(false);
         loadData();
       } else {
@@ -201,7 +202,7 @@ export default function LimitPage() {
       }
     } catch (error) {
       console.error('提交失败:', error);
-      toast.error('操作失败');
+      toast.error(translate("操作失败"));
     } finally {
       setSubmitLoading(false);
     }
@@ -209,19 +210,19 @@ export default function LimitPage() {
 
   if (loading) {
     return (
-      
+
         <div className="flex items-center justify-center h-64">
           <div className="flex items-center gap-3">
             <Spinner size="sm" />
-            <span className="text-default-600">正在加载...</span>
+            <span className="text-default-600">{translate("正在加载...")}</span>
           </div>
         </div>
-      
+
     );
   }
 
   return (
-    
+
       <div className="px-3 lg:px-6 py-8">
         {/* 页面头部 */}
         <div className="flex items-center justify-between mb-6">
@@ -233,10 +234,8 @@ export default function LimitPage() {
               variant="flat"
               color="primary"
               onPress={handleAdd}
-             
-            >
-              新增
-            </Button>
+
+            >{translate("新增")}</Button>
         </div>
 
         {/* 统一卡片网格 */}
@@ -249,35 +248,35 @@ export default function LimitPage() {
                     <div>
                       <h3 className="font-semibold text-foreground">{rule.name}</h3>
                     </div>
-                    <Chip 
-                      color={rule.status === 1 ? "success" : "danger"} 
-                      variant="flat" 
+                    <Chip
+                      color={rule.status === 1 ? "success" : "danger"}
+                      variant="flat"
                       size="sm"
                     >
-                      {rule.status === 1 ? '运行' : '异常'}
+                      {rule.status === 1 ? translate("运行") : translate("异常")}
                     </Chip>
                   </div>
                 </CardHeader>
                 <CardBody className="pt-0">
                   <div className="space-y-3">
                     <div className="flex justify-between items-center">
-                      <span className="text-small text-default-600">速度限制</span>
+                      <span className="text-small text-default-600">{translate("速度限制")}</span>
                       <Chip color="secondary" variant="flat" size="sm">
                         {rule.speed} Mbps
                       </Chip>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-small text-default-600">绑定隧道</span>
+                      <span className="text-small text-default-600">{translate("绑定隧道")}</span>
                       {rule.tunnelName ? (
                         <Chip color="primary" variant="flat" size="sm">
                           {rule.tunnelName}
                         </Chip>
                       ) : (
-                        <span className="text-default-400 text-small">未绑定</span>
+                        <span className="text-default-400 text-small">{translate("未绑定")}</span>
                       )}
                     </div>
                   </div>
-                  
+
                   <div className="flex gap-2 mt-4">
                     <Button
                       size="sm"
@@ -290,9 +289,7 @@ export default function LimitPage() {
                           <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
                         </svg>
                       }
-                    >
-                      编辑
-                    </Button>
+                    >{translate("编辑")}</Button>
                     <Button
                       size="sm"
                       variant="flat"
@@ -305,9 +302,7 @@ export default function LimitPage() {
                           <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 012 0v4a1 1 0 11-2 0V7zM12 7a1 1 0 012 0v4a1 1 0 11-2 0V7z" clipRule="evenodd" />
                         </svg>
                       }
-                    >
-                      删除
-                    </Button>
+                    >{translate("删除")}</Button>
                   </div>
                 </CardBody>
               </Card>
@@ -324,8 +319,8 @@ export default function LimitPage() {
                   </svg>
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-foreground">暂无限速规则</h3>
-                  <p className="text-default-500 text-sm mt-1">还没有创建任何限速规则，点击上方按钮开始创建</p>
+                  <h3 className="text-lg font-semibold text-foreground">{translate("暂无限速规则")}</h3>
+                  <p className="text-default-500 text-sm mt-1">{translate("还没有创建任何限速规则，点击上方按钮开始创建")}</p>
                 </div>
               </div>
             </CardBody>
@@ -333,7 +328,7 @@ export default function LimitPage() {
         )}
 
         {/* 新增/编辑模态框 */}
-        <Modal 
+        <Modal
           isOpen={modalOpen}
           onOpenChange={setModalOpen}
           size="2xl"
@@ -346,27 +341,27 @@ export default function LimitPage() {
               <>
                 <ModalHeader className="flex flex-col gap-1">
                   <h2 className="text-xl font-bold">
-                    {isEdit ? '编辑限速规则' : '新增限速规则'}
+                    {isEdit ? translate("编辑限速规则") : translate("新增限速规则")}
                   </h2>
                   <p className="text-small text-default-500">
-                    {isEdit ? '修改现有限速规则的配置信息' : '创建新的限速规则并绑定到隧道'}
+                    {isEdit ? translate("修改现有限速规则的配置信息") : translate("创建新的限速规则并绑定到隧道")}
                   </p>
                 </ModalHeader>
                 <ModalBody>
                   <div className="space-y-4">
                     <Input
-                      label="规则名称"
-                      placeholder="请输入限速规则名称"
+                      label={translate("规则名称")}
+                      placeholder={translate("请输入限速规则名称")}
                       value={form.name}
                       onChange={(e) => setForm(prev => ({ ...prev, name: e.target.value }))}
                       isInvalid={!!errors.name}
                       errorMessage={errors.name}
                       variant="bordered"
                     />
-                    
+
                     <Input
-                      label="速度限制"
-                      placeholder="请输入速度限制"
+                      label={translate("速度限制")}
+                      placeholder={translate("请输入速度限制")}
                       type="number"
                       value={form.speed.toString()}
                       onChange={(e) => setForm(prev => ({ ...prev, speed: parseInt(e.target.value) || 0 }))}
@@ -379,23 +374,23 @@ export default function LimitPage() {
                         </div>
                       }
                     />
-                    
+
                     <Select
-                      label="绑定隧道"
-                      placeholder="请选择要绑定的隧道"
+                      label={translate("绑定隧道")}
+                      placeholder={translate("请选择要绑定的隧道")}
                       selectedKeys={form.tunnelId ? [form.tunnelId.toString()] : []}
                       onSelectionChange={(keys) => {
                         const selectedKey = Array.from(keys)[0] as string;
                         if (selectedKey) {
                           const selectedTunnel = tunnels.find(tunnel => tunnel.id === parseInt(selectedKey));
-                          setForm(prev => ({ 
-                            ...prev, 
+                          setForm(prev => ({
+                            ...prev,
                             tunnelId: parseInt(selectedKey),
                             tunnelName: selectedTunnel?.name || ''
                           }));
                         } else {
-                          setForm(prev => ({ 
-                            ...prev, 
+                          setForm(prev => ({
+                            ...prev,
                             tunnelId: null,
                             tunnelName: ''
                           }));
@@ -405,7 +400,7 @@ export default function LimitPage() {
                       errorMessage={errors.tunnelId}
                       variant="bordered"
                       isDisabled={isEdit}
-                      description={isEdit ? "编辑时无法修改绑定隧道" : undefined}
+                      description={isEdit ? translate("编辑时无法修改绑定隧道") : undefined}
                     >
                       {tunnels.map((tunnel) => (
                         <SelectItem key={tunnel.id}>
@@ -416,15 +411,13 @@ export default function LimitPage() {
                   </div>
                 </ModalBody>
                 <ModalFooter>
-                  <Button variant="light" onPress={onClose}>
-                    取消
-                  </Button>
-                  <Button 
-                    color="primary" 
+                  <Button variant="light" onPress={onClose}>{translate("取消")}</Button>
+                  <Button
+                    color="primary"
                     onPress={handleSubmit}
                     isLoading={submitLoading}
                   >
-                    {isEdit ? '保存修改' : '创建规则'}
+                    {isEdit ? translate("保存修改") : translate("创建规则")}
                   </Button>
                 </ModalFooter>
               </>
@@ -433,7 +426,7 @@ export default function LimitPage() {
         </Modal>
 
         {/* 删除确认模态框 */}
-        <Modal 
+        <Modal
           isOpen={deleteModalOpen}
           onOpenChange={setDeleteModalOpen}
           size="2xl"
@@ -445,33 +438,25 @@ export default function LimitPage() {
             {(onClose) => (
               <>
                 <ModalHeader className="flex flex-col gap-1">
-                  <h2 className="text-lg font-bold text-danger">确认删除</h2>
+                  <h2 className="text-lg font-bold text-danger">{translate("确认删除")}</h2>
                 </ModalHeader>
                 <ModalBody>
-                  <p className="text-default-600">
-                    确定要删除限速规则 <span className="font-semibold text-foreground">"{ruleToDelete?.name}"</span> 吗？
-                  </p>
-                  <p className="text-small text-default-500 mt-2">
-                    此操作无法撤销，删除后该规则将永久消失。
-                  </p>
+                  <p className="text-default-600">{translate("确定要删除限速规则")}<span className="font-semibold text-foreground">"{ruleToDelete?.name}"</span>{translate("吗？")}</p>
+                  <p className="text-small text-default-500 mt-2">{translate("此操作无法撤销，删除后该规则将永久消失。")}</p>
                 </ModalBody>
                 <ModalFooter>
-                  <Button variant="light" onPress={onClose}>
-                    取消
-                  </Button>
-                  <Button 
-                    color="danger" 
+                  <Button variant="light" onPress={onClose}>{translate("取消")}</Button>
+                  <Button
+                    color="danger"
                     onPress={confirmDelete}
                     isLoading={deleteLoading}
-                  >
-                    确认删除
-                  </Button>
+                  >{translate("确认删除")}</Button>
                 </ModalFooter>
               </>
             )}
           </ModalContent>
         </Modal>
       </div>
-    
+
   );
-} 
+}

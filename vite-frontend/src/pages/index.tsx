@@ -1,3 +1,4 @@
+import { translate } from '@/utils/locale';
 import { Button } from "@heroui/button";
 import { Input } from "@heroui/input";
 import { Card, CardBody, CardHeader } from "@heroui/card";
@@ -120,13 +121,13 @@ export default function IndexPage() {
 
       // 使用axios的baseURL，确保在WebView中使用正确的面板地址
       const baseURL = axios.defaults.baseURL || (import.meta.env.VITE_API_BASE ? `${import.meta.env.VITE_API_BASE}/api/v1/` : '/api/v1/');
-      
+
       const config: CaptchaConfig = {
         requestCaptchaDataUrl: `${baseURL}captcha/generate`,
-        validCaptchaUrl: `${baseURL}captcha/verify`, 
+        validCaptchaUrl: `${baseURL}captcha/verify`,
         bindEl: "#captcha-container",
         validSuccess: (res: any, _: any, tac: any) => {
-          
+
 
           form.captchaId = res.data.validToken
 
@@ -148,12 +149,12 @@ export default function IndexPage() {
       };
 
       // 检测暗黑模式
-      const isDarkMode = document.documentElement.classList.contains('dark') || 
+      const isDarkMode = document.documentElement.classList.contains('dark') ||
                         document.documentElement.getAttribute('data-theme') === 'dark';
-      
+
       // 根据主题调整颜色
       const trackColor = isDarkMode ? "#4a5568" : "#7db0be"; // 暗黑模式使用更深的灰蓝色
-      
+
       const style: CaptchaStyle = {
         bgUrl: bgImage,
         logoUrl: null,
@@ -166,7 +167,7 @@ export default function IndexPage() {
 
     } catch (error) {
       console.error('初始化验证码失败:', error);
-      toast.error('验证码初始化失败，请刷新页面重试');
+      toast.error(translate("验证码初始化失败，请刷新页面重试"));
       setShowCaptcha(false);
       setLoading(false);
     }
@@ -184,14 +185,14 @@ export default function IndexPage() {
       const response = authMode === 'login'
         ? await login(payload as LoginData)
         : await register(payload as RegisterData);
-      
+
       if (response.code !== 0) {
-        toast.error(response.msg || (authMode === 'login' ? "登录失败" : "注册失败"));
+        toast.error(response.msg || (authMode === 'login' ? translate("登录失败") : translate("注册失败")));
         return;
       }
 
       if (authMode === 'register') {
-        toast.success('注册成功，请登录');
+        toast.success(translate("注册成功，请登录"));
         setAuthMode('login');
         setForm((prev) => ({ ...prev, password: '', confirmPassword: '', captchaId: '' }));
         return;
@@ -203,7 +204,7 @@ export default function IndexPage() {
         localStorage.setItem("role_id", response.data.role_id.toString());
         localStorage.setItem("name", response.data.name);
         localStorage.setItem("admin", (response.data.role_id === 0).toString());
-        toast.success('检测到默认密码，即将跳转到修改密码页面');
+        toast.success(translate("检测到默认密码，即将跳转到修改密码页面"));
         navigate("/change-password");
         return;
       }
@@ -215,12 +216,12 @@ export default function IndexPage() {
       localStorage.setItem("admin", (response.data.role_id === 0).toString());
 
       // 登录成功
-      toast.success('登录成功');
+      toast.success(translate("登录成功"));
       navigate("/dashboard");
 
     } catch (error) {
-      console.error(authMode === 'login' ? '登录错误:' : '注册错误:', error);
-      toast.error(authMode === 'login' ? "网络错误，请稍后重试" : "注册失败，请稍后重试");
+      console.error(authMode === 'login' ? translate("登录错误:") : translate("注册错误:"), error);
+      toast.error(authMode === 'login' ? translate("网络错误，请稍后重试") : translate("注册失败，请稍后重试"));
     } finally {
       setLoading(false);
     }
@@ -234,7 +235,7 @@ export default function IndexPage() {
     try {
       // 先检查是否需要验证码
       const checkResponse = await checkCaptcha();
-      
+
       if (checkResponse.code !== 0) {
         toast.error("检查验证码状态失败，请重试" + checkResponse.msg);
         setLoading(false);
@@ -273,16 +274,16 @@ export default function IndexPage() {
         <div className="w-full max-w-md px-4 sm:px-0">
           <Card className="w-full">
             <CardHeader className="pb-0 pt-6 px-6 flex-col items-center">
-              <h1 className={title({ size: "sm" })}>{authMode === 'login' ? '登录' : '注册'}</h1>
+              <h1 className={title({ size: "sm" })}>{authMode === 'login' ? translate("登录") : translate("注册")}</h1>
               <p className="text-small text-default-500 mt-2">
-                {authMode === 'login' ? '请输入您的账号信息' : '创建一个新账号'}
+                {authMode === 'login' ? translate("请输入您的账号信息") : translate("创建一个新账号")}
               </p>
             </CardHeader>
             <CardBody className="px-6 py-6">
               <div className="flex flex-col gap-4">
                 <Input
-                  label="用户名"
-                  placeholder="请输入用户名"
+                  label={translate("用户名")}
+                  placeholder={translate("请输入用户名")}
                   value={form.username}
                   onChange={(e) => handleInputChange('username', e.target.value)}
                   onKeyDown={handleKeyPress}
@@ -291,10 +292,10 @@ export default function IndexPage() {
                   isInvalid={!!errors.username}
                   errorMessage={errors.username}
                 />
-                
+
                 <Input
-                  label="密码"
-                  placeholder="请输入密码"
+                  label={translate("密码")}
+                  placeholder={translate("请输入密码")}
                   type="password"
                   value={form.password}
                   onChange={(e) => handleInputChange('password', e.target.value)}
@@ -306,8 +307,8 @@ export default function IndexPage() {
                 />
                 {authMode === 'register' && (
                   <Input
-                    label="确认密码"
-                    placeholder="请再次输入密码"
+                    label={translate("确认密码")}
+                    placeholder={translate("请再次输入密码")}
                     type="password"
                     value={form.confirmPassword}
                     onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
@@ -319,7 +320,7 @@ export default function IndexPage() {
                   />
                 )}
 
-                
+
                 <Button
                   color="primary"
                   size="lg"
@@ -329,8 +330,8 @@ export default function IndexPage() {
                   className="mt-2"
                 >
                   {loading
-                    ? (showCaptcha ? "验证中..." : (authMode === 'login' ? "登录中..." : "注册中..."))
-                    : (authMode === 'login' ? "登录" : "注册")}
+                    ? (showCaptcha ? translate("验证中...") : (authMode === 'login' ? translate("登录中...") : translate("注册中...")))
+                    : (authMode === 'login' ? translate("登录") : translate("注册"))}
                 </Button>
                 <Button
                   variant="light"
@@ -341,7 +342,7 @@ export default function IndexPage() {
                   }}
                   isDisabled={loading}
                 >
-                  {authMode === 'login' ? '没有账号？去注册' : '已有账号？去登录'}
+                  {authMode === 'login' ? translate("没有账号？去注册") : translate("已有账号？去登录")}
                 </Button>
               </div>
             </CardBody>
@@ -350,13 +351,13 @@ export default function IndexPage() {
 
 
       {/* 版权信息 - 固定在底部，不占据布局空间 */}
-      
+
                <div className="fixed inset-x-0 bottom-4 text-center py-4">
                <p className="text-xs text-gray-400 dark:text-gray-500">
                  Powered by{' '}
-                 <a 
-                   href="https://github.com/bqlpfy/flux-panel" 
-                   target="_blank" 
+                 <a
+                   href="https://github.com/bqlpfy/flux-panel"
+                   target="_blank"
                    rel="noopener noreferrer"
                    className="text-gray-500 dark:text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
                  >
@@ -367,8 +368,8 @@ export default function IndexPage() {
                  v{ isWebView ? siteConfig.app_version : siteConfig.version}
                </p>
              </div>
-      
-   
+
+
 
         {/* 验证码弹层 */}
         {showCaptcha && (
@@ -377,13 +378,13 @@ export default function IndexPage() {
             <div className="absolute inset-0 bg-black/60 dark:bg-black/80 backdrop-blur-sm captcha-backdrop-enter" />
            {/* 验证码容器 */}
            <div className="mb-4">
-                <div 
-                  id="captcha-container" 
+                <div
+                  id="captcha-container"
                   ref={captchaContainerRef}
                   className="w-full flex justify-center"
                   style={{
-                    filter: document.documentElement.classList.contains('dark') || 
-                           document.documentElement.getAttribute('data-theme') === 'dark' 
+                    filter: document.documentElement.classList.contains('dark') ||
+                           document.documentElement.getAttribute('data-theme') === 'dark'
                            ? 'brightness(0.8) contrast(0.9)' : 'none'
                   }}
                 />

@@ -7,9 +7,20 @@
 .panel-header-tools{display:flex;align-items:center;margin-right:32px;margin-left:12px;flex-shrink:0;gap:20px}
 .panel-header-buttons{display:flex;gap:8px;align-items:center}
 .panel-header-tool{width:32px;height:32px;min-width:32px;border:0;border-radius:7px;background:#f6f7f9;color:#7c899e;display:grid;place-items:center;cursor:pointer}
-.panel-header-avatar{position:relative;display:grid;place-items:center;width:42px;height:42px;flex-shrink:0;border-radius:50%;border:2px solid #eddbad;background:#4ccbb6;color:white;font-size:21px;font-weight:500;cursor:pointer}
+.panel-header-avatar{position:relative;display:grid;place-items:center;width:42px;height:42px;flex-shrink:0;border-radius:50%;border:2px solid transparent;background:#4ccbb6;color:white;font-size:21px;font-weight:500;cursor:pointer}
 .panel-header-vip{position:absolute;bottom:-3px;left:50%;transform:translateX(-50%);padding:0 4px;line-height:13px;border-radius:3px;background:#eddbad;color:#42464d;font-size:10px;font-weight:700}
 .panel-header button:focus-visible,.panel-header a:focus-visible{outline:2px solid #4ccbb6;outline-offset:2px}
 .panel-header-tool:hover{background:#eceef2}
 @media(max-width:600px){.panel-header-brand{width:auto;flex:0 1 240px}.panel-header-tools{margin-right:12px;gap:12px;margin-left:8px}.panel-header-brand{padding-right:6px}.panel-header-brand-link{font-size:14px;gap:4px}}
 @media(max-width:360px){.panel-header-brand{padding-left:8px;gap:2px}.panel-header-tools{margin-right:8px;gap:8px}.panel-header-brand-link{gap:2px}.panel-header-logo{width:22px;height:22px}}
+
+.panel-header-brand{transition:width .3s,flex-basis .3s}
+.panel-header-brand.is-compact{width:80px;flex-basis:80px;justify-content:center;padding:0 14px}
+.panel-header-brand.is-compact .panel-header-brand-link{flex:0 0 auto}
+.panel-header-brand.is-compact .panel-header-brand-link span,.panel-header-brand.is-compact .panel-header-collapse{display:none}
+.panel-header-avatar.is-vip{border-color:#eddbad}
+.dark .panel-header{background:#15181e;color:#e5e9f0;border-bottom-color:#303641}
+.dark .panel-header-brand{background:#191d24;border-right-color:#303641}
+.dark .panel-header-tool{background:#262c36;color:#a6b3c8}
+.dark .panel-header-tool:hover{background:#343d4a}
+.dark .panel-header-collapse{color:#a6b3c8}

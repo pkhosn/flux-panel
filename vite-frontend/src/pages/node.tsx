@@ -1,3 +1,4 @@
+import { translate } from '@/utils/locale';
 import { useState, useEffect, useRef } from "react";
 import { Card, CardBody, CardHeader } from "@heroui/card";
 import { Button } from "@heroui/button";
@@ -14,10 +15,10 @@ import toast from 'react-hot-toast';
 import axios from 'axios';
 
 
-import { 
-  createNode, 
-  getNodeList, 
-  updateNode, 
+import {
+  createNode,
+  getNodeList,
+  updateNode,
   deleteNode,
   getNodeInstallCommand
 } from "@/api";
@@ -92,12 +93,12 @@ export default function NodePage() {
     socks: 0
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
-  
+
   // 安装命令相关状态
   const [installCommandModal, setInstallCommandModal] = useState(false);
   const [installCommand, setInstallCommand] = useState('');
   const [currentNodeName, setCurrentNodeName] = useState('');
-  
+
   const websocketRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectAttemptsRef = useRef(0);
@@ -106,7 +107,7 @@ export default function NodePage() {
   useEffect(() => {
     loadNodes();
     initWebSocket();
-    
+
     return () => {
       closeWebSocket();
     };
@@ -128,7 +129,7 @@ export default function NodePage() {
         toast.error(res.msg || '加载节点列表失败');
       }
     } catch (error) {
-      toast.error('网络错误，请重试');
+      toast.error(translate("网络错误，请重试"));
     } finally {
       setLoading(false);
     }
@@ -136,27 +137,27 @@ export default function NodePage() {
 
   // 初始化WebSocket连接
   const initWebSocket = () => {
-    if (websocketRef.current && 
-        (websocketRef.current.readyState === WebSocket.OPEN || 
+    if (websocketRef.current &&
+        (websocketRef.current.readyState === WebSocket.OPEN ||
          websocketRef.current.readyState === WebSocket.CONNECTING)) {
       return;
     }
-    
+
     if (websocketRef.current) {
       closeWebSocket();
     }
-    
+
     // 构建WebSocket URL，使用axios的baseURL
     const baseUrl = axios.defaults.baseURL || (import.meta.env.VITE_API_BASE ? `${import.meta.env.VITE_API_BASE}/api/v1/` : '/api/v1/');
     const wsUrl = baseUrl.replace(/^http/, 'ws').replace(/\/api\/v1\/$/, '') + `/system-info?type=0&secret=${localStorage.getItem('token')}`;
-    
+
     try {
       websocketRef.current = new WebSocket(wsUrl);
-      
+
       websocketRef.current.onopen = () => {
         reconnectAttemptsRef.current = 0;
       };
-      
+
       websocketRef.current.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
@@ -165,11 +166,11 @@ export default function NodePage() {
           // 解析失败时不输出错误信息
         }
       };
-      
+
       websocketRef.current.onerror = () => {
         // WebSocket错误时不输出错误信息
       };
-      
+
       websocketRef.current.onclose = () => {
         websocketRef.current = null;
         attemptReconnect();
@@ -182,7 +183,7 @@ export default function NodePage() {
   // 处理WebSocket消息
   const handleWebSocketMessage = (data: any) => {
     const { id, type, data: messageData } = data;
-    
+
     if (type === 'status') {
       if (messageData === 1) {
         loadNodes();
@@ -207,37 +208,37 @@ export default function NodePage() {
             } else {
               systemInfo = messageData;
             }
-            
+
             const currentUpload = parseInt(systemInfo.bytes_transmitted) || 0;
             const currentDownload = parseInt(systemInfo.bytes_received) || 0;
             const currentUptime = parseInt(systemInfo.uptime) || 0;
-            
+
             let uploadSpeed = 0;
             let downloadSpeed = 0;
-            
+
             if (node.systemInfo && node.systemInfo.uptime) {
               const timeDiff = currentUptime - node.systemInfo.uptime;
-              
+
               if (timeDiff > 0 && timeDiff <= 10) {
                 const lastUpload = node.systemInfo.uploadTraffic || 0;
                 const lastDownload = node.systemInfo.downloadTraffic || 0;
-                
+
                 const uploadDiff = currentUpload - lastUpload;
                 const downloadDiff = currentDownload - lastDownload;
-                
+
                 const uploadReset = currentUpload < lastUpload;
                 const downloadReset = currentDownload < lastDownload;
-                
+
                 if (!uploadReset && uploadDiff >= 0) {
                   uploadSpeed = uploadDiff / timeDiff;
                 }
-                
+
                 if (!downloadReset && downloadDiff >= 0) {
                   downloadSpeed = downloadDiff / timeDiff;
                 }
               }
             }
-            
+
             return {
               ...node,
               connectionStatus: 'online',
@@ -264,7 +265,7 @@ export default function NodePage() {
   const attemptReconnect = () => {
     if (reconnectAttemptsRef.current < maxReconnectAttempts) {
       reconnectAttemptsRef.current++;
-      
+
       reconnectTimerRef.current = setTimeout(() => {
         initWebSocket();
       }, 3000 * reconnectAttemptsRef.current);
@@ -277,23 +278,23 @@ export default function NodePage() {
       clearTimeout(reconnectTimerRef.current);
       reconnectTimerRef.current = null;
     }
-    
+
     reconnectAttemptsRef.current = 0;
-    
+
     if (websocketRef.current) {
       websocketRef.current.onopen = null;
       websocketRef.current.onmessage = null;
       websocketRef.current.onerror = null;
       websocketRef.current.onclose = null;
-      
-      if (websocketRef.current.readyState === WebSocket.OPEN || 
+
+      if (websocketRef.current.readyState === WebSocket.OPEN ||
           websocketRef.current.readyState === WebSocket.CONNECTING) {
         websocketRef.current.close();
       }
-      
+
       websocketRef.current = null;
     }
-    
+
     setNodeList(prev => prev.map(node => ({
       ...node,
       connectionStatus: 'offline',
@@ -302,26 +303,26 @@ export default function NodePage() {
   };
 
 
-  
+
   // 格式化速度
   const formatSpeed = (bytesPerSecond: number): string => {
     if (bytesPerSecond === 0) return '0 B/s';
-    
+
     const k = 1024;
     const sizes = ['B/s', 'KB/s', 'MB/s', 'GB/s', 'TB/s'];
     const i = Math.floor(Math.log(bytesPerSecond) / Math.log(k));
-    
+
     return parseFloat((bytesPerSecond / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
   // 格式化开机时间
   const formatUptime = (seconds: number): string => {
     if (seconds === 0) return '-';
-    
+
     const days = Math.floor(seconds / 86400);
     const hours = Math.floor((seconds % 86400) / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
-    
+
     if (days > 0) {
       return `${days}天${hours}小时`;
     } else if (hours > 0) {
@@ -334,11 +335,11 @@ export default function NodePage() {
   // 格式化流量
   const formatTraffic = (bytes: number): string => {
     if (bytes === 0) return '0 B';
-    
+
     const k = 1024;
     const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    
+
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
@@ -353,25 +354,25 @@ export default function NodePage() {
   // 验证IP地址格式
   const validateIp = (ip: string): boolean => {
     if (!ip || !ip.trim()) return false;
-    
+
     const trimmedIp = ip.trim();
-    
+
     // IPv4格式验证
     const ipv4Regex = /^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
-    
+
     // IPv6格式验证
     const ipv6Regex = /^(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))$/;
-    
+
     if (ipv4Regex.test(trimmedIp) || ipv6Regex.test(trimmedIp) || trimmedIp === 'localhost') {
       return true;
     }
-    
+
     // 验证域名格式
     if (/^\d+$/.test(trimmedIp)) return false;
-    
+
     const domainRegex = /^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)+$/;
     const singleLabelDomain = /^[a-zA-Z][a-zA-Z0-9\-]{0,62}$/;
-    
+
     return domainRegex.test(trimmedIp) || singleLabelDomain.test(trimmedIp);
   };
 
@@ -383,7 +384,7 @@ export default function NodePage() {
 
     const trimmed = portStr.trim();
     const parts = trimmed.split(',').map(p => p.trim()).filter(p => p);
-    
+
     if (parts.length === 0) {
       return { valid: false, error: '请输入有效的端口' };
     }
@@ -395,18 +396,18 @@ export default function NodePage() {
         if (range.length !== 2) {
           return { valid: false, error: `端口范围格式错误: ${part}` };
         }
-        
+
         const start = parseInt(range[0]);
         const end = parseInt(range[1]);
-        
+
         if (isNaN(start) || isNaN(end)) {
           return { valid: false, error: `端口必须是数字: ${part}` };
         }
-        
+
         if (start < 1 || start > 65535 || end < 1 || end > 65535) {
           return { valid: false, error: `端口范围必须在 1-65535 之间: ${part}` };
         }
-        
+
         if (start >= end) {
           return { valid: false, error: `起始端口必须小于结束端口: ${part}` };
         }
@@ -416,7 +417,7 @@ export default function NodePage() {
         if (isNaN(port)) {
           return { valid: false, error: `端口必须是数字: ${part}` };
         }
-        
+
         if (port < 1 || port > 65535) {
           return { valid: false, error: `端口必须在 1-65535 之间: ${part}` };
         }
@@ -429,7 +430,7 @@ export default function NodePage() {
   // 表单验证
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
-    
+
     if (!form.name.trim()) {
       newErrors.name = '请输入节点名称';
     } else if (form.name.trim().length < 2) {
@@ -437,16 +438,16 @@ export default function NodePage() {
     } else if (form.name.trim().length > 50) {
       newErrors.name = '节点名称长度不能超过50位';
     }
-    
+
     if (form.serverIp.trim() && !validateIp(form.serverIp.trim())) {
       newErrors.serverIp = '请输入有效的IPv4、IPv6地址或域名';
     }
-    
+
     const portValidation = validatePort(form.port);
     if (!portValidation.valid) {
       newErrors.port = portValidation.error || '端口格式错误';
     }
-    
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -479,7 +480,7 @@ export default function NodePage() {
     });
     const offline = node.connectionStatus !== 'online';
     setProtocolDisabled(offline);
-    setProtocolDisabledReason(offline ? '节点未在线，等待节点上线后再设置' : '');
+    setProtocolDisabledReason(offline ? translate("节点未在线，等待节点上线后再设置") : '');
     setDialogVisible(true);
   };
 
@@ -491,12 +492,12 @@ export default function NodePage() {
 
   const confirmDelete = async () => {
     if (!nodeToDelete) return;
-    
+
     setDeleteLoading(true);
     try {
       const res = await deleteNode(nodeToDelete.id);
       if (res.code === 0) {
-        toast.success('删除成功');
+        toast.success(translate("删除成功"));
         setNodeList(prev => prev.filter(n => n.id !== nodeToDelete.id));
         setDeleteModalOpen(false);
         setNodeToDelete(null);
@@ -504,7 +505,7 @@ export default function NodePage() {
         toast.error(res.msg || '删除失败');
       }
     } catch (error) {
-      toast.error('网络错误，请重试');
+      toast.error(translate("网络错误，请重试"));
     } finally {
       setDeleteLoading(false);
     }
@@ -512,17 +513,17 @@ export default function NodePage() {
 
   // 复制安装命令
   const handleCopyInstallCommand = async (node: Node) => {
-    setNodeList(prev => prev.map(n => 
+    setNodeList(prev => prev.map(n =>
       n.id === node.id ? { ...n, copyLoading: true } : n
     ));
-    
+
     try {
       const res = await getNodeInstallCommand(node.id);
       if (res.code === 0 && res.data) {
         try {
           const copied = await copyText(res.data);
           if (copied) {
-            toast.success('安装命令已复制到剪贴板');
+            toast.success(translate("安装命令已复制到剪贴板"));
           } else {
             // 复制失败，显示安装命令模态框
             setInstallCommand(res.data);
@@ -539,9 +540,9 @@ export default function NodePage() {
         toast.error(res.msg || '获取安装命令失败');
       }
     } catch (error) {
-      toast.error('获取安装命令失败');
+      toast.error(translate("获取安装命令失败"));
     } finally {
-      setNodeList(prev => prev.map(n => 
+      setNodeList(prev => prev.map(n =>
         n.id === node.id ? { ...n, copyLoading: false } : n
       ));
     }
@@ -552,35 +553,35 @@ export default function NodePage() {
     try {
       const copied = await copyText(installCommand);
       if (copied) {
-        toast.success('安装命令已复制到剪贴板');
+        toast.success(translate("安装命令已复制到剪贴板"));
         setInstallCommandModal(false);
       } else {
-        toast.error('复制失败，请手动选择文本复制');
+        toast.error(translate("复制失败，请手动选择文本复制"));
       }
     } catch (error) {
-      toast.error('复制失败，请手动选择文本复制');
+      toast.error(translate("复制失败，请手动选择文本复制"));
     }
   };
 
   // 提交表单
   const handleSubmit = async () => {
     if (!validateForm()) return;
-    
+
     setSubmitLoading(true);
-    
+
     try {
       const apiCall = isEdit ? updateNode : createNode;
-      const data = { 
+      const data = {
         ...form
       };
-      
+
       const res = await apiCall(data);
       if (res.code === 0) {
-        toast.success(isEdit ? '更新成功' : '创建成功');
+        toast.success(isEdit ? translate("更新成功") : translate("创建成功"));
         setDialogVisible(false);
-        
+
         if (isEdit) {
-          setNodeList(prev => prev.map(n => 
+          setNodeList(prev => prev.map(n =>
             n.id === form.id ? {
               ...n,
               name: form.name,
@@ -598,10 +599,10 @@ export default function NodePage() {
           loadNodes();
         }
       } else {
-        toast.error(res.msg || (isEdit ? '更新失败' : '创建失败'));
+        toast.error(res.msg || (isEdit ? translate("更新失败") : translate("创建失败")));
       }
     } catch (error) {
-      toast.error('网络错误，请重试');
+      toast.error(translate("网络错误，请重试"));
     } finally {
       setSubmitLoading(false);
     }
@@ -625,7 +626,7 @@ export default function NodePage() {
   };
 
   return (
-    
+
       <div className="px-3 lg:px-6 py-8">
         {/* 页面头部 */}
         <div className="flex items-center justify-between mb-6">
@@ -637,11 +638,9 @@ export default function NodePage() {
               variant="flat"
               color="primary"
               onPress={handleAdd}
-             
-            >
-              新增
-            </Button>
-     
+
+            >{translate("新增")}</Button>
+
         </div>
 
         {/* 节点列表 */}
@@ -649,7 +648,7 @@ export default function NodePage() {
           <div className="flex items-center justify-center h-64">
             <div className="flex items-center gap-3">
               <Spinner size="sm" />
-              <span className="text-default-600">正在加载...</span>
+              <span className="text-default-600">{translate("正在加载...")}</span>
             </div>
           </div>
         ) : nodeList.length === 0 ? (
@@ -662,8 +661,8 @@ export default function NodePage() {
                   </svg>
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-foreground">暂无节点配置</h3>
-                  <p className="text-default-500 text-sm mt-1">还没有创建任何节点配置，点击上方按钮开始创建</p>
+                  <h3 className="text-lg font-semibold text-foreground">{translate("暂无节点配置")}</h3>
+                  <p className="text-default-500 text-sm mt-1">{translate("还没有创建任何节点配置，点击上方按钮开始创建")}</p>
                 </div>
               </div>
             </CardBody>
@@ -671,8 +670,8 @@ export default function NodePage() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
             {nodeList.map((node) => (
-              <Card 
-                key={node.id} 
+              <Card
+                key={node.id}
                 className="shadow-sm border border-divider hover:shadow-md transition-shadow duration-200"
               >
                 <CardHeader className="pb-2">
@@ -680,17 +679,17 @@ export default function NodePage() {
                     <div className="flex-1 min-w-0">
                       <h3 className="font-semibold text-foreground truncate text-sm">{node.name}</h3>
                       {node.manageable === false && (
-                        <p className="text-[11px] text-default-500">只读授权节点</p>
+                        <p className="text-[11px] text-default-500">{translate("只读授权节点")}</p>
                       )}
                     </div>
                     <div className="flex items-center gap-1.5 ml-2">
-                      <Chip 
-                        color={node.connectionStatus === 'online' ? 'success' : 'danger'} 
-                        variant="flat" 
+                      <Chip
+                        color={node.connectionStatus === 'online' ? 'success' : 'danger'}
+                        variant="flat"
                         size="sm"
                         className="text-xs"
                       >
-                        {node.connectionStatus === 'online' ? '在线' : '离线'}
+                        {node.connectionStatus === 'online' ? translate("在线") : translate("离线")}
                       </Chip>
                     </div>
                   </div>
@@ -716,13 +715,13 @@ export default function NodePage() {
                       <span className="font-mono text-xs truncate ml-2" title={node.detectedIpv6 || ''}>{node.detectedIpv6 || '未获取'}</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-default-600">版本</span>
+                      <span className="text-default-600">{translate("版本")}</span>
                       <span className="text-xs">{node.version || '未知'}</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-default-600">开机时间</span>
+                      <span className="text-default-600">{translate("开机时间")}</span>
                       <span className="text-xs">
-                        {node.connectionStatus === 'online' && node.systemInfo 
+                        {node.connectionStatus === 'online' && node.systemInfo
                           ? formatUptime(node.systemInfo.uptime)
                           : '-'
                         }
@@ -737,8 +736,8 @@ export default function NodePage() {
                         <div className="flex justify-between text-xs mb-1">
                           <span>CPU</span>
                           <span className="font-mono">
-                            {node.connectionStatus === 'online' && node.systemInfo 
-                              ? `${node.systemInfo.cpuUsage.toFixed(1)}%` 
+                            {node.connectionStatus === 'online' && node.systemInfo
+                              ? `${node.systemInfo.cpuUsage.toFixed(1)}%`
                               : '-'
                             }
                           </span>
@@ -750,15 +749,15 @@ export default function NodePage() {
                             node.connectionStatus !== 'online'
                           )}
                           size="sm"
-                          aria-label="CPU使用率"
+                          aria-label={translate("CPU使用率")}
                         />
                       </div>
                       <div>
                         <div className="flex justify-between text-xs mb-1">
-                          <span>内存</span>
+                          <span>{translate("内存")}</span>
                           <span className="font-mono">
-                            {node.connectionStatus === 'online' && node.systemInfo 
-                              ? `${node.systemInfo.memoryUsage.toFixed(1)}%` 
+                            {node.connectionStatus === 'online' && node.systemInfo
+                              ? `${node.systemInfo.memoryUsage.toFixed(1)}%`
                               : '-'
                             }
                           </span>
@@ -770,26 +769,26 @@ export default function NodePage() {
                             node.connectionStatus !== 'online'
                           )}
                           size="sm"
-                          aria-label="内存使用率"
+                          aria-label={translate("内存使用率")}
                         />
                       </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-2 text-xs">
                       <div className="text-center p-2 bg-default-50 dark:bg-default-100 rounded">
-                        <div className="text-default-600 mb-0.5">上传</div>
+                        <div className="text-default-600 mb-0.5">{translate("上传")}</div>
                         <div className="font-mono">
-                          {node.connectionStatus === 'online' && node.systemInfo 
-                            ? formatSpeed(node.systemInfo.uploadSpeed) 
+                          {node.connectionStatus === 'online' && node.systemInfo
+                            ? formatSpeed(node.systemInfo.uploadSpeed)
                             : '-'
                           }
                         </div>
                       </div>
                       <div className="text-center p-2 bg-default-50 dark:bg-default-100 rounded">
-                        <div className="text-default-600 mb-0.5">下载</div>
+                        <div className="text-default-600 mb-0.5">{translate("下载")}</div>
                         <div className="font-mono">
-                          {node.connectionStatus === 'online' && node.systemInfo 
-                            ? formatSpeed(node.systemInfo.downloadSpeed) 
+                          {node.connectionStatus === 'online' && node.systemInfo
+                            ? formatSpeed(node.systemInfo.downloadSpeed)
                             : '-'
                           }
                         </div>
@@ -799,19 +798,19 @@ export default function NodePage() {
                     {/* 流量统计 */}
                     <div className="grid grid-cols-2 gap-2 text-xs">
                       <div className="text-center p-2 bg-primary-50 dark:bg-primary-100/20 rounded border border-primary-200 dark:border-primary-300/20">
-                        <div className="text-primary-600 dark:text-primary-400 mb-0.5">↑ 上行流量</div>
+                        <div className="text-primary-600 dark:text-primary-400 mb-0.5">{translate("↑ 上行流量")}</div>
                         <div className="font-mono text-primary-700 dark:text-primary-300">
-                          {node.connectionStatus === 'online' && node.systemInfo 
-                            ? formatTraffic(node.systemInfo.uploadTraffic) 
+                          {node.connectionStatus === 'online' && node.systemInfo
+                            ? formatTraffic(node.systemInfo.uploadTraffic)
                             : '-'
                           }
                         </div>
                       </div>
                       <div className="text-center p-2 bg-success-50 dark:bg-success-100/20 rounded border border-success-200 dark:border-success-300/20">
-                        <div className="text-success-600 dark:text-success-400 mb-0.5">↓ 下行流量</div>
+                        <div className="text-success-600 dark:text-success-400 mb-0.5">{translate("↓ 下行流量")}</div>
                         <div className="font-mono text-success-700 dark:text-success-300">
-                          {node.connectionStatus === 'online' && node.systemInfo 
-                            ? formatTraffic(node.systemInfo.downloadTraffic) 
+                          {node.connectionStatus === 'online' && node.systemInfo
+                            ? formatTraffic(node.systemInfo.downloadTraffic)
                             : '-'
                           }
                         </div>
@@ -830,9 +829,7 @@ export default function NodePage() {
                         isLoading={node.copyLoading}
                         isDisabled={node.manageable === false}
                         className="flex-1 min-h-8"
-                      >
-                        安装
-                      </Button>
+                      >{translate("安装")}</Button>
                       <Button
                         size="sm"
                         variant="flat"
@@ -840,9 +837,7 @@ export default function NodePage() {
                         onPress={() => handleEdit(node)}
                         isDisabled={node.manageable === false}
                         className="flex-1 min-h-8"
-                      >
-                        编辑
-                      </Button>
+                      >{translate("编辑")}</Button>
                       <Button
                         size="sm"
                         variant="flat"
@@ -850,9 +845,7 @@ export default function NodePage() {
                         onPress={() => handleDelete(node)}
                         isDisabled={node.manageable === false}
                         className="flex-1 min-h-8"
-                      >
-                        删除
-                      </Button>
+                      >{translate("删除")}</Button>
                     </div>
                   </div>
                 </CardBody>
@@ -862,8 +855,8 @@ export default function NodePage() {
         )}
 
         {/* 新增/编辑节点对话框 */}
-        <Modal 
-          isOpen={dialogVisible} 
+        <Modal
+          isOpen={dialogVisible}
           onClose={() => setDialogVisible(false)}
           size="2xl"
           scrollBehavior="outside"
@@ -875,8 +868,8 @@ export default function NodePage() {
             <ModalBody>
               <div className="space-y-4">
                 <Input
-                  label="节点名称"
-                  placeholder="请输入节点名称"
+                  label={translate("节点名称")}
+                  placeholder={translate("请输入节点名称")}
                   value={form.name}
                   onChange={(e) => setForm(prev => ({ ...prev, name: e.target.value }))}
                   isInvalid={!!errors.name}
@@ -885,8 +878,8 @@ export default function NodePage() {
                 />
 
                 <Input
-                  label="服务器地址（可留空，Agent 连接后自动获取）"
-                  placeholder="可留空，或填写 IP / 域名作为获取前的地址"
+                  label={translate("服务器地址（可留空，Agent 连接后自动获取）")}
+                  placeholder={translate("可留空，或填写 IP / 域名作为获取前的地址")}
                   value={form.serverIp}
                   onChange={(e) => setForm(prev => ({ ...prev, serverIp: e.target.value }))}
                   isInvalid={!!errors.serverIp}
@@ -895,14 +888,14 @@ export default function NodePage() {
                 />
 
                 <Input
-                  label="可用端口"
-                  placeholder="例如: 80,443,1000-65535"
+                  label={translate("可用端口")}
+                  placeholder={translate("例如: 80,443,1000-65535")}
                   value={form.port}
                   onChange={(e) => setForm(prev => ({ ...prev, port: e.target.value }))}
                   isInvalid={!!errors.port}
                   errorMessage={errors.port}
                   variant="bordered"
-                  description="支持单个端口(80)、多个端口(80,443)或端口范围(1000-65535)，多个可用逗号分隔"
+                  description={translate("支持单个端口(80)、多个端口(80,443)或端口范围(1000-65535)，多个可用逗号分隔")}
                   classNames={{
                     input: "font-mono"
                   }}
@@ -910,27 +903,27 @@ export default function NodePage() {
 
                 {/* 高级配置 */}
                 <Accordion variant="bordered">
-                  <AccordionItem 
-                    key="advanced" 
-                    aria-label="高级配置"
-                    title="高级配置"
+                  <AccordionItem
+                    key="advanced"
+                    aria-label={translate("高级配置")}
+                    title={translate("高级配置")}
                   >
                     <div className="space-y-4 pb-2">
                       <Input
-                        label="出口网卡名或IP"
-                        placeholder="请输入出口网卡名或IP"
+                        label={translate("出口网卡名或IP")}
+                        placeholder={translate("请输入出口网卡名或IP")}
                         value={form.interfaceName}
                         onChange={(e) => setForm(prev => ({ ...prev, interfaceName: e.target.value }))}
                         isInvalid={!!errors.interfaceName}
                         errorMessage={errors.interfaceName}
                         variant="bordered"
-                        description="用于多IP服务器指定使用那个IP请求远程地址，不懂的默认为空就行"
+                        description={translate("用于多IP服务器指定使用那个IP请求远程地址，不懂的默认为空就行")}
                       />
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <Input
-                          label="TCP监听地址"
-                          placeholder="请输入TCP监听地址"
+                          label={translate("TCP监听地址")}
+                          placeholder={translate("请输入TCP监听地址")}
                           value={form.tcpListenAddr}
                           onChange={(e) => setForm(prev => ({ ...prev, tcpListenAddr: e.target.value }))}
                           isInvalid={!!errors.tcpListenAddr}
@@ -944,8 +937,8 @@ export default function NodePage() {
                         />
 
                         <Input
-                          label="UDP监听地址"
-                          placeholder="请输入UDP监听地址"
+                          label={translate("UDP监听地址")}
+                          placeholder={translate("请输入UDP监听地址")}
                           value={form.udpListenAddr}
                           onChange={(e) => setForm(prev => ({ ...prev, udpListenAddr: e.target.value }))}
                           isInvalid={!!errors.udpListenAddr}
@@ -960,8 +953,8 @@ export default function NodePage() {
                       </div>
                       {/* 屏蔽协议 */}
                       <div>
-                        <div className="text-sm font-medium text-default-700 mb-2">屏蔽协议</div>
-                        <div className="text-xs text-default-500 mb-2">开启开关以屏蔽对应协议</div>
+                        <div className="text-sm font-medium text-default-700 mb-2">{translate("屏蔽协议")}</div>
+                        <div className="text-xs text-default-500 mb-2">{translate("开启开关以屏蔽对应协议")}</div>
                         {protocolDisabled && (
                           <Alert
                             color="warning"
@@ -978,7 +971,7 @@ export default function NodePage() {
                               <div className="text-sm font-medium text-default-700">HTTP</div>
                             </div>
                             <div className="flex items-center justify-between">
-                              <div className="text-xs text-default-500">禁用/启用</div>
+                              <div className="text-xs text-default-500">{translate("禁用/启用")}</div>
                               <Switch
                                 size="sm"
                                 isSelected={form.http === 1}
@@ -986,7 +979,7 @@ export default function NodePage() {
                                 onValueChange={(v) => setForm(prev => ({ ...prev, http: v ? 1 : 0 }))}
                               />
                             </div>
-                            <div className="mt-1 text-xs text-default-400">{form.http === 1 ? '已开启' : '已关闭'}</div>
+                            <div className="mt-1 text-xs text-default-400">{form.http === 1 ? translate("已开启") : translate("已关闭")}</div>
                           </div>
 
                           {/* TLS tile */}
@@ -996,7 +989,7 @@ export default function NodePage() {
                               <div className="text-sm font-medium text-default-700">TLS</div>
                             </div>
                             <div className="flex items-center justify-between">
-                              <div className="text-xs text-default-500">禁用/启用</div>
+                              <div className="text-xs text-default-500">{translate("禁用/启用")}</div>
                               <Switch
                                 size="sm"
                                 isSelected={form.tls === 1}
@@ -1004,7 +997,7 @@ export default function NodePage() {
                                 onValueChange={(v) => setForm(prev => ({ ...prev, tls: v ? 1 : 0 }))}
                               />
                             </div>
-                            <div className="mt-1 text-xs text-default-400">{form.tls === 1 ? '已开启' : '已关闭'}</div>
+                            <div className="mt-1 text-xs text-default-400">{form.tls === 1 ? translate("已开启") : translate("已关闭")}</div>
                           </div>
 
                           {/* SOCKS tile */}
@@ -1014,7 +1007,7 @@ export default function NodePage() {
                               <div className="text-sm font-medium text-default-700">SOCKS</div>
                             </div>
                             <div className="flex items-center justify-between">
-                              <div className="text-xs text-default-500">禁用/启用</div>
+                              <div className="text-xs text-default-500">{translate("禁用/启用")}</div>
                               <Switch
                                 size="sm"
                                 isSelected={form.socks === 1}
@@ -1022,7 +1015,7 @@ export default function NodePage() {
                                 onValueChange={(v) => setForm(prev => ({ ...prev, socks: v ? 1 : 0 }))}
                               />
                             </div>
-                            <div className="mt-1 text-xs text-default-400">{form.socks === 1 ? '已开启' : '已关闭'}</div>
+                            <div className="mt-1 text-xs text-default-400">{form.socks === 1 ? translate("已开启") : translate("已关闭")}</div>
                           </div>
                         </div>
                       </div>
@@ -1030,7 +1023,7 @@ export default function NodePage() {
                       <Alert
                         color="danger"
                         variant="flat"
-                        description="请不要在出口节点执行屏蔽协议，否则可能影响转发；屏蔽协议仅需在入口节点执行。"
+                        description={translate("请不要在出口节点执行屏蔽协议，否则可能影响转发；屏蔽协议仅需在入口节点执行。")}
                       />
                     </div>
                   </AccordionItem>
@@ -1039,32 +1032,30 @@ export default function NodePage() {
                 <Alert
                   color="primary"
                   variant="flat"
-                  description="服务器ip是你要添加的服务器的ip地址，不是面板的ip地址。"
+                  description={translate("服务器ip是你要添加的服务器的ip地址，不是面板的ip地址。")}
                   className="mt-4"
                 />
-                
+
               </div>
             </ModalBody>
             <ModalFooter>
               <Button
                 variant="flat"
                 onPress={() => setDialogVisible(false)}
-              >
-                取消
-              </Button>
+              >{translate("取消")}</Button>
               <Button
                 color="primary"
                 onPress={handleSubmit}
                 isLoading={submitLoading}
               >
-                {submitLoading ? '提交中...' : '确定'}
+                {submitLoading ? translate("提交中...") : translate("确定")}
               </Button>
             </ModalFooter>
           </ModalContent>
         </Modal>
 
         {/* 删除确认模态框 */}
-        <Modal 
+        <Modal
           isOpen={deleteModalOpen}
           onOpenChange={setDeleteModalOpen}
           size="2xl"
@@ -1076,22 +1067,20 @@ export default function NodePage() {
             {(onClose) => (
               <>
                 <ModalHeader className="flex flex-col gap-1">
-                  <h2 className="text-xl font-bold">确认删除</h2>
+                  <h2 className="text-xl font-bold">{translate("确认删除")}</h2>
                 </ModalHeader>
                 <ModalBody>
-                  <p>确定要删除节点 <strong>"{nodeToDelete?.name}"</strong> 吗？</p>
-                  <p className="text-small text-default-500">此操作不可恢复，请谨慎操作。</p>
+                  <p>{translate("确定要删除节点")}<strong>"{nodeToDelete?.name}"</strong>{translate("吗？")}</p>
+                  <p className="text-small text-default-500">{translate("此操作不可恢复，请谨慎操作。")}</p>
                 </ModalBody>
                 <ModalFooter>
-                  <Button variant="light" onPress={onClose}>
-                    取消
-                  </Button>
-                  <Button 
-                    color="danger" 
+                  <Button variant="light" onPress={onClose}>{translate("取消")}</Button>
+                  <Button
+                    color="danger"
                     onPress={confirmDelete}
                     isLoading={deleteLoading}
                   >
-                    {deleteLoading ? '删除中...' : '确认删除'}
+                    {deleteLoading ? translate("删除中...") : translate("确认删除")}
                   </Button>
                 </ModalFooter>
               </>
@@ -1100,8 +1089,8 @@ export default function NodePage() {
         </Modal>
 
         {/* 安装命令模态框 */}
-        <Modal 
-          isOpen={installCommandModal} 
+        <Modal
+          isOpen={installCommandModal}
           onClose={() => setInstallCommandModal(false)}
           size="2xl"
         scrollBehavior="outside"
@@ -1109,12 +1098,10 @@ export default function NodePage() {
         placement="center"
         >
           <ModalContent>
-            <ModalHeader>安装命令 - {currentNodeName}</ModalHeader>
+            <ModalHeader>{translate("安装命令 -")}{currentNodeName}</ModalHeader>
             <ModalBody>
               <div className="space-y-4">
-                <p className="text-sm text-default-600">
-                  请复制以下安装命令到服务器上执行：
-                </p>
+                <p className="text-sm text-default-600">{translate("请复制以下安装命令到服务器上执行：")}</p>
                 <div className="relative">
                   <Textarea
                     value={installCommand}
@@ -1133,26 +1120,20 @@ export default function NodePage() {
                     variant="flat"
                     className="absolute top-2 right-2"
                     onPress={handleManualCopy}
-                  >
-                    复制
-                  </Button>
+                  >{translate("复制")}</Button>
                 </div>
-                <div className="text-xs text-default-500">
-                  💡 提示：如果复制按钮失效，请手动选择上方文本进行复制
-                </div>
+                <div className="text-xs text-default-500">{translate("💡 提示：如果复制按钮失效，请手动选择上方文本进行复制")}</div>
               </div>
             </ModalBody>
             <ModalFooter>
               <Button
                 variant="flat"
                 onPress={() => setInstallCommandModal(false)}
-              >
-                关闭
-              </Button>
+              >{translate("关闭")}</Button>
             </ModalFooter>
           </ModalContent>
         </Modal>
       </div>
-    
+
   );
-} 
+}

@@ -1,3 +1,4 @@
+import { translate } from '@/utils/locale';
 import { Button } from "@heroui/button";
 import { Input } from "@heroui/input";
 import { Card, CardBody, CardHeader } from "@heroui/card";
@@ -74,13 +75,13 @@ export default function ChangePasswordPage() {
     setLoading(true);
     try {
       const response = await updatePassword(form);
-      
+
       if (response.code === 0) {
         toast.success(response.msg || '账号密码修改成功');
-        
+
         // 使用 toast 确认对话框的替代方案
         setTimeout(() => {
-          toast.success('即将跳转到登陆页面，请重新登录');
+          toast.success(translate("即将跳转到登陆页面，请重新登录"));
           setTimeout(() => {
             logout();
           }, 1000);
@@ -90,7 +91,7 @@ export default function ChangePasswordPage() {
       }
     } catch (error) {
       console.error('修改账号密码错误:', error);
-      toast.error('修改账号密码时发生错误');
+      toast.error(translate("修改账号密码时发生错误"));
     } finally {
       setLoading(false);
     }
@@ -118,16 +119,16 @@ export default function ChangePasswordPage() {
                   <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                 </svg>
               </div>
-              
-              <h1 className={title({ size: "sm" })}>安全提醒</h1>
-              <p className="text-small text-default-500 mt-2 text-center">检测到您使用的是默认账号密码，为了您的账户安全，请立即修改</p>
+
+              <h1 className={title({ size: "sm" })}>{translate("安全提醒")}</h1>
+              <p className="text-small text-default-500 mt-2 text-center">{translate("检测到您使用的是默认账号密码，为了您的账户安全，请立即修改")}</p>
             </CardHeader>
-            
+
             <CardBody className="px-6 py-6">
               <div className="flex flex-col gap-4">
                 <Input
-                  label="新用户名"
-                  placeholder="请输入新用户名（至少3位）"
+                  label={translate("新用户名")}
+                  placeholder={translate("请输入新用户名（至少3位）")}
                   value={form.newUsername}
                   onChange={(e) => handleInputChange('newUsername', e.target.value)}
                   onKeyDown={handleKeyPress}
@@ -136,10 +137,10 @@ export default function ChangePasswordPage() {
                   isInvalid={!!errors.newUsername}
                   errorMessage={errors.newUsername}
                 />
-                
+
                 <Input
-                  label="当前密码"
-                  placeholder="请输入当前密码"
+                  label={translate("当前密码")}
+                  placeholder={translate("请输入当前密码")}
                   type="password"
                   value={form.currentPassword}
                   onChange={(e) => handleInputChange('currentPassword', e.target.value)}
@@ -149,10 +150,10 @@ export default function ChangePasswordPage() {
                   isInvalid={!!errors.currentPassword}
                   errorMessage={errors.currentPassword}
                 />
-                
+
                 <Input
-                  label="新密码"
-                  placeholder="请输入新密码（至少6位）"
+                  label={translate("新密码")}
+                  placeholder={translate("请输入新密码（至少6位）")}
                   type="password"
                   value={form.newPassword}
                   onChange={(e) => handleInputChange('newPassword', e.target.value)}
@@ -162,10 +163,10 @@ export default function ChangePasswordPage() {
                   isInvalid={!!errors.newPassword}
                   errorMessage={errors.newPassword}
                 />
-                
+
                 <Input
-                  label="确认新密码"
-                  placeholder="请再次输入新密码"
+                  label={translate("确认新密码")}
+                  placeholder={translate("请再次输入新密码")}
                   type="password"
                   value={form.confirmPassword}
                   onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
@@ -175,7 +176,7 @@ export default function ChangePasswordPage() {
                   isInvalid={!!errors.confirmPassword}
                   errorMessage={errors.confirmPassword}
                 />
-                
+
                 <Button
                   color="warning"
                   size="lg"
@@ -184,12 +185,10 @@ export default function ChangePasswordPage() {
                   disabled={loading}
                   className="mt-2"
                 >
-                  {loading ? "修改中..." : "立即修改账号密码"}
+                  {loading ? translate("修改中...") : translate("立即修改账号密码")}
                 </Button>
-                
-                <div className="bg-warning-50 border border-warning-200 text-warning-700 px-3 py-2 rounded-lg text-sm text-center">
-                  ⚠️ 注意：修改账号密码后需要重新登录
-                </div>
+
+                <div className="bg-warning-50 border border-warning-200 text-warning-700 px-3 py-2 rounded-lg text-sm text-center">{translate("⚠️ 注意：修改账号密码后需要重新登录")}</div>
               </div>
             </CardBody>
           </Card>
@@ -197,4 +196,4 @@ export default function ChangePasswordPage() {
       </section>
     </DefaultLayout>
   );
-} 
+}

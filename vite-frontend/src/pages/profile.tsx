@@ -1,3 +1,4 @@
+import { translate } from '@/utils/locale';
 import React, { useState, useEffect } from 'react';
 import { Card, CardBody } from "@heroui/card";
 import { Button } from "@heroui/button";
@@ -41,7 +42,7 @@ export default function ProfilePage() {
   useEffect(() => {
     // 获取用户信息
     const name = localStorage.getItem('name') || 'Admin';
-    
+
     // 兼容处理：如果没有admin字段，根据role_id判断（0为管理员）
     let adminFlag = localStorage.getItem('admin') === 'true';
     if (localStorage.getItem('admin') === null) {
@@ -50,7 +51,7 @@ export default function ProfilePage() {
       // 补充设置admin字段，避免下次再次判断
       localStorage.setItem('admin', adminFlag.toString());
     }
-    
+
     setUsername(name);
     setIsAdmin(adminFlag);
   }, []);
@@ -59,36 +60,36 @@ export default function ProfilePage() {
   const adminMenuItems: MenuItem[] = [
     {
       path: '/limit',
-      label: '限速管理',
+      label: translate("限速管理"),
       icon: (
         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
           <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
         </svg>
       ),
       color: 'bg-orange-100 dark:bg-orange-500/20 text-orange-600 dark:text-orange-400',
-      description: '管理用户限速策略'
+      description: translate("管理用户限速策略")
     },
     {
       path: '/user',
-      label: '用户管理',
+      label: translate("用户管理"),
       icon: (
         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
           <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
         </svg>
       ),
       color: 'bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400',
-      description: '管理系统用户'
+      description: translate("管理系统用户")
     },
     {
       path: '/config',
-      label: '网站配置',
+      label: translate("网站配置"),
       icon: (
         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
           <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
         </svg>
       ),
       color: 'bg-purple-100 dark:bg-purple-500/20 text-purple-600 dark:text-purple-400',
-      description: '配置网站设置'
+      description: translate("配置网站设置")
     }
   ];
 
@@ -101,27 +102,27 @@ export default function ProfilePage() {
   // 密码表单验证
   const validatePasswordForm = (): boolean => {
     if (!passwordForm.newUsername.trim()) {
-      toast.error('请输入新用户名');
+      toast.error(translate("请输入新用户名"));
       return false;
     }
     if (passwordForm.newUsername.length < 3) {
-      toast.error('用户名长度至少3位');
+      toast.error(translate("用户名长度至少3位"));
       return false;
     }
     if (!passwordForm.currentPassword) {
-      toast.error('请输入当前密码');
+      toast.error(translate("请输入当前密码"));
       return false;
     }
     if (!passwordForm.newPassword) {
-      toast.error('请输入新密码');
+      toast.error(translate("请输入新密码"));
       return false;
     }
     if (passwordForm.newPassword.length < 6) {
-      toast.error('新密码长度不能少于6位');
+      toast.error(translate("新密码长度不能少于6位"));
       return false;
     }
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      toast.error('两次输入密码不一致');
+      toast.error(translate("两次输入密码不一致"));
       return false;
     }
     return true;
@@ -135,14 +136,14 @@ export default function ProfilePage() {
     try {
       const response = await updatePassword(passwordForm);
       if (response.code === 0) {
-        toast.success('密码修改成功，请重新登录');
+        toast.success(translate("密码修改成功，请重新登录"));
         onOpenChange();
         handleLogout();
       } else {
         toast.error(response.msg || '密码修改失败');
       }
     } catch (error) {
-      toast.error('修改密码时发生错误');
+      toast.error(translate("修改密码时发生错误"));
       console.error('修改密码错误:', error);
     } finally {
       setPasswordLoading(false);
@@ -176,11 +177,11 @@ export default function ProfilePage() {
                 <h3 className="text-base font-medium text-foreground">{username}</h3>
                 <div className="flex items-center space-x-2 mt-1">
                   <span className={`px-2 py-1 rounded-md text-xs font-medium ${
-                    isAdmin 
-                      ? 'bg-primary-100 dark:bg-primary-500/20 text-primary-700 dark:text-primary-300' 
+                    isAdmin
+                      ? 'bg-primary-100 dark:bg-primary-500/20 text-primary-700 dark:text-primary-300'
                       : 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300'
                   }`}>
-                    {isAdmin ? '管理员' : '普通用户'}
+                    {isAdmin ? translate("管理员") : translate("普通用户")}
                   </span>
                   <span className="text-xs text-default-500">
                     {new Date().toLocaleDateString('zh-CN')}
@@ -208,7 +209,7 @@ export default function ProfilePage() {
                   <span className="text-xs text-foreground text-center">{item.label}</span>
                 </button>
               ))}
-              
+
               {/* 修改密码 */}
               <button
                 onClick={onOpen}
@@ -219,9 +220,9 @@ export default function ProfilePage() {
                     <path fillRule="evenodd" d="M18 8a6 6 0 01-7.743 5.743L10 14l-1 1-1 1H6v2H2v-4l4.257-4.257A6 6 0 1118 8zm-6-4a1 1 0 100 2 2 2 0 012 2 1 1 0 102 0 4 4 0 00-4-4z" clipRule="evenodd" />
                   </svg>
                 </div>
-                <span className="text-xs text-foreground text-center">修改密码</span>
+                <span className="text-xs text-foreground text-center">{translate("修改密码")}</span>
               </button>
-              
+
               {/* 退出登录 */}
               <button
                 onClick={handleLogout}
@@ -232,7 +233,7 @@ export default function ProfilePage() {
                     <path fillRule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 102 0V4a1 1 0 00-1-1zm10.293 9.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L14.586 9H7a1 1 0 100 2h7.586l-1.293 1.293z" clipRule="evenodd" />
                   </svg>
                 </div>
-                <span className="text-xs text-foreground text-center">退出登录</span>
+                <span className="text-xs text-foreground text-center">{translate("退出登录")}</span>
               </button>
             </div>
           </CardBody>
@@ -241,9 +242,9 @@ export default function ProfilePage() {
         <div className="fixed inset-x-0 bottom-20 text-center py-4">
                <p className="text-xs text-gray-400 dark:text-gray-500">
                  Powered by{' '}
-                 <a 
-                   href="https://github.com/bqlpfy/flux-panel" 
-                   target="_blank" 
+                 <a
+                   href="https://github.com/bqlpfy/flux-panel"
+                   target="_blank"
                    rel="noopener noreferrer"
                    className="text-gray-500 dark:text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
                  >
@@ -258,12 +259,12 @@ export default function ProfilePage() {
       </div>
 
 
-      
+
 
 
       {/* 修改密码弹窗 */}
-      <Modal 
-        isOpen={isOpen} 
+      <Modal
+        isOpen={isOpen}
         onOpenChange={() => {
           onOpenChange();
           resetPasswordForm();
@@ -276,36 +277,36 @@ export default function ProfilePage() {
         <ModalContent>
           {(onClose: () => void) => (
             <>
-              <ModalHeader className="flex flex-col gap-1">修改密码</ModalHeader>
+              <ModalHeader className="flex flex-col gap-1">{translate("修改密码")}</ModalHeader>
               <ModalBody>
                 <div className="space-y-4">
                   <Input
-                    label="新用户名"
-                    placeholder="请输入新用户名（至少3位）"
+                    label={translate("新用户名")}
+                    placeholder={translate("请输入新用户名（至少3位）")}
                     value={passwordForm.newUsername}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPasswordForm(prev => ({ ...prev, newUsername: e.target.value }))}
                     variant="bordered"
                   />
                   <Input
-                    label="当前密码"
+                    label={translate("当前密码")}
                     type="password"
-                    placeholder="请输入当前密码"
+                    placeholder={translate("请输入当前密码")}
                     value={passwordForm.currentPassword}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPasswordForm(prev => ({ ...prev, currentPassword: e.target.value }))}
                     variant="bordered"
                   />
                   <Input
-                    label="新密码"
+                    label={translate("新密码")}
                     type="password"
-                    placeholder="请输入新密码（至少6位）"
+                    placeholder={translate("请输入新密码（至少6位）")}
                     value={passwordForm.newPassword}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPasswordForm(prev => ({ ...prev, newPassword: e.target.value }))}
                     variant="bordered"
                   />
                   <Input
-                    label="确认密码"
+                    label={translate("确认密码")}
                     type="password"
-                    placeholder="请再次输入新密码"
+                    placeholder={translate("请再次输入新密码")}
                     value={passwordForm.confirmPassword}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPasswordForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
                     variant="bordered"
@@ -313,16 +314,12 @@ export default function ProfilePage() {
                 </div>
               </ModalBody>
               <ModalFooter>
-                <Button color="default" variant="light" onPress={onClose}>
-                  取消
-                </Button>
-                <Button 
-                  color="primary" 
+                <Button color="default" variant="light" onPress={onClose}>{translate("取消")}</Button>
+                <Button
+                  color="primary"
                   onPress={handlePasswordSubmit}
                   isLoading={passwordLoading}
-                >
-                  确定
-                </Button>
+                >{translate("确定")}</Button>
               </ModalFooter>
             </>
           )}

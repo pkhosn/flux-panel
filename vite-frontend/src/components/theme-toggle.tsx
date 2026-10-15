@@ -1,3 +1,4 @@
+import { translate } from '@/utils/locale';
 import { Button } from "@heroui/button";
 import { useTheme } from "@heroui/use-theme";
 import { applyTheme, saveTheme, type ThemeMode } from "@/utils/theme";
@@ -24,8 +25,8 @@ export function ThemeToggle({ iconOnly = true, size = "sm" }: ThemeToggleProps) 
       variant="light"
       size={size}
       onPress={handleToggle}
-      title={currentTheme === "dark" ? "切换到白天模式" : "切换到黑暗模式"}
-      aria-label={currentTheme === "dark" ? "切换到白天模式" : "切换到黑暗模式"}
+      title={currentTheme === "dark" ? translate("切换到白天模式") : translate("切换到黑暗模式")}
+      aria-label={currentTheme === "dark" ? translate("切换到白天模式") : translate("切换到黑暗模式")}
     >
       {currentTheme === "dark" ? (
         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
