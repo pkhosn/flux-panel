@@ -1,0 +1,15 @@
+.panel-header{height:56px;min-height:56px;display:flex;align-items:center;justify-content:space-between;background:#fff;border-bottom:1px solid #e9ebef;box-shadow:none;position:relative;z-index:30;color:#293548}
+.panel-header-brand{width:240px;height:55px;flex:0 0 240px;background:#fafafa;border-right:1px solid #e9ebef;padding:0 12px 0 14px;display:flex;align-items:center;gap:8px;min-width:0}
+.panel-header-brand-link{display:flex;align-items:center;gap:9px;min-width:0;flex:1;color:inherit;font-size:17px;font-weight:700;text-decoration:none}
+.panel-header-brand-link span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.panel-header-logo{width:26px;height:26px;object-fit:contain;flex-shrink:0}
+.panel-header-collapse{width:28px;height:32px;display:grid;place-items:center;flex-shrink:0;color:#8792a2;background:transparent;border:0;cursor:pointer}
+.panel-header-tools{display:flex;align-items:center;margin-right:32px;margin-left:12px;flex-shrink:0;gap:20px}
+.panel-header-buttons{display:flex;gap:8px;align-items:center}
+.panel-header-tool{width:32px;height:32px;min-width:32px;border:0;border-radius:7px;background:#f6f7f9;color:#7c899e;display:grid;place-items:center;cursor:pointer}
+.panel-header-avatar{position:relative;display:grid;place-items:center;width:42px;height:42px;flex-shrink:0;border-radius:50%;border:2px solid #eddbad;background:#4ccbb6;color:white;font-size:21px;font-weight:500;cursor:pointer}
+.panel-header-vip{position:absolute;bottom:-3px;left:50%;transform:translateX(-50%);padding:0 4px;line-height:13px;border-radius:3px;background:#eddbad;color:#42464d;font-size:10px;font-weight:700}
+.panel-header button:focus-visible,.panel-header a:focus-visible{outline:2px solid #4ccbb6;outline-offset:2px}
+.panel-header-tool:hover{background:#eceef2}
+@media(max-width:600px){.panel-header-brand{width:auto;flex:0 1 240px}.panel-header-tools{margin-right:12px;gap:12px;margin-left:8px}.panel-header-brand{padding-right:6px}.panel-header-brand-link{font-size:14px;gap:4px}}
+@media(max-width:360px){.panel-header-brand{padding-left:8px;gap:2px}.panel-header-tools{margin-right:8px;gap:8px}.panel-header-brand-link{gap:2px}.panel-header-logo{width:22px;height:22px}}

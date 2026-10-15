@@ -1,16 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from "@heroui/button";
-import { Dropdown, DropdownTrigger, DropdownMenu, DropdownItem } from "@heroui/dropdown";
 import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, useDisclosure } from "@heroui/modal";
 import { Input } from "@heroui/input";
 import { toast } from 'react-hot-toast';
 
-import { Logo } from '@/components/icons';
-import { ThemeToggle } from '@/components/theme-toggle';
+import { PanelHeader } from '@/components/panel-header';
 import { updatePassword } from '@/api';
 import { safeLogout } from '@/utils/logout';
-import { siteConfig } from '@/config/site';
 
 interface MenuItem {
   path: string;
@@ -38,7 +35,6 @@ export default function AdminLayout({
   const [isMobile, setIsMobile] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [mobileMenuVisible, setMobileMenuVisible] = useState(false);
-  const [username, setUsername] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [passwordForm, setPasswordForm] = useState<PasswordForm>({
@@ -158,7 +154,7 @@ export default function AdminLayout({
 
   useEffect(() => {
     // 获取用户信息
-    const name = localStorage.getItem('name') || 'Admin';
+
     
     // 兼容处理：如果没有admin字段，根据role_id判断（0为管理员）
     let adminFlag = localStorage.getItem('admin') === 'true';
@@ -169,7 +165,6 @@ export default function AdminLayout({
       localStorage.setItem('admin', adminFlag.toString());
     }
     
-    setUsername(name);
     setIsAdmin(adminFlag);
     setIsSidebarCollapsed(localStorage.getItem('admin_sidebar_collapsed') === 'true');
 
@@ -279,7 +274,9 @@ export default function AdminLayout({
   );
 
   return (
-          <div className={`flex ${isMobile ? 'min-h-screen' : 'h-screen'} bg-gray-100 dark:bg-black`}>
+          <div className={`flex flex-col ${isMobile ? 'min-h-screen' : 'h-screen'} bg-gray-100 dark:bg-black`}>
+      <PanelHeader onToggleSidebar={isMobile ? toggleMobileMenu : toggleSidebar} sidebarExpanded={isMobile ? mobileMenuVisible : !isSidebarCollapsed} onPassword={onOpen} />
+      <div className="flex flex-1 min-h-0">
       {/* 移动端遮罩层 */}
       {isMobile && mobileMenuVisible && (
         <div 
@@ -292,27 +289,16 @@ export default function AdminLayout({
       <aside className={`
         ${isMobile ? 'fixed' : 'relative'} 
         ${isMobile && !mobileMenuVisible ? '-translate-x-full' : 'translate-x-0'}
-        ${isMobile ? 'w-64' : isSidebarCollapsed ? 'w-20' : 'w-72'} 
+        ${isMobile ? 'w-64' : isSidebarCollapsed ? 'w-20' : 'w-[240px]'}
         bg-white dark:bg-black 
         shadow-lg 
         border-r border-gray-200 dark:border-gray-600
         z-50 
         transition-all duration-300 ease-in-out
         flex flex-col
-        ${isMobile ? 'h-screen' : 'h-full'}
-        ${isMobile ? 'top-0 left-0' : ''}
+        ${isMobile ? 'h-[calc(100dvh-56px)]' : 'h-full'}
+        ${isMobile ? 'top-14 left-0' : ''}
       `}>
-                 {/* Logo 区域 */}
-         <div className={`px-3 py-3 h-14 flex items-center ${!isMobile && isSidebarCollapsed ? 'justify-center' : ''}`}>
-           <div className="flex items-center gap-2 w-full overflow-hidden">
-             <Logo size={24} />
-             <div className={`flex-1 min-w-0 ${!isMobile && isSidebarCollapsed ? 'hidden' : ''}`}>
-               <h1 className="text-sm font-bold text-foreground overflow-hidden whitespace-nowrap">{siteConfig.name}</h1>
-               <p className="text-xs text-default-500">v{siteConfig.version}</p>
-             </div>
-           </div>
-         </div>
-
                  {/* 菜单导航 */}
          <nav className="flex-1 px-4 py-6 overflow-y-auto">
            <ul className="space-y-1">
@@ -363,85 +349,14 @@ export default function AdminLayout({
       </aside>
 
       {/* 主内容区域 */}
-      <div className={`flex flex-col flex-1 ${isMobile ? 'min-h-0' : 'h-full overflow-hidden'}`}>
-                 {/* 顶部导航栏 */}
-         <header className="bg-white dark:bg-black shadow-md border-b border-gray-200 dark:border-gray-600 h-14 flex items-center justify-between px-4 lg:px-6 relative z-10">
-          <div className="flex items-center gap-4">
-            {/* 移动端菜单按钮 */}
-            {isMobile && (
-              <Button
-                isIconOnly
-                variant="light"
-                onPress={toggleMobileMenu}
-                className="lg:hidden"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
-              </Button>
-            )}
-            {!isMobile && (
-              <Button
-                isIconOnly
-                variant="light"
-                onPress={toggleSidebar}
-                aria-label={isSidebarCollapsed ? '展开侧边栏' : '折叠侧边栏'}
-              >
-                <svg className={`w-5 h-5 transition-transform duration-300 ${isSidebarCollapsed ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-              </Button>
-            )}
-          </div>
-
-          <div className="flex items-center gap-3">
-            <ThemeToggle />
-            {/* 用户菜单 */}
-             <Dropdown placement="bottom-end">
-               <DropdownTrigger>
-                 <Button variant="light" className="text-sm font-medium text-foreground">
-                   {username}
-                   <svg className="w-4 h-4 ml-1" fill="currentColor" viewBox="0 0 20 20">
-                     <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                   </svg>
-                 </Button>
-               </DropdownTrigger>
-              <DropdownMenu aria-label="用户菜单">
-                <DropdownItem
-                  key="change-password"
-                  startContent={
-                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M18 8a6 6 0 01-7.743 5.743L10 14l-1 1-1 1H6v2H2v-4l4.257-4.257A6 6 0 1118 8zm-6-4a1 1 0 100 2 2 2 0 012 2 1 1 0 102 0 4 4 0 00-4-4z" clipRule="evenodd" />
-                    </svg>
-                  }
-                  onPress={onOpen}
-                >
-                  修改密码
-                </DropdownItem>
-                <DropdownItem
-                  key="logout"
-                  startContent={
-                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 102 0V4a1 1 0 00-1-1zm10.293 9.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L14.586 9H7a1 1 0 100 2h7.586l-1.293 1.293z" clipRule="evenodd" />
-                    </svg>
-                  }
-                  className="text-danger"
-                  color="danger"
-                  onPress={handleLogout}
-                >
-                  退出登录
-                </DropdownItem>
-              </DropdownMenu>
-            </Dropdown>
-          </div>
-        </header>
-
+      <div className={`flex flex-col flex-1 min-w-0 ${isMobile ? 'min-h-0' : 'h-full overflow-hidden'}`}>
         {/* 主内容 */}
         <main className={`flex-1 bg-gray-100 dark:bg-black ${isMobile ? '' : 'overflow-y-auto'}`}>
           {children}
         </main>
       </div>
 
+      </div>
       {/* 修改密码弹窗 */}
       <Modal 
         isOpen={isOpen} 

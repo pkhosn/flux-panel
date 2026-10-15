@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from "@heroui/button";
 import { Card, CardBody, CardHeader } from "@heroui/card";
+import { Textarea } from "@heroui/input";
 import { Input } from "@heroui/input";
 import { Spinner } from "@heroui/spinner";
 import { Divider } from "@heroui/divider";
@@ -37,7 +38,7 @@ interface ConfigItem {
   label: string;
   placeholder?: string;
   description?: string;
-  type: 'input' | 'switch' | 'select';
+  type: 'input' | 'switch' | 'select' | 'textarea';
   options?: { label: string; value: string; description?: string }[];
   dependsOn?: string; // 依赖的配置项key
   dependsValue?: string; // 依赖的配置项值
@@ -134,6 +135,9 @@ const CONFIG_ITEMS: ConfigItem[] = [
     description: '在浏览器标签页和导航栏显示的应用名称',
     type: 'input'
   },
+  { key: 'app_logo', label: '品牌 Logo 地址', placeholder: 'https://example.com/logo.svg', description: '导航栏 Logo 图片地址，留空使用默认 Logo', type: 'input' },
+  { key: 'announcement_title', label: '公告标题', placeholder: '网站公告', description: '顶部铃铛打开的公告标题', type: 'input' },
+  { key: 'announcement_content', label: '公告内容', placeholder: '请输入公告内容', description: '顶部铃铛展示的公告，支持换行纯文本', type: 'textarea' },
   {
     key: 'captcha_enabled',
     label: '启用验证码',
@@ -391,6 +395,9 @@ const getInitialConfigs = (): Record<string, string> => {
   
   const configKeys = [
     'app_name',
+    'app_logo',
+    'announcement_title',
+    'announcement_content',
     'captcha_enabled',
     'captcha_type',
     'ip',
@@ -627,6 +634,8 @@ export default function ConfigPage() {
     const isChanged = hasChanges && configs[item.key] !== originalConfigs[item.key];
     
     switch (item.type) {
+      case 'textarea':
+        return <Textarea aria-label={item.label} value={configs[item.key] || ''} placeholder={item.placeholder} onValueChange={value => handleConfigChange(item.key, value)} variant="bordered" />;
       case 'input':
         if (item.key === 'payment_methods') {
           return (

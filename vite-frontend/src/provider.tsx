@@ -19,9 +19,16 @@ export interface ProvidersProps {
 
 export function Provider({ children }: ProvidersProps) {
   const navigate = useNavigate();
+  const [locale, setLocale] = React.useState(localStorage.getItem('panel_locale') || 'zh-CN');
+  React.useEffect(() => {
+    const update = () => setLocale(localStorage.getItem('panel_locale') || 'zh-CN');
+    window.addEventListener('panelLocaleChanged', update);
+    return () => window.removeEventListener('panelLocaleChanged', update);
+  }, []);
+  React.useEffect(() => { document.documentElement.lang = locale; }, [locale]);
 
   return (
-    <I18nProvider locale="zh-CN">
+    <I18nProvider locale={locale}>
       <HeroUIProvider navigate={navigate} useHref={useHref}>
         <ThemeProvider>
           {children}
