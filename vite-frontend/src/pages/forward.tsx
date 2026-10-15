@@ -160,6 +160,7 @@ export default function ForwardPage() {
   const [rulePage, setRulePage] = useState(1);
   const [rulePageSize, setRulePageSize] = useState(20);
   const [statsOpen, setStatsOpen] = useState(false);
+  const [detailForward, setDetailForward] = useState<Forward | null>(null);
   const [statsTitle, setStatsTitle] = useState("最近 24 小时流量");
   const [ruleHours, setRuleHours] = useState<ForwardHour[]>([]);
   const [batchGroupId, setBatchGroupId] = useState(0);
@@ -1857,6 +1858,7 @@ export default function ForwardPage() {
                       <td className="p-3">{formatFlow(row.trafficBytes ?? ((row.inFlow || 0) + (row.outFlow || 0)))}</td>
                       <td className="p-3"><Chip size="sm" color={getStatusDisplay(row.status).color as any} variant="flat">{getStatusDisplay(row.status).text}</Chip></td>
                       <td className="p-3"><div className="flex flex-wrap gap-1">
+                        <Button size="sm" variant="light" onPress={() => setDetailForward(row)}>详情</Button>
                         <Button size="sm" variant="light" onPress={() => handleServiceToggle(row)}>{row.serviceRunning ? "暂停" : "恢复"}</Button>
                         <Button size="sm" variant="light" onPress={() => handleEdit(row)}>编辑</Button>
                         <Button size="sm" variant="light" onPress={() => handleCopy(row)}>复制</Button>
@@ -2021,6 +2023,30 @@ export default function ForwardPage() {
             </Card>
           )
         )}
+
+        <Modal isOpen={detailForward !== null} onOpenChange={open => { if (!open) setDetailForward(null); }} size="lg">
+          <ModalContent>
+            <ModalHeader>规则详情</ModalHeader>
+            <ModalBody>
+              {detailForward && (
+                <dl className="grid grid-cols-[6rem_1fr] gap-x-3 gap-y-2 text-sm break-all">
+                  <dt className="text-default-500">名称</dt><dd>{detailForward.name} #{detailForward.id}</dd>
+                  <dt className="text-default-500">所属用户</dt><dd>{detailForward.userName || `用户 #${detailForward.userId}`}</dd>
+                  <dt className="text-default-500">规则分组</dt><dd>{ruleGroups.find(group => group.id === detailForward.groupId)?.name || "未分组"}</dd>
+                  <dt className="text-default-500">协议</dt><dd>{detailForward.protocol === "tcp" ? "TCP" : detailForward.protocol === "udp" ? "UDP" : "TCP+UDP"}</dd>
+                  <dt className="text-default-500">入口</dt><dd>{detailForward.tunnelName} · {formatInAddress(detailForward.inIp, detailForward.inPort)}</dd>
+                  <dt className="text-default-500">目标</dt><dd>{detailForward.remoteAddr.split(",").join(" / ")}</dd>
+                  <dt className="text-default-500">状态</dt><dd>{getStatusDisplay(detailForward.status).text}</dd>
+                  <dt className="text-default-500">展示流量</dt><dd>{formatFlow(detailForward.trafficBytes ?? ((detailForward.inFlow || 0) + (detailForward.outFlow || 0)))}</dd>
+                </dl>
+              )}
+            </ModalBody>
+            <ModalFooter>
+              <Button variant="light" onPress={() => setDetailForward(null)}>关闭</Button>
+              <Button color="primary" onPress={() => { if (detailForward) showForwardStats(detailForward); setDetailForward(null); }}>查看统计</Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
 
         <Modal isOpen={statsOpen} onOpenChange={setStatsOpen} size="xl">
           <ModalContent>
