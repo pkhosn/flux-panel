@@ -2,6 +2,7 @@ package com.admin.controller;
 
 import com.admin.common.lang.R;
 import com.admin.common.utils.JwtUtil;
+import com.admin.common.dto.ForwardUpdateDto;
 import com.admin.service.ForwardService;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
@@ -94,6 +95,55 @@ public class ForwardBatchController {
                 }
                 return R.ok(Map.of("count", completed.size()));
             }
+            case "switch" -> {
+                Long tunnelId = positiveId(input.get("tunnelId"));
+                if (tunnelId == null || tunnelId > Integer.MAX_VALUE) return R.err("目标隧道 ID 无效");
+                List<Map<String, Object>> selected = jdbc.queryForList(
+                        "SELECT id, user_id, name, tunnel_id, remote_addr, strategy, protocol, group_id, status " +
+                                "FROM forward WHERE " + scope + " ORDER BY id", scopedArgs);
+                if (selected.stream().anyMatch(row -> ((Number) row.get("status")).intValue() != 1)) {
+                    return R.err("暂停中的规则请先恢复，再批量切换入口");
+                }
+                for (Map<String, Object> row : selected) {
+                    int ruleOwner = ((Number) row.get("user_id")).intValue();
+                    if (!admin && ruleOwner != owner) return R.err("规则无权操作");
+                    Number originalPort = jdbc.queryForObject(
+                            "SELECT MIN(port) FROM forward_port WHERE forward_id=?", Number.class, row.get("id"));
+                    Integer distinctPorts = jdbc.queryForObject(
+                            "SELECT COUNT(DISTINCT port) FROM forward_port WHERE forward_id=?", Integer.class, row.get("id"));
+                    if (originalPort == null || distinctPorts == null || distinctPorts != 1) {
+                        return R.err("规则 " + row.get("id") + " 的原入口端口不一致，无法安全批量切换");
+                    }
+                    row.put("original_port", originalPort.intValue());
+                    Integer allowed = jdbc.queryForObject(
+                            "SELECT COUNT(*) FROM tunnel t WHERE t.id=? AND t.status=1 " +
+                                    "AND (? OR EXISTS (SELECT 1 FROM user_tunnel ut " +
+                                    "WHERE ut.tunnel_id=t.id AND ut.user_id=? AND ut.status=1))",
+                            Integer.class, tunnelId, admin, ruleOwner);
+                    if (allowed == null || allowed != 1) return R.err("规则 " + row.get("id") + " 无目标隧道权限");
+                }
+                List<Map<String, Object>> completed = new ArrayList<>();
+                for (Map<String, Object> row : selected) {
+                    if (((Number) row.get("tunnel_id")).intValue() == tunnelId.intValue()) continue;
+                    ForwardUpdateDto update = forwardUpdate(row, tunnelId.intValue());
+                    R result = forwardService.updateForward(update);
+                    if (result.getCode() != 0) {
+                        List<Long> rollbackFailed = new ArrayList<>();
+                        for (int i = completed.size() - 1; i >= 0; i--) {
+                            Map<String, Object> old = completed.get(i);
+                            ForwardUpdateDto restore = forwardUpdate(old, ((Number) old.get("tunnel_id")).intValue());
+                            restore.setInPort(((Number) old.get("original_port")).intValue());
+                            R rollback = forwardService.updateForward(restore);
+                            if (rollback.getCode() != 0) rollbackFailed.add(((Number) old.get("id")).longValue());
+                        }
+                        return R.err("规则 " + row.get("id") + " 切换失败：" + result.getMsg()
+                                + (rollbackFailed.isEmpty() ? "；已尝试恢复此前规则"
+                                : "；恢复失败的规则 ID：" + rollbackFailed));
+                    }
+                    completed.add(row);
+                }
+                return R.ok(Map.of("count", completed.size()));
+            }
             default -> {
                 return R.err("此批量操作尚未开放");
             }
@@ -106,6 +156,20 @@ public class ForwardBatchController {
         result[0] = first;
         System.arraycopy(rest, 0, result, 1, rest.length);
         return result;
+    }
+
+    private static ForwardUpdateDto forwardUpdate(Map<String, Object> row, int tunnelId) {
+        ForwardUpdateDto update = new ForwardUpdateDto();
+        update.setId(((Number) row.get("id")).longValue());
+        update.setUserId(((Number) row.get("user_id")).intValue());
+        update.setName((String) row.get("name"));
+        update.setTunnelId(tunnelId);
+        update.setRemoteAddr((String) row.get("remote_addr"));
+        update.setStrategy((String) row.get("strategy"));
+        update.setProtocol((String) row.get("protocol"));
+        Number group = (Number) row.get("group_id");
+        update.setGroupId(group == null ? 0 : group.intValue());
+        return update;
     }
 
     private static Long positiveId(Object value) {

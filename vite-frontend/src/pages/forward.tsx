@@ -165,6 +165,7 @@ export default function ForwardPage() {
   const [statsTitle, setStatsTitle] = useState("最近 24 小时流量");
   const [ruleHours, setRuleHours] = useState<ForwardHour[]>([]);
   const [batchGroupId, setBatchGroupId] = useState(0);
+  const [batchTunnelId, setBatchTunnelId] = useState<number | null>(null);
   
   // 检测是否为移动端
   const [isMobile, setIsMobile] = useState(false);
@@ -526,6 +527,17 @@ export default function ForwardPage() {
     const result = await batchForward({ ids, action, groupId });
     if (result.code !== 0) return toast.error(result.msg || "批量操作失败");
     toast.success("操作完成");
+    setSelectedForwardIds([]);
+    await loadData(false);
+  };
+
+  const handleBatchSwitch = async () => {
+    const ids = selectedForwardIds.filter(id => tableRules.some(row => row.id === id));
+    if (!ids.length || !batchTunnelId) return toast.error("请选择规则和目标隧道");
+    if (!window.confirm("切换所选规则的入口？旧连接会关闭，并重新分配监听端口。")) return;
+    const result = await batchForward({ ids, action: "switch", tunnelId: batchTunnelId });
+    if (result.code !== 0) return toast.error(result.msg || "批量切换失败");
+    toast.success("入口切换完成");
     setSelectedForwardIds([]);
     await loadData(false);
   };
@@ -1722,6 +1734,13 @@ export default function ForwardPage() {
               {group => <SelectItem key={String(group.id)}>{group.name}</SelectItem>}
             </Select>
             <Button size="sm" variant="flat" isDisabled={!tableSelectedIds.length} onPress={() => handleBatchMeta("group", batchGroupId)}>移动分组</Button>
+            <Select aria-label="批量目标隧道" size="sm" className="w-48" placeholder="目标隧道" selectedKeys={batchTunnelId ? [String(batchTunnelId)] : []} onSelectionChange={keys => {
+              const value = Array.from(keys)[0];
+              setBatchTunnelId(value === undefined ? null : Number(value));
+            }}>
+              {tunnels.map(tunnel => <SelectItem key={String(tunnel.id)}>{tunnel.name}</SelectItem>)}
+            </Select>
+            <Button size="sm" variant="flat" isDisabled={!tableSelectedIds.length || !batchTunnelId} onPress={handleBatchSwitch}>切换入口</Button>
             <Button size="sm" color="danger" variant="flat" isDisabled={!tableSelectedIds.length} onPress={handleBatchDelete}>删除选中</Button>
             {!!tableSelectedIds.length && <span className="text-sm text-default-500">已选择 {tableSelectedIds.length} 条</span>}
           </div>

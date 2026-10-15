@@ -97,7 +97,7 @@ export const getForwardGroups = () => Network.post("/forward/group/list");
 export const createForwardGroup = (name: string) => Network.post("/forward/group/create", { name });
 export const updateForwardGroup = (id: number, name: string) => Network.post("/forward/group/update", { id, name });
 export const deleteForwardGroup = (id: number) => Network.post("/forward/group/delete", { id });
-export const batchForward = (data: { ids: number[]; action: "group" | "clear" | "enable" | "disable"; groupId?: number }) => Network.post("/forward/batch", data);
+export const batchForward = (data: { ids: number[]; action: "group" | "clear" | "enable" | "disable" | "switch"; groupId?: number; tunnelId?: number }) => Network.post("/forward/batch", data);
 export const getForwardStats = (forwardId?: number) => Network.post("/forward/stats", forwardId ? { forwardId } : {});
 export const clearForwardTraffic = (id: number) => Network.post("/forward/clear-traffic", { id });
 

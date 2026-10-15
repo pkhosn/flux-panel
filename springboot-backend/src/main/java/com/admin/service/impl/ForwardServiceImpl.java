@@ -1046,7 +1046,9 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
 
     private R checkForwardQuota(Integer userId, Integer tunnelId, UserTunnel userTunnel, User userInfo, Long excludeForwardId) {
         // 检查用户总转发数量限制
-        long userForwardCount = this.count(new QueryWrapper<Forward>().eq("user_id", userId));
+        QueryWrapper<Forward> userQuery = new QueryWrapper<Forward>().eq("user_id", userId);
+        if (excludeForwardId != null) userQuery.ne("id", excludeForwardId);
+        long userForwardCount = this.count(userQuery);
         if (userForwardCount >= userInfo.getNum()) {
             return R.err("用户总转发数量已达上限，当前限制：" + userInfo.getNum() + "个");
         }
