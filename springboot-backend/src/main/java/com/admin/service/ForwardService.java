@@ -2,6 +2,7 @@ package com.admin.service;
 
 import com.admin.common.dto.ForwardDto;
 import com.admin.common.dto.ForwardUpdateDto;
+import com.admin.common.dto.ForwardImportDto;
 import com.admin.common.lang.R;
 import com.admin.entity.Forward;
 import com.baomidou.mybatisplus.extension.service.IService;
@@ -24,6 +25,8 @@ public interface ForwardService extends IService<Forward> {
      * @return 结果
      */
     R createForward(ForwardDto forwardDto);
+
+    R importForwards(ForwardImportDto input);
 
     /**
      * 获取端口转发列表

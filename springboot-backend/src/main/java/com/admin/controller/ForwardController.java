@@ -4,6 +4,7 @@ import com.admin.common.aop.LogAnnotation;
 import com.admin.common.annotation.RequireRole;
 import com.admin.common.dto.ForwardDto;
 import com.admin.common.dto.ForwardUpdateDto;
+import com.admin.common.dto.ForwardImportDto;
 import com.admin.common.lang.R;
 import com.admin.service.ForwardService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,6 +33,12 @@ public class ForwardController extends BaseController {
     @PostMapping("/create")
     public R create(@Validated @RequestBody ForwardDto forwardDto) {
         return forwardService.createForward(forwardDto);
+    }
+
+    @LogAnnotation
+    @PostMapping("/import")
+    public R importRules(@RequestBody ForwardImportDto input) {
+        return forwardService.importForwards(input);
     }
 
     @LogAnnotation

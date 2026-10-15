@@ -39,6 +39,8 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
 
     private static final long BYTES_TO_GB = 1024L * 1024L * 1024L;
 
+    private static final Object IMPORT_LOCK = new Object();
+
     @Resource
     @Lazy
     private TunnelService tunnelService;
@@ -210,7 +212,121 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
                 return cleanupFailedForwardCreate(forward, serviceName, attemptedNodes, gostDto.getMsg());
             }
         }
-        return R.ok();
+        return R.ok(forward.getId());
+    }
+
+    @Override
+    public R importForwards(ForwardImportDto input) {
+        if (input == null || input.getRules() == null || input.getRules().isEmpty()
+                || input.getRules().size() > 500) return R.err("每次导入 1–500 条规则");
+        UserInfo currentUser = getCurrentUserInfo();
+        List<ForwardDto> rules = input.getRules();
+        synchronized (IMPORT_LOCK) {
+            if (currentUser.getRoleId() != 0) {
+                User user = userService.getById(currentUser.getUserId());
+                long existing = this.count(new QueryWrapper<Forward>().eq("user_id", currentUser.getUserId()));
+                if (user == null || existing + rules.size() > user.getNum()) return R.err("导入后将超过用户规则数量限制");
+            }
+            for (int i = 0; i < rules.size(); i++) {
+                ForwardDto rule = rules.get(i);
+                if (rule == null || rule.getTunnelId() == null || rule.getName() == null
+                        || rule.getName().isBlank() || rule.getRemoteAddr() == null
+                        || rule.getRemoteAddr().isBlank()) {
+                    return R.err("第 " + (i + 1) + " 条规则参数不完整");
+                }
+                if (rule.getInPort() != null && (rule.getInPort() < 1 || rule.getInPort() > 65535)) {
+                    return R.err("第 " + (i + 1) + " 条入口端口无效");
+                }
+                for (String target : rule.getRemoteAddr().split(",", -1)) {
+                    java.util.regex.Matcher address = java.util.regex.Pattern
+                            .compile("^(?:\\[[0-9a-fA-F:]+\\]|[^\\s:,/]+):([0-9]{1,5})$").matcher(target.trim());
+                    if (!address.matches() || Integer.parseInt(address.group(1)) < 1
+                            || Integer.parseInt(address.group(1)) > 65535) {
+                        return R.err("第 " + (i + 1) + " 条目标地址格式无效");
+                    }
+                }
+                String protocol = GostUtil.normalizeForwardProtocol(rule.getProtocol());
+                if (protocol == null) return R.err("第 " + (i + 1) + " 条协议无效");
+                String proxyError = GostUtil.validateForwardProxy(protocol, rule.getProxyAccept(),
+                        rule.getProxySend(), rule.getProxyTrustedCidrs());
+                if (proxyError != null) return R.err("第 " + (i + 1) + " 条：" + proxyError);
+                if (!validGroup(rule.getGroupId(), currentUser.getUserId())) {
+                    return R.err("第 " + (i + 1) + " 条分组不存在或无权使用");
+                }
+                Tunnel tunnel = validateTunnel(rule.getTunnelId());
+                if (tunnel == null || tunnel.getStatus() != 1) {
+                    return R.err("第 " + (i + 1) + " 条隧道不存在或已禁用");
+                }
+                if (chainTunnelService.count(new QueryWrapper<ChainTunnel>()
+                        .eq("tunnel_id", tunnel.getId()).eq("chain_type", 1)) == 0) {
+                    return R.err("第 " + (i + 1) + " 条隧道没有入口节点");
+                }
+                UserPermissionResult permission = checkUserPermissions(currentUser, tunnel, null);
+                if (permission.isHasError()) {
+                    return R.err("第 " + (i + 1) + " 条：" + permission.getErrorMessage());
+                }
+                if (currentUser.getRoleId() != 0) {
+                    long incoming = rules.stream().filter(item -> item != null
+                            && Objects.equals(item.getTunnelId(), rule.getTunnelId())).count();
+                    long existing = this.count(new QueryWrapper<Forward>().eq("user_id", currentUser.getUserId())
+                            .eq("tunnel_id", rule.getTunnelId()));
+                    if (existing + incoming > permission.getUserTunnel().getNum()) {
+                        return R.err("导入后将超过隧道规则数量限制");
+                    }
+                }
+            }
+            Map<Long, Set<Integer>> reservedPorts = new HashMap<>();
+            for (int i = 0; i < rules.size(); i++) {
+                ForwardDto rule = rules.get(i);
+                List<ChainTunnel> entries = chainTunnelService.list(new QueryWrapper<ChainTunnel>()
+                        .eq("tunnel_id", rule.getTunnelId()).eq("chain_type", 1));
+                for (ChainTunnel entry : entries) {
+                    Forward proposed = new Forward();
+                    BeanUtils.copyProperties(rule, proposed);
+                    Node node = nodeService.getById(entry.getNodeId());
+                    if (node == null || !GostUtil.supportsForwardProxy(node, proposed)) {
+                        return R.err("第 " + (i + 1) + " 条入口节点不存在或需要升级 Agent");
+                    }
+                    Set<Integer> reserved = reservedPorts.computeIfAbsent(entry.getNodeId(), id -> new HashSet<>());
+                    List<Integer> available = getNodePort(entry.getNodeId(), 0L);
+                    Integer selected = rule.getInPort();
+                    if (selected == null) {
+                        selected = available.stream().filter(port -> !reserved.contains(port)).findFirst().orElse(null);
+                    }
+                    if (selected == null || !available.contains(selected) || !reserved.add(selected)) {
+                        return R.err("第 " + (i + 1) + " 条没有可用入口端口");
+                    }
+                }
+            }
+            List<Long> created = new ArrayList<>();
+            for (int i = 0; i < rules.size(); i++) {
+                R result;
+                try {
+                    result = createForward(rules.get(i));
+                } catch (RuntimeException ex) {
+                    log.error("导入第 {} 条规则失败", i + 1, ex);
+                    result = R.err("创建规则异常，请检查节点端口和服务状态");
+                }
+                if (result.getCode() != 0) {
+                    List<Long> cleanupFailed = new ArrayList<>();
+                    Collections.reverse(created);
+                    for (Long id : created) {
+                        try {
+                            R removed = deleteForward(id);
+                            if (removed.getCode() != 0) cleanupFailed.add(id);
+                        } catch (RuntimeException ex) {
+                            log.error("导入回退规则 {} 失败", id, ex);
+                            cleanupFailed.add(id);
+                        }
+                    }
+                    return R.err("第 " + (i + 1) + " 条创建失败：" + result.getMsg()
+                            + (cleanupFailed.isEmpty() ? "；此前导入的规则已清理"
+                            : "；清理失败的规则 ID：" + cleanupFailed));
+                }
+                created.add(((Number) result.getData()).longValue());
+            }
+            return R.ok(Map.of("count", created.size()));
+        }
     }
 
     private R cleanupFailedForwardCreate(Forward forward, String serviceName,

@@ -34,6 +34,7 @@ import { CSS } from '@dnd-kit/utilities';
 
 import { 
   createForward, 
+  importForwardRules,
   getForwardList, 
   updateForward, 
   deleteForward,
@@ -53,6 +54,7 @@ import {
 } from "@/api";
 import { JwtUtil } from "@/utils/jwt";
 import { copyText } from "@/utils/clipboard";
+import { parseRuleTransfer } from "@/utils/rule-transfer";
 
 interface Forward {
   id: number;
@@ -223,6 +225,7 @@ export default function ForwardPage() {
   // 导出相关状态
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [exportData, setExportData] = useState('');
+  const [exportFormat, setExportFormat] = useState<"legacy" | "json" | "nyanpass">("json");
   const [exportLoading, setExportLoading] = useState(false);
   const [selectedTunnelForExport, setSelectedTunnelForExport] = useState<number | null>(null);
   const exportTextareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -1128,7 +1131,25 @@ export default function ForwardPage() {
         return `${forward.remoteAddr}|${forward.name}|${forward.inPort}`;
       });
       
-      const exportText = exportLines.join('\n');
+      let exportText = exportLines.join('\n');
+      if (exportFormat === "json") {
+        exportText = JSON.stringify({ format: "flux-rules", version: 1, rules: forwardsToExport.map(row => ({
+          name: row.name, tunnelId: row.tunnelId, remoteAddr: row.remoteAddr, inPort: row.inPort,
+          protocol: row.protocol || "tcp_udp", strategy: row.strategy || "fifo",
+          groupId: row.groupId || 0, status: row.status, proxyAccept: row.proxyAccept || 0,
+          proxySend: row.proxySend || 0, proxyTrustedCidrs: row.proxyTrustedCidrs || ""
+        })) }, null, 2);
+      } else if (exportFormat === "nyanpass") {
+        if (forwardsToExport.some(row => row.protocol !== "tcp")) {
+          toast.error("nyanpass 格式仅支持 TCP；请选完整 JSON 保留协议");
+          return;
+        }
+        exportText = forwardsToExport.map(row => JSON.stringify({
+          name: row.name, dest: row.remoteAddr.split(","), listen_port: row.inPort,
+          proxy_protocol: row.proxySend === 2 ? 3 : row.proxySend || 0,
+          accept_proxy_protocol: row.proxyAccept ? 1 : 0
+        })).join("\n");
+      }
       setExportData(exportText);
     } catch (error) {
       console.error('导出失败:', error);
@@ -1202,6 +1223,15 @@ export default function ForwardPage() {
     setImportResults([]); // 清空之前的结果
 
     try {
+      if (/^[\[{]/.test(importData.trim())) {
+        const rules = parseRuleTransfer(importData, selectedTunnelForImport);
+        const response = await importForwardRules(rules);
+        setImportResults([{ line: `JSON · ${rules.length} 条`, success: response.code === 0, message: response.msg }]);
+        if (response.code !== 0) toast.error(response.msg || "导入失败");
+        else toast.success(`已导入 ${rules.length} 条规则`);
+        await loadData(false);
+        return;
+      }
       const lines = importData.trim().split('\n').filter(line => line.trim());
       
       for (let i = 0; i < lines.length; i++) {
@@ -1297,7 +1327,7 @@ export default function ForwardPage() {
       await loadData(false);
     } catch (error) {
       console.error('导入失败:', error);
-      toast.error('导入过程中发生错误');
+      toast.error(error instanceof Error ? error.message : '导入过程中发生错误');
     } finally {
       setImportLoading(false);
     }
@@ -2460,7 +2490,7 @@ export default function ForwardPage() {
             <ModalHeader className="flex flex-col gap-1">
               <h2 className="text-xl font-bold">导出转发数据</h2>
               <p className="text-small text-default-500">
-                格式：目标地址|转发名称|入口端口
+                完整 JSON 保留协议、分组及 Proxy 设置；nyanpass 适用于 TCP 规则。
               </p>
             </ModalHeader>
             <ModalBody className="pb-6">
@@ -2483,6 +2513,14 @@ export default function ForwardPage() {
                         {tunnel.name}
                       </SelectItem>
                     ))}
+                  </Select>
+                  <Select label="导出格式" className="mt-3" selectedKeys={[exportFormat]} onSelectionChange={keys => {
+                    const value = Array.from(keys)[0] as typeof exportFormat;
+                    if (value) { setExportFormat(value); setExportData(""); }
+                  }}>
+                    <SelectItem key="json">Flux 完整 JSON</SelectItem>
+                    <SelectItem key="nyanpass">nyanpass JSONL</SelectItem>
+                    <SelectItem key="legacy">旧版文本：目标|名称|端口</SelectItem>
                   </Select>
                 </div>
 
@@ -2585,7 +2623,7 @@ export default function ForwardPage() {
             <ModalHeader className="flex flex-col gap-1">
               <h2 className="text-xl font-bold">导入转发数据</h2>
               <p className="text-small text-default-500">
-                格式：目标地址|转发名称|入口端口，每行一个，入口端口留空将自动分配可用端口
+                支持 Flux JSON、Nekopass 普通规则 JSON、nyanpass JSONL，以及旧版目标|名称|端口格式。
               </p>
               <p className="text-small text-default-400">
                 目标地址支持单个地址(如：example.com:8080)或多个地址用逗号分隔(如：3.3.3.3:3,4.4.4.4:4)
