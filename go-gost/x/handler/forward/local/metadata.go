@@ -18,6 +18,7 @@ type metadata struct {
 	readTimeout   time.Duration
 	httpKeepalive bool
 	proxyProtocol int
+	leastTargets  []string
 	originTLS     *tls.Config
 
 	sniffing                    bool
@@ -32,6 +33,7 @@ type metadata struct {
 }
 
 func (h *forwardHandler) parseMetadata(md mdata.Metadata) (err error) {
+	h.md.leastTargets = mdutil.GetStrings(md, "leastTargets")
 	h.md.readTimeout = mdutil.GetDuration(md, "readTimeout")
 	if h.md.readTimeout <= 0 {
 		h.md.readTimeout = 15 * time.Second

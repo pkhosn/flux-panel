@@ -421,6 +421,11 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
         String proxyError = GostUtil.validateForwardProxy(nextProtocol, nextProxyAccept, nextProxySend, nextTrustedCidrs);
         if (proxyError != null) return R.err(proxyError);
         Integer nextInbound = forwardUpdateDto.getTlsInboundId() == null ? existForward.getTlsInboundId() : forwardUpdateDto.getTlsInboundId();
+        if (!Objects.equals(nextInbound, existForward.getTlsInboundId()) && existForward.getTlsInboundId() != null && existForward.getTlsInboundId() > 0) {
+            String raw = jdbc.queryForObject("SELECT policy FROM forward_tls_inbound WHERE id=?", String.class, existForward.getTlsInboundId());
+            JSONObject policy = JSONObject.parseObject(raw);
+            if (policy != null && policy.getLongValue("defaultRuleId") == existForward.getId()) return R.err("请先取消共享入口的默认规则，再迁移该规则");
+        }
         boolean recreateServices = tunnelChanged || !Objects.equals(previousProtocol, nextProtocol)
                 || !Objects.equals(nextInbound, existForward.getTlsInboundId());
 
@@ -544,7 +549,7 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
                 return R.err(rollbackFailures.isEmpty() ? failure
                         : failure + "；以下节点回滚失败：" + String.join(",", rollbackFailures));
             }
-            this.updateById(existForward);
+            if (!this.updateById(existForward)) throw new IllegalStateException("保存规则失败");
             for (ChainTunnel chainTunnel : chainTunnels) {
                 ForwardPort port = oldPorts.get(chainTunnel.getNodeId());
                 if (port == null) {
@@ -552,10 +557,10 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
                     port.setForwardId(existForward.getId());
                     port.setNodeId(chainTunnel.getNodeId());
                     port.setPort(chainTunnel.getPort());
-                    forwardPortService.save(port);
+                    if (!forwardPortService.save(port)) throw new IllegalStateException("保存端口失败");
                 } else {
                     port.setPort(chainTunnel.getPort());
-                    forwardPortService.updateById(port);
+                    if (!forwardPortService.updateById(port)) throw new IllegalStateException("更新端口失败");
                 }
             }
             return R.ok();
@@ -623,14 +628,14 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
                     : failure + "；以下节点回滚失败：" + String.join(",", rollbackFailures));
         }
 
-        this.updateById(existForward);
+        if (!this.updateById(existForward)) throw new IllegalStateException("保存规则失败");
         forwardPortService.remove(new QueryWrapper<ForwardPort>().eq("forward_id", existForward.getId()));
         for (ChainTunnel chainTunnel : chainTunnels) {
             ForwardPort port = new ForwardPort();
             port.setForwardId(existForward.getId());
             port.setNodeId(chainTunnel.getNodeId());
             port.setPort(chainTunnel.getPort());
-            forwardPortService.save(port);
+            if (!forwardPortService.save(port)) throw new IllegalStateException("保存端口失败");
         }
         return R.ok();
     }
@@ -688,7 +693,8 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
             if (!Objects.equals(gostDto.getMsg(), "OK")) return R.err(gostDto.getMsg());
         }
         forwardPortService.remove(new QueryWrapper<ForwardPort>().eq("forward_id", id));
-        this.removeById(id);
+        clearDefaultReference(forward);
+        if (!this.removeById(id)) throw new IllegalStateException("删除规则失败");
         jdbc.update("DELETE FROM forward_flow_hour WHERE forward_id=?", id);
         return R.ok();
     }
@@ -710,7 +716,8 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
         if (forward == null) {
             return R.err("端口转发不存在");
         }
-        this.removeById(id);
+        clearDefaultReference(forward);
+        if (!this.removeById(id)) throw new IllegalStateException("删除规则失败");
         jdbc.update("DELETE FROM forward_flow_hour WHERE forward_id=?", id);
         forwardPortService.remove(new QueryWrapper<ForwardPort>().eq("forward_id", id));
         return R.ok();
@@ -1040,7 +1047,7 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
         }
         forward.setStatus(targetStatus);
         forward.setUpdatedTime(System.currentTimeMillis());
-        this.updateById(forward);
+        if (!this.updateById(forward)) throw new IllegalStateException("保存规则状态失败");
         return R.ok();
     }
 
@@ -1346,6 +1353,47 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
         return forwardId + "_" + userId + "_" + userTunnelId;
     }
 
+
+    private void clearDefaultReference(Forward forward) {
+        if (forward.getTlsInboundId() == null || forward.getTlsInboundId() == 0) return;
+        String raw = jdbc.queryForObject("SELECT policy FROM forward_tls_inbound WHERE id=?", String.class, forward.getTlsInboundId());
+        JSONObject policy = JSONObject.parseObject(raw);
+        if (policy != null && policy.getLongValue("defaultRuleId") == forward.getId()) {
+            policy.put("defaultRuleId", 0);
+            policy.put("sniUnknownDefault", false);
+            policy.put("sniRejectEmpty", true);
+            jdbc.update("UPDATE forward_tls_inbound SET policy=? WHERE id=?", policy.toJSONString(), forward.getTlsInboundId());
+        }
+    }
+
+    /** Build committed desired state for recovery without depending on an HTTP user. */
+    public Map<Long, JSONArray> recoveryServices(Set<Long> nodes) {
+        Map<Long, JSONArray> desired = new HashMap<>();
+        for (Forward rule : this.list()) {
+            List<ForwardPort> ports = forwardPortService.list(new QueryWrapper<ForwardPort>().eq("forward_id", rule.getId()));
+            if (ports.stream().noneMatch(port -> nodes.contains(port.getNodeId()))) continue;
+            Tunnel tunnel = validateTunnel(rule.getTunnelId());
+            if (tunnel == null) throw new IllegalStateException("规则隧道不存在：" + rule.getId());
+            hydrateTlsPolicy(rule);
+            UserTunnel permission = getUserTunnel(rule.getUserId(), rule.getTunnelId());
+            String name = buildServiceName(rule.getId(), rule.getUserId(), permission);
+            Integer limiter = permission == null ? null : permission.getSpeedId();
+            for (ForwardPort port : ports) {
+                if (!nodes.contains(port.getNodeId())) continue;
+                Node node = nodeService.getById(port.getNodeId());
+                if (node == null) throw new IllegalStateException("规则节点不存在：" + port.getNodeId());
+                JSONArray configs = GostUtil.forwardServiceConfig(name, limiter, node, rule, port, tunnel);
+                for (Object config : configs) {
+                    JSONObject service = (JSONObject) config;
+                    JSONObject metadata = service.getJSONObject("metadata");
+                    if (metadata == null) { metadata = new JSONObject(); service.put("metadata", metadata); }
+                    metadata.put("paused", Integer.valueOf(0).equals(rule.getStatus()));
+                }
+                desired.computeIfAbsent(node.getId(), ignored -> new JSONArray()).addAll(configs);
+            }
+        }
+        return desired;
+    }
 
     private void hydrateTlsPolicy(Forward rule) {
         if (rule.getTlsInboundId() == null || rule.getTlsInboundId() == 0) return;

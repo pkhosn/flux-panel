@@ -7,6 +7,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/go-gost/core/chain"
@@ -35,11 +36,14 @@ func init() {
 }
 
 type forwardHandler struct {
-	hop      hop.Hop
-	md       metadata
-	options  handler.Options
-	recorder recorder.RecorderObject
-	certPool tls_util.CertPool
+	hop        hop.Hop
+	md         metadata
+	options    handler.Options
+	recorder   recorder.RecorderObject
+	certPool   tls_util.CertPool
+	balanceMu  sync.Mutex
+	active     map[string]int
+	nextTarget int
 }
 
 func NewHandler(opts ...handler.Option) handler.Handler {
@@ -184,6 +188,11 @@ func (h *forwardHandler) Handle(ctx context.Context, conn net.Conn, opts ...hand
 			hop.ProtocolSelectOption(proto),
 		)
 	}
+	if len(h.md.leastTargets) > 0 {
+		address, release := h.acquireLeast()
+		defer release()
+		target = &chain.Node{Addr: address}
+	}
 	if target == nil {
 		err := errors.New("node not available")
 		return err
@@ -257,4 +266,25 @@ func (h *forwardHandler) checkRateLimit(addr net.Addr) bool {
 	}
 
 	return true
+}
+
+func (h *forwardHandler) acquireLeast() (string, func()) {
+	h.balanceMu.Lock()
+	if h.active == nil {
+		h.active = make(map[string]int)
+	}
+	targets := h.md.leastTargets
+	selected := h.nextTarget % len(targets)
+	for offset := 1; offset < len(targets); offset++ {
+		candidate := (h.nextTarget + offset) % len(targets)
+		if h.active[targets[candidate]] < h.active[targets[selected]] {
+			selected = candidate
+		}
+	}
+	address := targets[selected]
+	h.nextTarget = (selected + 1) % len(targets)
+	h.active[address]++
+	h.balanceMu.Unlock()
+	var once sync.Once
+	return address, func() { once.Do(func() { h.balanceMu.Lock(); h.active[address]--; h.balanceMu.Unlock() }) }
 }

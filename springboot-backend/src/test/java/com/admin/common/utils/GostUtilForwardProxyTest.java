@@ -38,6 +38,9 @@ class GostUtilForwardProxyTest {
         assertEquals("::1/128", service.getJSONObject("listener").getJSONObject("metadata")
                 .getJSONArray("proxyTrustedCIDRs").getString(1));
 
+        forward.setStrategy("least_connections");
+        assertEquals("127.0.0.1:443", GostUtil.forwardServiceConfig("least", null, node, forward, port, tunnel)
+                .getJSONObject(0).getJSONObject("handler").getJSONObject("metadata").getJSONArray("leastTargets").getString(0));
         forward.setOriginTls(1);
         forward.setOriginServerName("origin.example.com");
         forward.setOriginAlpn("h2,http/1.1");
@@ -67,6 +70,7 @@ class GostUtilForwardProxyTest {
         forward.setProxyAccept(0);
         forward.setProxySend(0);
         forward.setProxyTrustedCidrs("");
+        forward.setStrategy("round");
         JSONObject defaultService = GostUtil.forwardServiceConfig("rule", null, node, forward, port, tunnel)
                 .getJSONObject(0);
         assertNull(defaultService.getJSONObject("metadata"));

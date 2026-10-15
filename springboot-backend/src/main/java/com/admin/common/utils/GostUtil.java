@@ -146,7 +146,7 @@ public class GostUtil {
         return gostDto;
     }
 
-    static JSONArray forwardServiceConfig(String name, Integer limiter, Node node, Forward forward, ForwardPort forwardPort, Tunnel tunnel) {
+    public static JSONArray forwardServiceConfig(String name, Integer limiter, Node node, Forward forward, ForwardPort forwardPort, Tunnel tunnel) {
         JSONArray services = new JSONArray();
         String[] protocols = forwardProtocols(forward.getProtocol());
         for (String protocol : protocols) {
@@ -189,6 +189,12 @@ public class GostUtil {
             }
             if (tunnel.getType() == 2){
                 handler.put("chain", "chains_" + forward.getTunnelId());
+            }
+            if ("least_connections".equals(forward.getStrategy())) {
+                JSONObject metadata = handler.getJSONObject("metadata");
+                if (metadata == null) metadata = new JSONObject();
+                metadata.put("leastTargets", Arrays.stream(forward.getRemoteAddr().split(",")).map(String::trim).toList());
+                handler.put("metadata", metadata);
             }
             service.put("handler", handler);
 

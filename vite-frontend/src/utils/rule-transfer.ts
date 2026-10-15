@@ -74,10 +74,9 @@ export function parseRuleTransfer(text: string, tunnelId: number): TransferRule[
     const trusted = row.proxyTrustedCidrs ?? (Array.isArray(row.proxy_trusted_cidrs) ? row.proxy_trusted_cidrs.join(",") : "");
     if (typeof trusted !== "string") return fail("可信 CIDR 格式无效");
     if (proxyAccept && !trusted.trim()) return fail("接收 Proxy 时必须填写可信来源 CIDR");
-    const balances: Record<string, string> = { random: "rand", round_robin: "round", least_connections: "fifo" };
-    if (row.balance === "least_connections") return fail("最少连接策略尚未支持导入");
+    const balances: Record<string, string> = { random: "rand", round_robin: "round", least_connections: "least_connections" };
     const strategy = row.strategy ?? balances[String(row.balance)] ?? "fifo";
-    if (!["fifo", "rand", "round", "hash"].includes(String(strategy))) return fail("负载策略无效");
+    if (!["fifo", "rand", "round", "hash", "least_connections"].includes(String(strategy))) return fail("负载策略无效");
     return {
       status, tlsInboundId: 0, tlsInboundPort: inboundPort, sniNames,
       originTls: Number(originTls), originServerName, originRootCa, originAlpn,

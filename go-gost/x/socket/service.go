@@ -3,6 +3,7 @@ package socket
 import (
 	"errors"
 	"fmt"
+	"net"
 	"strings"
 	"time"
 
@@ -75,7 +76,11 @@ func createServices(req createServicesRequest) error {
 	// 第三阶段：启动所有服务
 	for _, ps := range parsedServices {
 		if svc := registry.ServiceRegistry().Get(ps.config.Name); svc != nil {
-			go svc.Serve()
+			if paused, _ := ps.config.Metadata["paused"].(bool); paused {
+				svc.Close()
+			} else {
+				go svc.Serve()
+			}
 		}
 	}
 
@@ -333,7 +338,7 @@ func pauseServices(req pauseServicesRequest) error {
 		}
 
 		// 暂停服务
-		if err := stp.service.Close(); err != nil {
+		if err := stp.service.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
 			if rollbackErr := rollbackPausedServices(pausedServices); rollbackErr != nil {
 				return fmt.Errorf("pause service %s failed: %v; rollback failed: %w", stp.name, err, rollbackErr)
 			}
@@ -450,7 +455,7 @@ func resumeServices(req resumeServicesRequest) error {
 	// 逐个恢复服务，如果失败则回滚
 	for _, str := range servicesToResume {
 		// 先关闭现有服务
-		if err := str.service.Close(); err != nil {
+		if err := str.service.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
 			return fmt.Errorf("close paused service %s failed: %w", str.name, err)
 		}
 		registry.ServiceRegistry().Unregister(str.name)

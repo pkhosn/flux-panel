@@ -184,3 +184,5 @@ CREATE TABLE IF NOT EXISTS forward_tls_inbound (
   suspended_ids TEXT NOT NULL DEFAULT '',
   UNIQUE(tunnel_id,port)
 );
+
+CREATE TABLE IF NOT EXISTS forward_recovery (node_id INTEGER PRIMARY KEY, services TEXT NOT NULL);

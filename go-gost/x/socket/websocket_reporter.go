@@ -580,6 +580,9 @@ func (w *WebSocketReporter) routeCommand(cmd CommandMessage) {
 
 	switch cmd.Type {
 	// Service 相关命令
+	case "ReconcileForwards":
+		err = w.handleReconcileForwards(cmd.Data)
+		response.Type = "ReconcileForwardsResponse"
 	case "AddService":
 		err = w.handleAddService(cmd.Data)
 		response.Type = "AddServiceResponse"

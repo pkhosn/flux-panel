@@ -222,6 +222,9 @@ func register(cfg *config.Config) error {
 			return err
 		}
 		if svc != nil {
+			if paused, _ := svcCfg.Metadata["paused"].(bool); paused {
+				svc.Close()
+			}
 			if err := registry.ServiceRegistry().Register(svcCfg.Name, svc); err != nil {
 				return err
 			}

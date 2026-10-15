@@ -28,7 +28,6 @@ public class ForwardBatchController {
     }
 
     @PostMapping("/batch")
-    @Transactional
     public R batch(@RequestBody Map<String, Object> input) {
         Object rawIds = input.get("ids");
         if (!(rawIds instanceof List<?> values) || values.isEmpty() || values.size() > 500) {
@@ -70,6 +69,14 @@ public class ForwardBatchController {
             }
             case "clear" -> changed = jdbc.update(
                     "UPDATE forward SET traffic_baseline=in_flow+out_flow WHERE " + scope, scopedArgs);
+            case "delete" -> {
+                List<Long> selected = jdbc.queryForList("SELECT id FROM forward WHERE " + scope + " ORDER BY id", Long.class, scopedArgs);
+                for (Long id : selected) {
+                    R result = forwardService.deleteForward(id);
+                    if (result.getCode() != 0) return R.err("规则 " + id + " 删除失败：" + result.getMsg());
+                }
+                return R.ok(Map.of("count", selected.size()));
+            }
             case "enable", "disable" -> {
                 int targetStatus = "enable".equals(action) ? 1 : 0;
                 List<Map<String, Object>> selected = jdbc.queryForList(

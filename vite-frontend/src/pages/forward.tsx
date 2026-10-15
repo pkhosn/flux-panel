@@ -759,30 +759,9 @@ export default function ForwardPage() {
 
     setBatchDeleteLoading(true);
     try {
-      const nameById = new Map(forwards.map(forward => [forward.id, forward.name]));
-      let successCount = 0;
-      const failedItems: string[] = [];
-
-      for (const id of batchDeleteIds) {
-        try {
-          const res = await deleteForward(id);
-          if (res.code === 0) {
-            successCount += 1;
-            continue;
-          }
-          failedItems.push(`${nameById.get(id) || `ID:${id}`}: ${res.msg || '删除失败'}`);
-        } catch (error) {
-          failedItems.push(`${nameById.get(id) || `ID:${id}`}: 网络错误`);
-        }
-      }
-
-      if (successCount > 0) {
-        toast.success(`批量删除完成：删除 ${successCount} 条，失败 ${failedItems.length} 条`);
-      }
-      if (failedItems.length > 0) {
-        const preview = failedItems.slice(0, 3).join('\n');
-        toast.error(`部分删除失败（${failedItems.length}条）\n${preview}`);
-      }
+      const result = await batchForward({ action: "delete", ids: batchDeleteIds });
+      if (result.code !== 0) { toast.error(result.msg || "批量删除失败，已安排恢复"); return; }
+      toast.success(`批量删除完成：删除 ${batchDeleteIds.length} 条`);
 
       setBatchDeleteModalOpen(false);
       setBatchDeleteIds([]);
@@ -1408,6 +1387,10 @@ export default function ForwardPage() {
         return { color: 'primary', text: '主备' };
       case 'round':
         return { color: 'success', text: '轮询' };
+      case 'least_connections':
+        return { color: 'secondary', text: '最少连接' };
+      case 'hash':
+        return { color: 'default', text: '哈希' };
       case 'rand':
         return { color: 'warning', text: '随机' };
       default:
@@ -2484,6 +2467,7 @@ export default function ForwardPage() {
                         <SelectItem key="fifo" >主备模式 - 自上而下</SelectItem>
                         <SelectItem key="round" >轮询模式 - 依次轮换</SelectItem>
                         <SelectItem key="rand" >随机模式 - 随机选择</SelectItem>
+                        <SelectItem key="least_connections">最少连接 - 优先空闲目标</SelectItem>
                         <SelectItem key="hash" >哈希模式 - IP哈希</SelectItem>
                       </Select>
                     )}
