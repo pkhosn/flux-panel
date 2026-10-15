@@ -45,7 +45,10 @@ import {
   updateForwardOrder,
   getForwardGroups,
   createForwardGroup,
-  deleteForwardGroup
+  deleteForwardGroup,
+  batchForward,
+  getForwardStats,
+  clearForwardTraffic
 } from "@/api";
 import { JwtUtil } from "@/utils/jwt";
 import { copyText } from "@/utils/clipboard";
@@ -100,6 +103,11 @@ interface ForwardGroup {
   ruleCount: number;
 }
 
+interface ForwardHour {
+  hourStart: number;
+  bytes: number;
+}
+
 interface AddressItem {
   id: number;
   address: string;
@@ -146,6 +154,15 @@ export default function ForwardPage() {
   const [ruleGroups, setRuleGroups] = useState<ForwardGroup[]>([]);
   const [groupName, setGroupName] = useState("");
   const [groupModalOpen, setGroupModalOpen] = useState(false);
+  const [ruleView, setRuleView] = useState<"table" | "cards">("table");
+  const [ruleQuery, setRuleQuery] = useState("");
+  const [activeGroupId, setActiveGroupId] = useState(-1);
+  const [rulePage, setRulePage] = useState(1);
+  const [rulePageSize, setRulePageSize] = useState(20);
+  const [statsOpen, setStatsOpen] = useState(false);
+  const [statsTitle, setStatsTitle] = useState("最近 24 小时流量");
+  const [ruleHours, setRuleHours] = useState<ForwardHour[]>([]);
+  const [batchGroupId, setBatchGroupId] = useState(0);
   
   // 检测是否为移动端
   const [isMobile, setIsMobile] = useState(false);
@@ -499,6 +516,32 @@ export default function ForwardPage() {
     await loadData(false);
   };
 
+  const handleBatchMeta = async (action: "group" | "clear", groupId?: number) => {
+    const ids = selectedForwardIds.filter(id => tableRules.some(row => row.id === id));
+    if (!ids.length) return toast.error("请先选择规则");
+    if (action === "clear" && !window.confirm("清空所选规则的展示流量？用户已消耗额度不会返还。")) return;
+    const result = await batchForward({ ids, action, groupId });
+    if (result.code !== 0) return toast.error(result.msg || "批量操作失败");
+    toast.success("操作完成");
+    setSelectedForwardIds([]);
+    await loadData(false);
+  };
+
+  const showForwardStats = async (forward?: Forward) => {
+    const result = await getForwardStats(forward?.id);
+    if (result.code !== 0) return toast.error(result.msg || "获取统计失败");
+    setRuleHours(result.data || []);
+    setStatsTitle(forward ? `${forward.name} · 最近 24 小时流量` : "最近 24 小时流量");
+    setStatsOpen(true);
+  };
+
+  const clearOneForwardTraffic = async (forward: Forward) => {
+    if (!window.confirm("清空此规则的展示流量？用户已消耗额度不会返还。")) return;
+    const result = await clearForwardTraffic(forward.id);
+    if (result.code !== 0) return toast.error(result.msg || "清空流量失败");
+    await loadData(false);
+  };
+
   // 编辑转发
   const handleEdit = (forward: Forward) => {
     setIsEdit(true);
@@ -516,6 +559,37 @@ export default function ForwardPage() {
     });
     setErrors({});
     setModalOpen(true);
+  };
+
+  const handleCopy = (forward: Forward) => {
+    handleEdit(forward);
+    setIsEdit(false);
+    setForm(prev => ({
+      ...prev,
+      id: undefined,
+      userId: undefined,
+      name: `${forward.name} 副本`,
+      inPort: null
+    }));
+  };
+
+  const handleRename = async (forward: Forward) => {
+    const name = window.prompt("规则名称", forward.name)?.trim();
+    if (!name || name === forward.name) return;
+    if (name.length < 2 || name.length > 50) return toast.error("规则名称长度应为 2–50 个字符");
+    const result = await updateForward({
+      id: forward.id,
+      userId: forward.userId,
+      name,
+      tunnelId: forward.tunnelId,
+      inPort: forward.inPort,
+      remoteAddr: forward.remoteAddr,
+      strategy: forward.strategy,
+      protocol: forward.protocol || "tcp_udp",
+      groupId: forward.groupId || 0
+    });
+    if (result.code !== 0) return toast.error(result.msg || "重命名失败");
+    await loadData(false);
   };
 
   // 显示删除确认
@@ -1580,19 +1654,76 @@ export default function ForwardPage() {
   const visibleForwardIds = visibleForwards.map(forward => forward.id);
   const allVisibleSelected = visibleForwardIds.length > 0
     && visibleForwardIds.every(id => selectedForwardIds.includes(id));
+  const ownUserId = JwtUtil.getUserIdFromToken();
+  const ownRuleGroups = ruleGroups.filter(group => group.userId === ownUserId);
+  const tableRules = getSortedForwards().filter(forward => {
+    const matchesGroup = activeGroupId === -1 ||
+      (activeGroupId === 0 ? !forward.groupId : forward.groupId === activeGroupId);
+    const haystack = `${forward.name} ${forward.tunnelName} ${forward.inIp} ${forward.inPort} ${forward.remoteAddr} ${forward.userName || ""}`.toLowerCase();
+    return matchesGroup && haystack.includes(ruleQuery.trim().toLowerCase());
+  });
+  const tableRuleIds = new Set(tableRules.map(row => row.id));
+  const tableSelectedIds = selectedForwardIds.filter(id => tableRuleIds.has(id));
+  const pagedRules = tableRules.slice((rulePage - 1) * rulePageSize, rulePage * rulePageSize);
 
   return (
     
       <div className="px-3 lg:px-6 py-8">
         {/* 页面头部 */}
-        <div className="flex items-center justify-between mb-6">
+        <Card className="mb-4 border border-divider shadow-sm">
+          <CardBody className="gap-4 p-4 lg:p-6">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h1 className="text-lg font-semibold">转发规则</h1>
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" variant="flat" onPress={() => setRuleView(ruleView === "table" ? "cards" : "table")}>
+                  {ruleView === "table" ? "卡片视图" : "表格视图"}
+                </Button>
+                <Button size="sm" variant="flat" onPress={() => loadData(false)}>刷新</Button>
+                <Button size="sm" variant="flat" onPress={() => showForwardStats()}>统计数据</Button>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              <Chip size="sm" variant="flat">规则数：{forwards.length}</Chip>
+              <Chip size="sm" variant="flat">已用流量：{formatFlow(forwards.reduce((sum, row) => sum + (row.inFlow || 0) + (row.outFlow || 0), 0))}</Chip>
+              <Button size="sm" variant="bordered" onPress={() => setGroupModalOpen(true)}>管理分组</Button>
+              <Button size="sm" variant={activeGroupId === -1 ? "solid" : "flat"} onPress={() => { setActiveGroupId(-1); setRulePage(1); }}>全部</Button>
+              <Button size="sm" variant={activeGroupId === 0 ? "solid" : "flat"} onPress={() => { setActiveGroupId(0); setRulePage(1); }}>未分组</Button>
+              {ownRuleGroups.map(group => (
+                <Button key={group.id} size="sm" variant={activeGroupId === group.id ? "solid" : "flat"} onPress={() => { setActiveGroupId(group.id); setRulePage(1); }}>
+                  {group.name}（{group.ruleCount}）
+                </Button>
+              ))}
+            </div>
+            <Input
+              aria-label="搜索规则"
+              placeholder="搜索规则名、隧道、入口、目标或用户"
+              value={ruleQuery}
+              onChange={event => { setRuleQuery(event.target.value); setRulePage(1); }}
+            />
+          </CardBody>
+        </Card>
+        {ruleView === "table" && (
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+            <Button size="sm" color="primary" onPress={handleAdd}>添加规则</Button>
+            <Button size="sm" variant="flat" onPress={handleImport}>批量导入</Button>
+            <Button size="sm" variant="flat" onPress={handleExport}>批量导出</Button>
+            <Button size="sm" variant="flat" isDisabled={!tableSelectedIds.length} onPress={() => handleBatchMeta("clear")}>清空选中流量</Button>
+            <Select aria-label="批量移动到分组" size="sm" className="w-48" items={[{id: 0, name: "未分组"}, ...ownRuleGroups]} selectedKeys={[String(batchGroupId)]} onSelectionChange={keys => {
+              const value = Array.from(keys)[0];
+              if (value !== undefined) setBatchGroupId(Number(value));
+            }}>
+              {group => <SelectItem key={String(group.id)}>{group.name}</SelectItem>}
+            </Select>
+            <Button size="sm" variant="flat" isDisabled={!tableSelectedIds.length} onPress={() => handleBatchMeta("group", batchGroupId)}>移动分组</Button>
+            <Button size="sm" color="danger" variant="flat" isDisabled={!tableSelectedIds.length} onPress={handleBatchDelete}>删除选中</Button>
+            {!!tableSelectedIds.length && <span className="text-sm text-default-500">已选择 {tableSelectedIds.length} 条</span>}
+          </div>
+        )}
+        {ruleView === "cards" && <div className="flex items-center justify-between mb-6">
           <div className="flex-1">
           </div>
           <div className="flex items-center gap-3">
-            <Button size="sm" variant="flat" onPress={() => setGroupModalOpen(true)}>
-              管理分组
-            </Button>
-            {/* 显示模式切换按钮 */}
+            {ruleView === "cards" && (
             <Button
               size="sm"
               variant="flat"
@@ -1612,6 +1743,7 @@ export default function ForwardPage() {
                 </svg>
               )}
             </Button>
+            )}
 
             <Button
               size="sm"
@@ -1691,11 +1823,66 @@ export default function ForwardPage() {
             
         
           </div>
-        </div>
+        </div>}
 
 
         {/* 根据显示模式渲染不同内容 */}
-        {viewMode === 'grouped' ? (
+        {ruleView === "table" ? (
+          <Card className="border border-divider shadow-sm">
+            <CardBody className="overflow-x-auto p-0">
+              <table className="w-full min-w-[940px] text-sm">
+                <thead className="bg-default-50 text-default-600">
+                  <tr className="text-left">
+                    <th className="p-3"><input type="checkbox" aria-label="全选当前页" checked={pagedRules.length > 0 && pagedRules.every(row => selectedForwardIds.includes(row.id))} onChange={event => {
+                      const pageIds = pagedRules.map(row => row.id);
+                      setSelectedForwardIds(prev => event.target.checked ? [...new Set([...prev, ...pageIds])] : prev.filter(id => !pageIds.includes(id)));
+                    }} /></th>
+                    <th className="p-3">规则名</th><th className="p-3">协议</th><th className="p-3">入口</th>
+                    <th className="p-3">出口 / 目标</th><th className="p-3">已用流量</th><th className="p-3">状态</th><th className="p-3">操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pagedRules.map(row => (
+                    <tr key={row.id} className="border-t border-divider align-top">
+                      <td className="p-3"><input type="checkbox" aria-label={`选择${row.name}`} checked={selectedForwardIds.includes(row.id)} onChange={() => toggleForwardSelection(row.id)} /></td>
+                      <td className="p-3 font-medium">{row.name} <span className="text-default-400">#{row.id}</span><div className="text-xs text-default-500">{row.userName}</div></td>
+                      <td className="p-3">{row.protocol === "tcp" ? "TCP" : row.protocol === "udp" ? "UDP" : "TCP+UDP"}</td>
+                      <td className="p-3"><div>{row.tunnelName}</div><button className="text-primary text-left break-all" onClick={() => showAddressModal(row.inIp, row.inPort, "入口地址")}>{formatInAddress(row.inIp, row.inPort)}</button></td>
+                      <td className="p-3 break-all">{row.remoteAddr.split(",").join(" / ")}</td>
+                      <td className="p-3">{formatFlow(row.trafficBytes ?? ((row.inFlow || 0) + (row.outFlow || 0)))}</td>
+                      <td className="p-3"><Chip size="sm" color={getStatusDisplay(row.status).color as any} variant="flat">{getStatusDisplay(row.status).text}</Chip></td>
+                      <td className="p-3"><div className="flex flex-wrap gap-1">
+                        <Button size="sm" variant="light" onPress={() => handleServiceToggle(row)}>{row.serviceRunning ? "暂停" : "恢复"}</Button>
+                        <Button size="sm" variant="light" onPress={() => handleEdit(row)}>编辑</Button>
+                        <Button size="sm" variant="light" onPress={() => handleCopy(row)}>复制</Button>
+                        <Button size="sm" variant="light" onPress={() => handleRename(row)}>重命名</Button>
+                        <Button size="sm" variant="light" onPress={() => handleDiagnose(row)}>诊断</Button>
+                        <Button size="sm" variant="light" onPress={() => showForwardStats(row)}>统计</Button>
+                        <Button size="sm" variant="light" onPress={() => clearOneForwardTraffic(row)}>清空流量</Button>
+                        <Button size="sm" color="danger" variant="light" onPress={() => handleDelete(row)}>删除</Button>
+                      </div></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {!tableRules.length && <div className="p-10 text-center text-default-500">暂无转发规则，点击「新增」开始。</div>}
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-divider p-4">
+                <span className="text-sm text-default-500">共 {tableRules.length} 条规则</span>
+                <div className="flex items-center gap-2">
+                  <Select aria-label="每页数量" size="sm" className="w-24" selectedKeys={[String(rulePageSize)]} onSelectionChange={keys => {
+                    const value = Number(Array.from(keys)[0]);
+                    if (value) { setRulePageSize(value); setRulePage(1); }
+                  }}>
+                    <SelectItem key="20">20 条</SelectItem><SelectItem key="50">50 条</SelectItem><SelectItem key="100">100 条</SelectItem>
+                  </Select>
+                  <Button size="sm" isDisabled={rulePage <= 1} onPress={() => setRulePage(page => page - 1)}>上一页</Button>
+                  <span className="text-sm">{rulePage} / {Math.max(1, Math.ceil(tableRules.length / rulePageSize))}</span>
+                  <Button size="sm" isDisabled={rulePage >= Math.ceil(tableRules.length / rulePageSize)} onPress={() => setRulePage(page => page + 1)}>下一页</Button>
+                </div>
+              </div>
+            </CardBody>
+          </Card>
+        ) : viewMode === 'grouped' ? (
           /* 按用户和隧道分组的转发列表 */
           userGroups.length > 0 ? (
             <div className="space-y-6">
@@ -1829,6 +2016,24 @@ export default function ForwardPage() {
             </Card>
           )
         )}
+
+        <Modal isOpen={statsOpen} onOpenChange={setStatsOpen} size="xl">
+          <ModalContent>
+            <ModalHeader>{statsTitle}</ModalHeader>
+            <ModalBody>
+              <p className="text-sm">合计 {formatFlow(ruleHours.reduce((sum, row) => sum + Number(row.bytes || 0), 0))}</p>
+              <div className="flex h-48 items-end gap-1 border-b border-divider pb-2">
+                {Array.from({ length: 24 }, (_, index) => {
+                  const hour = (Math.floor(Date.now() / 3600000) - 23 + index) * 3600000;
+                  const bytes = Number(ruleHours.find(row => Number(row.hourStart) === hour)?.bytes || 0);
+                  const peak = Math.max(1, ...ruleHours.map(row => Number(row.bytes || 0)));
+                  return <div key={hour} className="flex-1 min-w-1 rounded-t bg-primary" style={{ height: `${Math.max(2, bytes / peak * 100)}%` }} title={`${new Date(hour).toLocaleString()} · ${formatFlow(bytes)}`} />;
+                })}
+              </div>
+              <p className="text-xs text-default-500">按小时汇总已上报的转发流量；清空展示流量不会删除历史记录。</p>
+            </ModalBody>
+          </ModalContent>
+        </Modal>
 
         <Modal isOpen={groupModalOpen} onOpenChange={setGroupModalOpen} size="md">
           <ModalContent>
