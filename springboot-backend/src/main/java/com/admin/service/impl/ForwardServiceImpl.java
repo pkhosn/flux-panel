@@ -278,14 +278,19 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
         existForward.setStrategy(forwardUpdateDto.getStrategy());
         existForward.setTunnelId(targetTunnelId);
         existForward.setStatus(1);
-        this.updateById(existForward);
-
 
         List<ChainTunnel> chainTunnels = chainTunnelService.list(new QueryWrapper<ChainTunnel>().eq("tunnel_id", tunnel.getId()).eq("chain_type", 1));
 
         // 自己占用的应该不算
         chainTunnels = get_port(chainTunnels, forwardUpdateDto.getInPort(), existForward.getId());
+        Map<Long, Node> entryNodes = new HashMap<>();
+        for (ChainTunnel chainTunnel : chainTunnels) {
+            Node node = nodeService.getById(chainTunnel.getNodeId());
+            if (node == null) return R.err("部分节点不存在");
+            entryNodes.put(node.getId(), node);
+        }
 
+        this.updateById(existForward);
 
 
         String newServiceName = buildServiceName(existForward.getId(), existForward.getUserId(), newUserTunnel);
@@ -302,10 +307,7 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
 
         for (ChainTunnel chainTunnel : chainTunnels) {
             Integer limiter = permissionResult.getLimiter();
-            Node node = nodeService.getById(chainTunnel.getNodeId());
-            if (node == null) {
-                return R.err("部分节点不存在");
-            }
+            Node node = entryNodes.get(chainTunnel.getNodeId());
 
             ForwardPort forwardPort = forwardPortService.getOne(
                     new QueryWrapper<ForwardPort>()
