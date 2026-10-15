@@ -89,3 +89,9 @@
 本地验证方式：`bash -n panel_install.sh`；沿用项目 `mvn -q test`、`npm run build` 和既有 Go 测试。脚本额外在临时目录载入函数，以 shell 函数替换 curl/compose/docker，分别模拟成功、HTTP 下载失败、配置无效、构建失败；断言失败时原配置不变且未调用容器接管或启动，成功时构建先于接管。模拟当前 Compose 容器与空 .env，核对恢复原端口和 JWT。该模拟不代表生产 Docker 更新或公网连通性验证。
 
 使用限制：TLS 回源和共享 TLS/SNI 尚未实现；暂停规则与 TLS/SNI JSON 导入会拒绝；跨节点失败采用尽力补偿，尚未完成完整端到端故障验证。Proxy 功能要求 Agent 2.0.12-beta，新 Agent 已本地编译但 Release 资产尚未上传，安装脚本目前可能需要源码编译后备路径。普通规则和页面更新不要求先升级 Agent。
+
+## 2026-10-15 更新耗时优化
+
+生产日志显示前端构建约 220 秒、nginx 下载约 64 秒，npm 安装已命中构建层缓存。将 Maven/npm 的 BuildKit 缓存挂载修正到显式指定的 /var/cache/flux-maven 和 /var/cache/flux-npm，以便源码或依赖变化后复用下载缓存；首次使用新缓存仍需要填充。更新脚本 2026-10-15.2 取消 build --pull，使用本机已有基础镜像，源码仍通过 beta Git context 解析；基础镜像升级需另行维护。此改动不承诺固定更新时间，也不会省去前端源码变化后的编译。
+
+验证使用既有 Dockerfile：本地 docker build 分别构建后端与前端；bash -n panel_install.sh 及 git diff --check。

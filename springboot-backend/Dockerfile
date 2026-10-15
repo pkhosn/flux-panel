@@ -3,7 +3,7 @@ FROM maven:3.9.6-eclipse-temurin-21 AS build
 WORKDIR /app
 COPY pom.xml .
 COPY src ./src
-RUN --mount=type=cache,target=/root/.m2 mvn -q -DskipTests package
+RUN --mount=type=cache,target=/var/cache/flux-maven mvn -q -Dmaven.repo.local=/var/cache/flux-maven -DskipTests package
 
 # 运行阶段
 FROM eclipse-temurin:21-jre

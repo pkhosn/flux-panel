@@ -4,11 +4,11 @@ FROM node:20.19.0 AS builder
 WORKDIR /app
 
 COPY package*.json ./
-RUN --mount=type=cache,target=/root/.npm sh -c '\
+RUN --mount=type=cache,target=/var/cache/flux-npm sh -c '\
   if [ -f package-lock.json ]; then \
-    npm ci --prefer-offline --no-audit --legacy-peer-deps; \
+    npm ci --cache /var/cache/flux-npm --prefer-offline --no-audit --legacy-peer-deps; \
   else \
-    npm install --prefer-offline --no-audit --legacy-peer-deps; \
+    npm install --cache /var/cache/flux-npm --prefer-offline --no-audit --legacy-peer-deps; \
   fi'
 
 COPY . .

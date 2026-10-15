@@ -12,7 +12,7 @@ REPO_OWNER="pkhosn"
 REPO_NAME="flux-panel"
 REPO_BRANCH="beta"
 COMPOSE_PROJECT_NAME="flux-panel"
-SCRIPT_VERSION="2026-10-15.1"
+SCRIPT_VERSION="2026-10-15.2"
 DOCKER_COMPOSEV4_URL="https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/refs/heads/${REPO_BRANCH}/docker-compose-v4.yml"
 DOCKER_COMPOSEV6_URL="https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/refs/heads/${REPO_BRANCH}/docker-compose-v6.yml"
 
@@ -311,7 +311,7 @@ update_panel() {
     return 1
   fi
   echo "🏗️ 构建新版本（现有服务继续运行）..."
-  if ! compose -f "$candidate" build --pull; then
+  if ! compose -f "$candidate" build; then
     rm -f "$candidate"
     echo "❌ 构建失败，现有服务继续运行"
     return 1
