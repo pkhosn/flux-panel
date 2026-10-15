@@ -72,14 +72,14 @@ export function PanelHeader({ onToggleSidebar, sidebarExpanded = true, onPasswor
       <div className="panel-header-tools">
         <div className="panel-header-buttons">
           <button className="panel-header-tool" onClick={showAnnouncement} title={text('公告', 'Announcements')} aria-label={text('公告', 'Announcements')}>{icon(<><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" /><path d="M10 21h4" /></>)}</button>
-          <Dropdown placement="bottom-end"><DropdownTrigger><button className="panel-header-tool" title={text('语言切换', 'Language')} aria-label={text('语言切换', 'Language')}>{icon(<><path d="M3 5h12M9 3v2m4 0c-1 6-4 9-10 12m2-9c1 4 4 6 8 8m1 5 4-11 4 11m-6-4h6" /></>)}</button></DropdownTrigger>
+          <Dropdown placement="bottom-end" disableAnimation><DropdownTrigger><button className="panel-header-tool" title={text('语言切换', 'Language')} aria-label={text('语言切换', 'Language')}>{icon(<><path d="M3 5h12M9 3v2m4 0c-1 6-4 9-10 12m2-9c1 4 4 6 8 8m1 5 4-11 4 11m-6-4h6" /></>)}</button></DropdownTrigger>
             <DropdownMenu aria-label="Language" selectionMode="single" selectedKeys={[english ? 'en-US' : 'zh-CN']} onAction={key => { const locale = String(key); setEnglish(locale === 'en-US'); localStorage.setItem('panel_locale', locale); window.dispatchEvent(new Event('panelLocaleChanged')); }}>
               <DropdownItem key="zh-CN">简体中文</DropdownItem><DropdownItem key="en-US">English</DropdownItem>
             </DropdownMenu>
           </Dropdown>
           <button className="panel-header-tool" aria-label={text('切换主题', 'Toggle theme')} aria-pressed={theme === 'dark'} title={text('切换主题', 'Toggle theme')} onClick={() => { const next = theme === 'dark' ? 'light' : 'dark'; saveTheme(next); applyTheme(next); setTheme(next); }}>{icon(<><circle cx="12" cy="12" r="4" /><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5" /></>)}</button>
         </div>
-        <Dropdown placement="bottom-end"><DropdownTrigger><button className={`panel-header-avatar ${vip ? 'is-vip' : ''}`} title={account.user || account.name} aria-label={text('用户菜单', 'User menu')}><span>{avatarLetter}</span>{vip && <span className="panel-header-vip">AVIP</span>}</button></DropdownTrigger>
+        <Dropdown placement="bottom-end" disableAnimation><DropdownTrigger><button className={`panel-header-avatar ${vip ? 'is-vip' : ''}`} title={account.user || account.name} aria-label={text('用户菜单', 'User menu')}><span>{avatarLetter}</span>{vip && <span className="panel-header-vip">AVIP</span>}</button></DropdownTrigger>
           <DropdownMenu aria-label={text('用户菜单', 'User menu')}>
             <DropdownItem key="profile" onPress={() => navigate('/profile')}>{text('个人中心', 'Profile')}</DropdownItem>
             <DropdownItem key="password" onPress={() => onPassword ? onPassword() : navigate('/profile')}>{text('修改密码', 'Change password')}</DropdownItem>

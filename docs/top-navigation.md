@@ -17,3 +17,9 @@
 浏览器验证使用本机构建产物和模拟 API，不改生产数据：在转发页面添加规则，展开协议菜单，等待超过一秒后选择 UDP；重新展开，分别按 Esc 和点击弹窗空白处，菜单应关闭。检查侧栏收起、悬停、离开和固定展开；切换主题、语言；用无有效套餐及有效套餐的用户分别检查头像边框；320px 视口检查导航按钮不溢出。
 
 临时自动化检查：`/tmp/flux-browser-check/select-regression.cjs`、`/tmp/flux-browser-check/fixes.cjs`。组件滚动关闭行为依据现有 HeroUI popover 的 shouldCloseOnScroll 选项修正。
+
+## 下拉动画闪烁修正
+
+Select 弹层和顶部 Dropdown 关闭缩放淡入动画。逐帧采样曾记录到菜单透明度从 0.997891 重置为 0，随后恢复为 1，说明仅验证一秒后菜单存在会漏检闪烁。
+
+本地验证沿用上述构建命令，并运行临时浏览器检查 `/tmp/flux-browser-check/no-flicker.cjs`：连续三次展开弹窗协议选择框，每次在菜单挂载后逐帧检查 1.3 秒，要求菜单始终存在且所有祖先透明度至少为 0.99；同样检查语言和用户菜单，并验证选项可选择。关闭操作由 `select-regression.cjs` 验证。
