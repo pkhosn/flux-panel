@@ -2,6 +2,7 @@ package tcp
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"time"
 
@@ -60,10 +61,14 @@ func (l *tcpListener) Init(md md.Metadata) (err error) {
 	if err != nil {
 		return
 	}
+	if l.options.ProxyProtocol > 0 && len(l.md.proxyTrustedCIDRs) == 0 {
+		ln.Close()
+		return fmt.Errorf("proxyProtocol requires proxyTrustedCIDRs")
+	}
 
 	l.logger.Debugf("pp: %d", l.options.ProxyProtocol)
 
-	ln = proxyproto.WrapListener(l.options.ProxyProtocol, ln, 10*time.Second)
+	ln = proxyproto.WrapListenerTrusted(l.options.ProxyProtocol, ln, 10*time.Second, l.md.proxyTrustedCIDRs)
 	ln = metrics.WrapListener(l.options.Service, ln)
 	ln = stats.WrapListener(ln, l.options.Stats)
 	ln = admission.WrapListener(l.options.Admission, ln)
