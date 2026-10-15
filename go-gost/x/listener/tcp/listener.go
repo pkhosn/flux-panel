@@ -57,7 +57,15 @@ func (l *tcpListener) Init(md md.Metadata) (err error) {
 		lc.SetMultipathTCP(true)
 		l.logger.Debugf("mptcp enabled: %v", lc.MultipathTCP())
 	}
-	ln, err := lc.Listen(context.Background(), network, l.options.Addr)
+	var ln net.Listener
+	if len(l.md.sniNames) > 0 {
+		if l.options.ProxyProtocol > 0 {
+			return fmt.Errorf("shared SNI listener does not accept Proxy Protocol")
+		}
+		ln, err = listenSharedSNI(network, l.options.Addr, l.md.sniNames)
+	} else {
+		ln, err = lc.Listen(context.Background(), network, l.options.Addr)
+	}
 	if err != nil {
 		return
 	}

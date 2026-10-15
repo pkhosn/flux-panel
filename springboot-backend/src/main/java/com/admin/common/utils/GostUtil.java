@@ -204,6 +204,12 @@ public class GostUtil {
                         .map(String::trim).toList());
                 listener.put("metadata", metadata);
             }
+            if (forward.getTlsInboundId() != null && forward.getTlsInboundId() > 0) {
+                JSONObject metadata = listener.getJSONObject("metadata");
+                if (metadata == null) metadata = new JSONObject();
+                metadata.put("sniNames", Arrays.asList(forward.getSniNames().split(",")));
+                listener.put("metadata", metadata);
+            }
             service.put("listener", listener);
 
             JSONObject forwarder = createForwarder(forward.getRemoteAddr(), forward.getStrategy());
@@ -311,7 +317,8 @@ public class GostUtil {
     public static boolean supportsForwardProxy(Node node, Forward forward) {
         if ((forward.getProxyAccept() == null || forward.getProxyAccept() == 0)
                 && (forward.getProxySend() == null || forward.getProxySend() == 0)
-                && !Integer.valueOf(1).equals(forward.getOriginTls())) return true;
+                && !Integer.valueOf(1).equals(forward.getOriginTls())
+                && (forward.getTlsInboundId() == null || forward.getTlsInboundId() == 0)) return true;
         String version = node.getVersion();
         if (version == null) return false;
         java.util.regex.Matcher match = java.util.regex.Pattern.compile("^(\\d+)\\.(\\d+)\\.(\\d+)-beta$")
@@ -320,7 +327,7 @@ public class GostUtil {
         int major = Integer.parseInt(match.group(1));
         int minor = Integer.parseInt(match.group(2));
         int patch = Integer.parseInt(match.group(3));
-        return major > 2 || (major == 2 && (minor > 0 || (minor == 0 && patch >= (Integer.valueOf(1).equals(forward.getOriginTls()) ? 13 : 12))));
+        return major > 2 || (major == 2 && (minor > 0 || (minor == 0 && patch >= (forward.getTlsInboundId() != null && forward.getTlsInboundId() > 0 ? 14 : Integer.valueOf(1).equals(forward.getOriginTls()) ? 13 : 12))));
     }
 
     public static String[] forwardProtocols(String protocol) {

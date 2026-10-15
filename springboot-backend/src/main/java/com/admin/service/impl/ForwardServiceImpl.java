@@ -3,6 +3,7 @@ package com.admin.service.impl;
 import com.admin.common.dto.*;
 import com.admin.common.lang.R;
 import com.admin.common.utils.GostUtil;
+import com.admin.common.utils.ForwardSni;
 import com.admin.common.utils.JwtUtil;
 import com.admin.common.utils.WebSocketServer;
 import com.admin.entity.*;
@@ -150,7 +151,7 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
     }
 
     @Override
-    public R createForward(ForwardDto forwardDto) {
+    public synchronized R createForward(ForwardDto forwardDto) {
         UserInfo currentUser = getCurrentUserInfo();
 
         Tunnel tunnel = validateTunnel(forwardDto.getTunnelId());
@@ -176,6 +177,8 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
         String originError = GostUtil.validateForwardOrigin(protocol, forwardDto.getOriginTls(), forwardDto.getOriginServerName(), forwardDto.getOriginRootCa(), forwardDto.getOriginAlpn());
         if (originError != null) return R.err(originError);
         if (!validGroup(forwardDto.getGroupId(), currentUser.getUserId())) return R.err("分组不存在或无权使用");
+        forward.setTlsInboundId(forwardDto.getTlsInboundId() == null ? 0 : forwardDto.getTlsInboundId());
+        forward.setSniNames(forwardDto.getSniNames() == null ? "" : forwardDto.getSniNames());
         forward.setOriginTls(forwardDto.getOriginTls() == null ? 0 : forwardDto.getOriginTls());
         forward.setOriginServerName(forwardDto.getOriginServerName() == null ? "" : forwardDto.getOriginServerName());
         forward.setOriginRootCa(forwardDto.getOriginRootCa() == null ? "" : forwardDto.getOriginRootCa());
@@ -191,12 +194,13 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
         forward.setUpdatedTime(System.currentTimeMillis());
         List<ChainTunnel> chainTunnels = chainTunnelService.list(new QueryWrapper<ChainTunnel>().eq("tunnel_id", tunnel.getId()).eq("chain_type", 1));
         if (chainTunnels.isEmpty()) return R.err("隧道未配置入口节点");
-        chainTunnels = get_port(chainTunnels, forwardDto.getInPort(), 0L);
+        try { chainTunnels = allocateForwardPorts(forward, chainTunnels, forwardDto.getInPort(), 0L); }
+        catch (IllegalArgumentException ex) { return R.err(ex.getMessage()); }
         Map<Long, Node> entryNodes = new HashMap<>();
         for (ChainTunnel chainTunnel : chainTunnels) {
             Node node = nodeService.getById(chainTunnel.getNodeId());
             if (node == null) return R.err("部分节点不存在");
-            if (!GostUtil.supportsForwardProxy(node, forward)) return R.err("节点 " + node.getName() + " 需升级 Agent 后才能使用 Proxy Protocol/回源 TLS");
+            if (!GostUtil.supportsForwardProxy(node, forward)) return R.err("节点 " + node.getName() + " 需升级 Agent 后才能使用 Proxy Protocol/TLS 新功能");
             entryNodes.put(node.getId(), node);
         }
         if (!this.save(forward)) return R.err("保存规则失败");
@@ -235,6 +239,9 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
             }
             for (int i = 0; i < rules.size(); i++) {
                 ForwardDto rule = rules.get(i);
+                if (rule != null && rule.getTlsInboundId() != null && rule.getTlsInboundId() != 0) {
+                    return R.err("共享 TLS 规则请通过表单创建；批量导入尚未支持入口映射");
+                }
                 if (rule == null || rule.getTunnelId() == null || rule.getName() == null
                         || rule.getName().isBlank() || rule.getRemoteAddr() == null
                         || rule.getRemoteAddr().isBlank()) {
@@ -356,7 +363,7 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
     }
 
     @Override
-    public R updateForward(ForwardUpdateDto forwardUpdateDto) {
+    public synchronized R updateForward(ForwardUpdateDto forwardUpdateDto) {
         // 1. 获取当前用户信息
         UserInfo currentUser = getCurrentUserInfo();
 
@@ -386,7 +393,9 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
                 ? existForward.getProxyTrustedCidrs() : forwardUpdateDto.getProxyTrustedCidrs();
         String proxyError = GostUtil.validateForwardProxy(nextProtocol, nextProxyAccept, nextProxySend, nextTrustedCidrs);
         if (proxyError != null) return R.err(proxyError);
-        boolean recreateServices = tunnelChanged || !Objects.equals(previousProtocol, nextProtocol);
+        Integer nextInbound = forwardUpdateDto.getTlsInboundId() == null ? existForward.getTlsInboundId() : forwardUpdateDto.getTlsInboundId();
+        boolean recreateServices = tunnelChanged || !Objects.equals(previousProtocol, nextProtocol)
+                || !Objects.equals(nextInbound, existForward.getTlsInboundId());
 
         Tunnel tunnel = validateTunnel(targetTunnelId);
         if (tunnel == null) {
@@ -434,6 +443,8 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
         existForward.setOriginServerName(originName);
         existForward.setOriginRootCa(originCa);
         existForward.setOriginAlpn(originAlpn);
+        existForward.setTlsInboundId(nextInbound == null ? 0 : nextInbound);
+        if (forwardUpdateDto.getSniNames() != null) existForward.setSniNames(forwardUpdateDto.getSniNames());
         existForward.setProtocol(nextProtocol);
         existForward.setProxyAccept(nextProxyAccept == null ? 0 : nextProxyAccept);
         existForward.setProxySend(nextProxySend == null ? 0 : nextProxySend);
@@ -447,12 +458,13 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
         if (chainTunnels.isEmpty()) return R.err("目标隧道未配置入口节点");
 
         // 自己占用的应该不算
-        chainTunnels = get_port(chainTunnels, forwardUpdateDto.getInPort(), existForward.getId());
+        try { chainTunnels = allocateForwardPorts(existForward, chainTunnels, forwardUpdateDto.getInPort(), existForward.getId()); }
+        catch (IllegalArgumentException ex) { return R.err(ex.getMessage()); }
         Map<Long, Node> entryNodes = new HashMap<>();
         for (ChainTunnel chainTunnel : chainTunnels) {
             Node node = nodeService.getById(chainTunnel.getNodeId());
             if (node == null) return R.err("部分节点不存在");
-            if (!GostUtil.supportsForwardProxy(node, existForward)) return R.err("节点 " + node.getName() + " 需升级 Agent 后才能使用 Proxy Protocol/回源 TLS");
+            if (!GostUtil.supportsForwardProxy(node, existForward)) return R.err("节点 " + node.getName() + " 需升级 Agent 后才能使用 Proxy Protocol/TLS 新功能");
             entryNodes.put(node.getId(), node);
         }
 
@@ -1275,6 +1287,43 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
     }
 
 
+    private List<ChainTunnel> allocateForwardPorts(Forward rule, List<ChainTunnel> entries, Integer requested, Long excluding) {
+        if (rule.getTlsInboundId() == null || rule.getTlsInboundId() == 0) {
+            rule.setSniNames("");
+            return get_port(entries, requested, excluding);
+        }
+        if (!"tcp".equals(rule.getProtocol()) || Integer.valueOf(1).equals(rule.getOriginTls())
+                || (rule.getProxyAccept() != null && rule.getProxyAccept() != 0)) {
+            throw new IllegalArgumentException("共享 TLS 仅支持 TCP，不可同时使用回源 TLS 或接收 Proxy");
+        }
+        var found = jdbc.queryForList("SELECT tunnel_id,port,allowed_sni FROM forward_tls_inbound WHERE id=?", rule.getTlsInboundId());
+        if (found.size() != 1 || ((Number) found.getFirst().get("tunnel_id")).intValue() != rule.getTunnelId()) {
+            throw new IllegalArgumentException("共享 TLS 入口不属于所选隧道");
+        }
+        String names = ForwardSni.normalize(rule.getSniNames(), false);
+        if (names.isEmpty()) throw new IllegalArgumentException("请填写至少一个 SNI 域名");
+        String allowed = (String) found.getFirst().get("allowed_sni");
+        List<String> occupied = jdbc.queryForList("SELECT sni_names FROM forward WHERE tls_inbound_id=? AND id<>?",
+                String.class, rule.getTlsInboundId(), excluding);
+        Set<String> taken = new HashSet<>();
+        for (String existing : occupied) taken.addAll(Arrays.asList(existing.split(",")));
+        for (String name : names.split(",")) {
+            if (!ForwardSni.allows(allowed, name)) throw new IllegalArgumentException("SNI 超出入口允许范围：" + name);
+            if (taken.contains(name)) throw new IllegalArgumentException("SNI 已被其他规则使用：" + name);
+        }
+        int port = ((Number) found.getFirst().get("port")).intValue();
+        for (ChainTunnel entry : entries) {
+            Integer conflicts = jdbc.queryForObject("SELECT (SELECT COUNT(*) FROM chain_tunnel WHERE node_id=? AND port=?) + " +
+                    "(SELECT COUNT(*) FROM forward_port p JOIN forward f ON f.id=p.forward_id " +
+                    "WHERE p.node_id=? AND p.port=? AND f.id<>? AND COALESCE(f.tls_inbound_id,0)<>?)",
+                    Integer.class, entry.getNodeId(), port, entry.getNodeId(), port, excluding, rule.getTlsInboundId());
+            if (conflicts != null && conflicts > 0) throw new IllegalArgumentException("共享 TLS 端口已被占用");
+            entry.setPort(port);
+        }
+        rule.setSniNames(names);
+        return entries;
+    }
+
     public List<ChainTunnel> get_port(List<ChainTunnel> chainTunnelList, Integer in_port, Long forward_id) {
         List<List<Integer>> list = new ArrayList<>();
 
@@ -1353,6 +1402,8 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
             forwardUsedPorts.add(forwardPort.getPort());
         }
         usedPorts.addAll(forwardUsedPorts);
+        usedPorts.addAll(jdbc.queryForList("SELECT i.port FROM forward_tls_inbound i JOIN chain_tunnel c " +
+                "ON c.tunnel_id=i.tunnel_id WHERE c.chain_type=1 AND c.node_id=?", Integer.class, nodeId));
 
         List<Integer> parsedPorts = TunnelServiceImpl.parsePorts(node.getPort());
         return parsedPorts.stream()

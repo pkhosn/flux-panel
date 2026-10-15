@@ -249,3 +249,45 @@ func TestOriginTLSProxyHeaderIsEncrypted(t *testing.T) {
 		t.Fatal("TLS origin did not receive header")
 	}
 }
+
+func TestSharedSNIEndToEndTLSForwarding(t *testing.T) {
+	logger.SetDefault(xlogger.NewLogger(xlogger.OutputOption(io.Discard)))
+	first := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("origin-one")) }))
+	defer first.Close()
+	second := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("origin-two")) }))
+	defer second.Close()
+	held, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	address := held.Addr().String()
+	held.Close()
+	for i, target := range []string{first.URL, second.URL} {
+		name := fmt.Sprintf("site%d.example.com", i)
+		cfg := &config.ServiceConfig{Name: fmt.Sprintf("shared-%d", i), Addr: address,
+			Listener:  &config.ListenerConfig{Type: "tcp", Metadata: map[string]any{"sniNames": []string{name}}},
+			Handler:   &config.HandlerConfig{Type: "tcp"},
+			Forwarder: &config.ForwarderConfig{Nodes: []*config.ForwardNodeConfig{{Name: "origin", Addr: strings.TrimPrefix(target, "https://")}}},
+		}
+		svc, err := serviceparser.ParseService(cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer svc.Close()
+		go svc.Serve()
+	}
+	for i, want := range []string{"origin-one", "origin-two"} {
+		name := fmt.Sprintf("site%d.example.com", i)
+		c, err := tls.DialWithDialer(&net.Dialer{Timeout: time.Second}, "tcp", address, &tls.Config{ServerName: name, InsecureSkipVerify: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		c.SetDeadline(time.Now().Add(3 * time.Second))
+		fmt.Fprintf(c, "GET / HTTP/1.0\r\nHost: %s\r\n\r\n", name)
+		data, err := io.ReadAll(c)
+		c.Close()
+		if err != nil || !strings.Contains(string(data), want) {
+			t.Fatalf("SNI forwarding failed: %q %v", data, err)
+		}
+	}
+}

@@ -10,11 +10,13 @@ import (
 )
 
 type metadata struct {
+	sniNames          []string
 	mptcp             bool
 	proxyTrustedCIDRs []*net.IPNet
 }
 
 func (l *tcpListener) parseMetadata(md md.Metadata) (err error) {
+	l.md.sniNames = mdutil.GetStrings(md, "sniNames")
 	l.md.mptcp = mdutil.GetBool(md, "mptcp")
 	for _, value := range mdutil.GetStrings(md, "proxyTrustedCIDRs") {
 		_, network, err := net.ParseCIDR(strings.TrimSpace(value))

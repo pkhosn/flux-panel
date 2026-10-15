@@ -125,3 +125,7 @@ export const updateConfig = (name: string, value: string) => Network.post("/conf
 export const checkCaptcha = () => Network.post("/captcha/check");
 export const generateCaptcha = () => Network.post(`/captcha/generate`);
 export const verifyCaptcha = (data: { captchaId: string; trackData: string }) => Network.post("/captcha/verify", data); 
+
+export const getTlsInbounds = () => Network.post("/forward/tls-inbound/list");
+export const createTlsInbound = (data: any) => Network.post("/forward/tls-inbound/create", data);
+export const deleteTlsInbound = (data: any) => Network.post("/forward/tls-inbound/delete", data);

@@ -10,6 +10,8 @@ CREATE TABLE IF NOT EXISTS forward (
   remote_addr TEXT NOT NULL,
   strategy VARCHAR(100) NOT NULL DEFAULT 'fifo',
   protocol VARCHAR(10) NOT NULL DEFAULT 'tcp_udp',
+  tls_inbound_id INTEGER NOT NULL DEFAULT 0,
+  sni_names TEXT NOT NULL DEFAULT '',
   origin_tls INTEGER NOT NULL DEFAULT 0,
   origin_server_name TEXT NOT NULL DEFAULT '',
   origin_root_ca TEXT NOT NULL DEFAULT '',
@@ -168,4 +170,13 @@ CREATE TABLE IF NOT EXISTS vite_config (
   name VARCHAR(200) NOT NULL UNIQUE,
   value VARCHAR(200) NOT NULL,
   time INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS forward_tls_inbound (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  tunnel_id INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  port INTEGER NOT NULL,
+  allowed_sni TEXT NOT NULL DEFAULT '',
+  UNIQUE(tunnel_id,port)
 );

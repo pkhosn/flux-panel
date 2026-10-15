@@ -105,6 +105,8 @@ public class ForwardBatchController {
                 if (selected.stream().anyMatch(row -> ((Number) row.get("status")).intValue() != 1)) {
                     return R.err("暂停中的规则请先恢复，再批量切换入口");
                 }
+                Integer shared = jdbc.queryForObject("SELECT COUNT(*) FROM forward WHERE " + scope + " AND tls_inbound_id>0", Integer.class, scopedArgs);
+                if (shared != null && shared > 0) return R.err("共享 TLS 规则请逐条编辑并重新选择目标入口");
                 for (Map<String, Object> row : selected) {
                     int ruleOwner = ((Number) row.get("user_id")).intValue();
                     if (!admin && ruleOwner != owner) return R.err("规则无权操作");

@@ -33,7 +33,7 @@ export function parseRuleTransfer(text: string, tunnelId: number): TransferRule[
   return rows.map((row, index) => {
     const fail = (reason: string): never => { throw Error(`第 ${index + 1} 条：${reason}`); };
     if (!object(row)) return fail("规则必须是 JSON 对象");
-    if (row.tls_inbound_id) return fail("共享 TLS 尚未支持导入");
+    if (row.tls_inbound_id || row.tlsInboundId) return fail("共享 TLS 尚未支持导入");
     const origin = object(row.origin_tls) ? row.origin_tls : {};
     const originTls = row.originTls ?? (origin.enabled ? 1 : 0);
     const originServerName = row.originServerName ?? origin.server_name ?? "";

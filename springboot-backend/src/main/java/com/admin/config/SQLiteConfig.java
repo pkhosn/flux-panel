@@ -85,6 +85,11 @@ public class SQLiteConfig implements ApplicationRunner {
 
     private void ensureSchema(Connection connection) throws Exception {
         ensureColumn(connection, "forward", "protocol", "VARCHAR(10) NOT NULL DEFAULT 'tcp_udp'");
+        ensureColumn(connection, "forward", "tls_inbound_id", "INTEGER NOT NULL DEFAULT 0");
+        ensureColumn(connection, "forward", "sni_names", "TEXT NOT NULL DEFAULT ''");
+        try (Statement statement = connection.createStatement()) {
+            statement.execute("CREATE TABLE IF NOT EXISTS forward_tls_inbound (id INTEGER PRIMARY KEY AUTOINCREMENT, tunnel_id INTEGER NOT NULL, name TEXT NOT NULL, port INTEGER NOT NULL, allowed_sni TEXT NOT NULL DEFAULT '', UNIQUE(tunnel_id,port))");
+        }
         ensureColumn(connection, "forward", "origin_tls", "INTEGER NOT NULL DEFAULT 0");
         ensureColumn(connection, "forward", "origin_server_name", "TEXT NOT NULL DEFAULT ''");
         ensureColumn(connection, "forward", "origin_root_ca", "TEXT NOT NULL DEFAULT ''");

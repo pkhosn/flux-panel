@@ -44,6 +44,7 @@ import {
   resumeForwardService,
   diagnoseForward,
   updateForwardOrder,
+  getTlsInbounds, createTlsInbound, deleteTlsInbound,
   getForwardGroups,
   createForwardGroup,
   updateForwardGroup,
@@ -75,6 +76,8 @@ interface Forward {
   userId?: number;
   inx?: number;
   protocol?: "tcp" | "udp" | "tcp_udp";
+  tlsInboundId?: number;
+  sniNames?: string;
   originTls?: number;
   originServerName?: string;
   originRootCa?: string;
@@ -103,6 +106,8 @@ interface ForwardForm {
   interfaceName?: string;
   strategy: string;
   protocol: "tcp" | "udp" | "tcp_udp";
+  tlsInboundId: number;
+  sniNames: string;
   originTls: number;
   originServerName: string;
   originRootCa: string;
@@ -168,6 +173,9 @@ export default function ForwardPage() {
   const [loading, setLoading] = useState(true);
   const [forwards, setForwards] = useState<Forward[]>([]);
   const [tunnels, setTunnels] = useState<Tunnel[]>([]);
+  const [tlsInbounds, setTlsInbounds] = useState<{id: number; tunnelId: number; name: string; port: number; allowedSni: string}[]>([]);
+  const [tlsModalOpen, setTlsModalOpen] = useState(false);
+  const [tlsDraft, setTlsDraft] = useState({ name: "", tunnelId: "", port: "443", allowedSni: "" });
   const [ruleGroups, setRuleGroups] = useState<ForwardGroup[]>([]);
   const [groupName, setGroupName] = useState("");
   const [groupModalOpen, setGroupModalOpen] = useState(false);
@@ -259,6 +267,7 @@ export default function ForwardPage() {
     interfaceName: '',
     strategy: 'fifo',
     protocol: 'tcp',
+    tlsInboundId: 0, sniNames: "",
     originTls: 0, originServerName: "", originRootCa: "", originAlpn: "",
     proxyAccept: 0,
     proxySend: 0,
@@ -342,10 +351,11 @@ export default function ForwardPage() {
   const loadData = async (lod = true) => {
     setLoading(lod);
     try {
-      const [forwardsRes, tunnelsRes, groupsRes] = await Promise.all([
+      const [forwardsRes, tunnelsRes, groupsRes, tlsRes] = await Promise.all([
         getForwardList(),
         userTunnel(),
-        getForwardGroups()
+        getForwardGroups(),
+        getTlsInbounds()
       ]);
       
       if (forwardsRes.code === 0) {
@@ -414,6 +424,7 @@ export default function ForwardPage() {
       } else {
         console.warn('获取隧道列表失败:', tunnelsRes.msg);
       }
+      if (tlsRes.code === 0) setTlsInbounds(tlsRes.data || []);
       if (groupsRes.code === 0) {
         setRuleGroups(groupsRes.data || []);
       }
@@ -524,7 +535,8 @@ export default function ForwardPage() {
       interfaceName: '',
       strategy: 'fifo',
       protocol: 'tcp',
-      originTls: 0, originServerName: "", originRootCa: "", originAlpn: "",
+      tlsInboundId: 0, sniNames: "",
+    originTls: 0, originServerName: "", originRootCa: "", originAlpn: "",
     proxyAccept: 0,
       proxySend: 0,
       proxyTrustedCidrs: '',
@@ -595,6 +607,8 @@ export default function ForwardPage() {
       interfaceName: forward.interfaceName || '',
       strategy: forward.strategy || 'fifo',
       protocol: forward.protocol || 'tcp_udp',
+      tlsInboundId: forward.tlsInboundId || 0,
+      sniNames: forward.sniNames || "",
       originTls: forward.originTls || 0,
       originServerName: forward.originServerName || "",
       originRootCa: forward.originRootCa || "",
@@ -633,6 +647,8 @@ export default function ForwardPage() {
       remoteAddr: forward.remoteAddr,
       strategy: forward.strategy,
       protocol: forward.protocol || "tcp_udp",
+      tlsInboundId: forward.tlsInboundId || 0,
+      sniNames: forward.sniNames || "",
       originTls: forward.originTls || 0,
       originServerName: forward.originServerName || "",
       originRootCa: forward.originRootCa || "",
@@ -775,7 +791,7 @@ export default function ForwardPage() {
 
   // 处理隧道选择变化
   const handleTunnelChange = (tunnelId: string) => {
-    setForm(prev => ({ ...prev, tunnelId: parseInt(tunnelId) }));
+    setForm(prev => ({ ...prev, tunnelId: parseInt(tunnelId), tlsInboundId: 0, sniNames: "" }));
   };
 
   // 提交表单
@@ -804,6 +820,8 @@ export default function ForwardPage() {
           remoteAddr: processedRemoteAddr,
           strategy: addressCount > 1 ? form.strategy : 'fifo',
           protocol: form.protocol,
+          tlsInboundId: form.tlsInboundId,
+          sniNames: form.sniNames,
           originTls: form.originTls,
           originServerName: form.originServerName,
           originRootCa: form.originRootCa,
@@ -823,6 +841,8 @@ export default function ForwardPage() {
           remoteAddr: processedRemoteAddr,
           strategy: addressCount > 1 ? form.strategy : 'fifo',
           protocol: form.protocol,
+          tlsInboundId: form.tlsInboundId,
+          sniNames: form.sniNames,
           originTls: form.originTls,
           originServerName: form.originServerName,
           originRootCa: form.originRootCa,
@@ -1164,11 +1184,12 @@ export default function ForwardPage() {
           protocol: row.protocol || "tcp_udp", strategy: row.strategy || "fifo",
           groupId: row.groupId || 0, status: row.status, proxyAccept: row.proxyAccept || 0,
           proxySend: row.proxySend || 0, proxyTrustedCidrs: row.proxyTrustedCidrs || "",
+          tlsInboundId: row.tlsInboundId || 0, sniNames: row.sniNames || "",
           originTls: row.originTls || 0, originServerName: row.originServerName || "",
           originRootCa: row.originRootCa || "", originAlpn: row.originAlpn || ""
         })) }, null, 2);
       } else if (exportFormat === "nyanpass") {
-        if (forwardsToExport.some(row => row.protocol !== "tcp" || row.originTls === 1)) {
+        if (forwardsToExport.some(row => row.protocol !== "tcp" || row.originTls === 1 || !!row.tlsInboundId)) {
           toast.error("nyanpass 格式仅支持无回源 TLS 的 TCP；请选完整 JSON 保留配置");
           return;
         }
@@ -1785,6 +1806,7 @@ export default function ForwardPage() {
               <Chip size="sm" variant="flat">规则数：{forwards.length}</Chip>
               <Chip size="sm" variant="flat">已用流量：{formatFlow(forwards.reduce((sum, row) => sum + (row.inFlow || 0) + (row.outFlow || 0), 0))}</Chip>
               <Button size="sm" variant="bordered" onPress={() => setGroupModalOpen(true)}>管理分组</Button>
+              {isAdmin && <Button size="sm" variant="bordered" onPress={() => setTlsModalOpen(true)}>共享 TLS 入口</Button>}
               <Button size="sm" variant={activeGroupId === -1 ? "solid" : "flat"} onPress={() => { setActiveGroupId(-1); setRulePage(1); }}>全部</Button>
               <Button size="sm" variant={activeGroupId === 0 ? "solid" : "flat"} onPress={() => { setActiveGroupId(0); setRulePage(1); }}>未分组</Button>
               {filterRuleGroups.map(group => (
@@ -2168,6 +2190,33 @@ export default function ForwardPage() {
           </ModalContent>
         </Modal>
 
+        <Modal isOpen={tlsModalOpen} onOpenChange={setTlsModalOpen} size="lg" scrollBehavior="inside">
+          <ModalContent><ModalHeader>共享 TLS 入口</ModalHeader><ModalBody>
+            <p className="text-sm text-default-500">多个 TCP 规则共用端口，按客户端 SNI 分流，原样透传 TLS。无需在节点安装证书。</p>
+            {tlsInbounds.map(item => <div key={item.id} className="flex items-center justify-between gap-2 border-b py-2">
+              <span>{item.name} · 隧道 #{item.tunnelId} · :{item.port}<br />{item.allowedSni || "不限域名"}</span>
+              <Button size="sm" color="danger" variant="light" onPress={async () => {
+                const result = await deleteTlsInbound({ id: item.id });
+                if (result.code === 0) { toast.success("入口已删除"); loadData(false); }
+                else toast.error(result.msg || "删除失败");
+              }}>删除</Button>
+            </div>)}
+            <Input label="入口名称" value={tlsDraft.name} onValueChange={name => setTlsDraft(prev => ({ ...prev, name }))} />
+            <Select label="所属隧道" selectedKeys={tlsDraft.tunnelId ? [tlsDraft.tunnelId] : []}
+              onSelectionChange={keys => setTlsDraft(prev => ({ ...prev, tunnelId: String(Array.from(keys)[0] || "") }))}>
+              {tunnels.map(tunnel => <SelectItem key={String(tunnel.id)}>{tunnel.name}</SelectItem>)}
+            </Select>
+            <Input label="共享端口" type="number" value={tlsDraft.port} onValueChange={port => setTlsDraft(prev => ({ ...prev, port }))} />
+            <Textarea label="允许的 SNI 范围（留空不限）" placeholder={"example.com\n.example.org"} value={tlsDraft.allowedSni}
+              onValueChange={allowedSni => setTlsDraft(prev => ({ ...prev, allowedSni }))} />
+          </ModalBody><ModalFooter><Button onPress={() => setTlsModalOpen(false)}>关闭</Button>
+            <Button color="primary" onPress={async () => {
+              const result = await createTlsInbound({ ...tlsDraft, tunnelId: Number(tlsDraft.tunnelId), port: Number(tlsDraft.port) });
+              if (result.code === 0) { toast.success("入口已创建"); loadData(false); }
+              else toast.error(result.msg || "创建失败");
+            }}>创建入口</Button>
+          </ModalFooter></ModalContent>
+        </Modal>
         <Modal isOpen={groupModalOpen} onOpenChange={setGroupModalOpen} size="md">
           <ModalContent>
             <ModalHeader>管理规则分组</ModalHeader>
@@ -2236,7 +2285,7 @@ export default function ForwardPage() {
                       onSelectionChange={(keys) => {
                         const protocol = Array.from(keys)[0] as ForwardForm["protocol"];
                         if (protocol) setForm(prev => protocol === "tcp" ? { ...prev, protocol }
-                          : { ...prev, protocol, originTls: 0, originServerName: "", originRootCa: "", originAlpn: "", proxyAccept: 0, proxySend: 0, proxyTrustedCidrs: "" });
+                          : { ...prev, protocol, tlsInboundId: 0, sniNames: "", originTls: 0, originServerName: "", originRootCa: "", originAlpn: "", proxyAccept: 0, proxySend: 0, proxyTrustedCidrs: "" });
                       }}
                       variant="bordered"
                       description="可选 TCP、UDP；旧规则保持 TCP+UDP，编辑时也可切换"
@@ -2247,7 +2296,17 @@ export default function ForwardPage() {
                     </Select>
                     {form.protocol === "tcp" && (
                       <div className="space-y-3 rounded-lg border border-default-200 p-3">
-                        <Select label="回源 TLS" selectedKeys={[String(form.originTls)]}
+                        <Select label="入站方式" items={[{ id: 0, name: "独立端口", port: 0 }, ...tlsInbounds.filter(item => item.tunnelId === Number(form.tunnelId))]} selectedKeys={[String(form.tlsInboundId)]}
+                          onSelectionChange={keys => { const id = Number(Array.from(keys)[0]);
+                            if (Number.isFinite(id)) setForm(prev => ({ ...prev, tlsInboundId: id, sniNames: "",
+                              ...(id ? { originTls: 0, proxyAccept: 0 } : {}) })); }}>
+                          {item => <SelectItem key={String(item.id)}>{item.id ? `${item.name} :${item.port}` : item.name}</SelectItem>}
+                        </Select>
+                        {!!form.tlsInboundId && <Textarea label="SNI 域名（每行一个）"
+                          value={form.sniNames.split(",").join("\n")}
+                          onValueChange={value => setForm(prev => ({ ...prev, sniNames: value.replace(/[\r\n]+/g, ",") }))}
+                          description="客户端 TLS 域名必须匹配；目标需提供对应域名的证书。未知域名拒绝连接。" />}
+                        <Select isDisabled={!!form.tlsInboundId} label="回源 TLS" selectedKeys={[String(form.originTls)]}
                           onSelectionChange={keys => { const value = Array.from(keys)[0];
                             if (value !== undefined) setForm(prev => ({ ...prev, originTls: Number(value) })); }}>
                           <SelectItem key="0">关闭</SelectItem>
@@ -2264,7 +2323,7 @@ export default function ForwardPage() {
                         </>}
                         <p className="text-sm font-medium">Proxy Protocol</p>
                         <p className="text-xs text-default-500">入口节点需升级到支持版本。接收模式只信任下方填写的来源网段。</p>
-                        <Select label="接收" selectedKeys={[String(form.proxyAccept)]}
+                        <Select isDisabled={!!form.tlsInboundId} label="接收" selectedKeys={[String(form.proxyAccept)]}
                           onSelectionChange={keys => {
                             const value = Array.from(keys)[0];
                             if (value !== undefined) setForm(prev => ({ ...prev, proxyAccept: Number(value) }));
@@ -2338,6 +2397,7 @@ export default function ForwardPage() {
                     </Select>
 
                     <Input
+                      isDisabled={!!form.tlsInboundId}
                       label="入口端口"
                       placeholder="留空则自动分配可用端口"
                       type="number"
@@ -2352,7 +2412,7 @@ export default function ForwardPage() {
                       isInvalid={!!errors.inPort}
                       errorMessage={errors.inPort}
                       variant="bordered"
-                      description="指定入口端口，留空则从节点可用端口中自动分配"
+                      description={form.tlsInboundId ? "使用共享入口的固定端口，此处填写值不生效" : "指定入口端口，留空则从节点可用端口中自动分配"}
                     />
                     
                     <Textarea

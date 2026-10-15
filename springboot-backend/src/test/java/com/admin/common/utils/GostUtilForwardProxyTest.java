@@ -53,6 +53,16 @@ class GostUtilForwardProxyTest {
         assertFalse(GostUtil.supportsForwardProxy(node, forward));
         node.setVersion("2.0.13-beta");
         assertTrue(GostUtil.supportsForwardProxy(node, forward));
+        forward.setTlsInboundId(1);
+        forward.setSniNames("app.example.com,api.example.com");
+        node.setVersion("2.0.13-beta");
+        assertFalse(GostUtil.supportsForwardProxy(node, forward));
+        node.setVersion("2.0.14-beta");
+        assertTrue(GostUtil.supportsForwardProxy(node, forward));
+        JSONObject sharedListener = GostUtil.forwardServiceConfig("shared", null, node, forward, port, tunnel)
+                .getJSONObject(0).getJSONObject("listener");
+        assertEquals(2, sharedListener.getJSONObject("metadata").getJSONArray("sniNames").size());
+        forward.setTlsInboundId(0);
         forward.setOriginTls(0);
         forward.setProxyAccept(0);
         forward.setProxySend(0);

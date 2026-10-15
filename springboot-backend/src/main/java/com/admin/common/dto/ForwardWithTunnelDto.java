@@ -88,6 +88,13 @@ public class ForwardWithTunnelDto {
 
     private String protocol;
 
+    private Integer tlsInboundId;
+    private String sniNames;
+    private Integer originTls;
+    private String originServerName;
+    private String originRootCa;
+    private String originAlpn;
+
     private Integer proxyAccept;
 
     private Integer proxySend;

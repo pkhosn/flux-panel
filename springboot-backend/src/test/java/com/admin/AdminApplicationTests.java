@@ -41,10 +41,11 @@ class AdminApplicationTests {
                 "SELECT COUNT(*) FROM pragma_table_info('forward') WHERE name='protocol'", Integer.class));
         assertEquals(1, jdbc.queryForObject(
                 "SELECT COUNT(*) FROM pragma_table_info('forward') WHERE name='group_id'", Integer.class));
-        for (String column : List.of("proxy_accept", "proxy_send", "proxy_trusted_cidrs")) {
+        for (String column : List.of("proxy_accept", "proxy_send", "proxy_trusted_cidrs", "origin_tls", "origin_server_name", "origin_root_ca", "origin_alpn", "tls_inbound_id", "sni_names")) {
             assertEquals(1, jdbc.queryForObject(
                     "SELECT COUNT(*) FROM pragma_table_info('forward') WHERE name=?", Integer.class, column));
         }
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='forward_tls_inbound'", Integer.class));
         assertNull(GostUtil.validateForwardProxy("tcp", 1, 2, "127.0.0.1/8,::1/128"));
         assertNotNull(GostUtil.validateForwardProxy("udp", 1, 0, "127.0.0.1/8"));
         assertNotNull(GostUtil.validateForwardProxy("tcp", 1, 0, ""));

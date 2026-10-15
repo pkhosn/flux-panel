@@ -107,3 +107,16 @@
 验证命令：后端 `mvn -q test`；前端 `NODE_OPTIONS=--max-old-space-size=1024 npm run build`；Go x 模块 `go test -mod=mod -p=2 ./handler/forward/local -count=1`，使用 golang:1.23 在本机 Docker 内运行。首次前端构建与其他验证并发时被系统终止；减少并发、限制 Node 堆后通过。旧表增加四列的 SQLite 默认值检查与 TypeScript 转译后的 JSON 往返、UDP+TLS 拒绝检查通过。面板到真实 Agent 的完整下发与隧道模式网络验证尚未完成。
 
 Agent 编译产物：/tmp/flux-agent-2.0.13-beta/gost-amd64、gost-arm64。SHA256 分别为 b746232f5e17ca283902f561ffa65dbe94ef05e734f78903d508c1d60d499317、c9a793695954ae4afde158561ecc6cd33431bcfa6f2d838d6ae7c2512f7be669。
+
+## 继续实施：共享 TLS/SNI 第一轮
+
+采用每条规则独立的虚拟 TCP listener，共用按监听地址索引的真实端口。ClientHello 原样回放至规则现有 handler，保留每规则流量统计、限流、隧道路由与启停。入口由管理员在规则页按 Flux 隧道配置，第一轮支持名称、固定端口、允许 SNI 范围；拒绝空/未知 SNI，最多 128 个并发分类、5 秒读取超时。入口配置被规则引用后不可删除，端口被普通规则/隧道占用则拒绝。暂停规则仍在数据库保留 SNI。共享规则禁止回源 TLS 和接收 Proxy（共享入口 Proxy、默认规则、入口级启停和节点仅 TLS 模式另行增量实现）。
+
+- [x] Agent 有界 ClientHello 分类、虚拟监听生命周期测试；同端口双规则、重复/未知/无 SNI、独立关闭/恢复、最终释放端口验证通过。并发竞态检测仍待补。
+- [x] 管理员共享入口 API 与迁移；规则保存/编辑/端口分配/SNI 归属与唯一校验。暂停规则继续保留名称；相关隧道拓扑变更/删除暂时拒绝。
+- [x] 页面入口管理、规则表单和字段保留；共享规则导入/nyanpass 导出/批量入口切换明确拒绝，待补入口映射。补齐列表 DTO 的回源 TLS 字段遗漏。
+- [x] 本地编译、TLS 透传/独立启停测试、Agent 2.0.14-beta 版本门槛。前端以 `NODE_OPTIONS=--max-old-space-size=768 npm run build` 独立运行通过；并发验证时曾因本机内存不足被终止，已调整为串行验证。
+
+本轮本地验证：Maven `mvn -q test`（含迁移字段、配置生成和 SNI 范围边界），Go `go test -mod=mod -p=2 ./listener/tcp ./handler/forward/local ./socket -count=1` 全部通过；额外完成两个 TLS 目标在同一入口端口的完整握手和 HTTP 数据转发。Agent 2.0.14-beta amd64/arm64 已本机构建，amd64 -V 已核对。Release 尚未上传，安装脚本可回退源码编译。共享端口只在至少一条规则激活时实际监听。分类阶段读取字节在选中规则后回放，沿用原监听包装器计入该规则；完整面板到 Agent 和故障注入尚未完成。
+
+Agent 产物 /tmp/flux-agent-2.0.14-beta：amd64 SHA256 bf182f23259f6433978dbfe8be97879032d3c5fe7b9516d7af4adf3df5f76b69；arm64 SHA256 f67c360e086a7f7eaa519b9fe18baa89e751890e0b979f0cde584dffa51fd361。

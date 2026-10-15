@@ -19,7 +19,7 @@ get_architecture() {
 # 构建下载地址
 build_download_url() {
     local ARCH=$(get_architecture)
-    echo "https://github.com/pkhosn/flux-panel/releases/download/2.0.13-beta/gost-${ARCH}"
+    echo "https://github.com/pkhosn/flux-panel/releases/download/2.0.14-beta/gost-${ARCH}"
 }
 
 # 下载地址
@@ -150,10 +150,10 @@ fetch_flux_agent_binary() {
   local expected_sha256
   local built_from_source=0
   case "$(get_architecture)" in
-    amd64) expected_sha256="b746232f5e17ca283902f561ffa65dbe94ef05e734f78903d508c1d60d499317" ;;
-    arm64) expected_sha256="c9a793695954ae4afde158561ecc6cd33431bcfa6f2d838d6ae7c2512f7be669" ;;
+    amd64) expected_sha256="bf182f23259f6433978dbfe8be97879032d3c5fe7b9516d7af4adf3df5f76b69" ;;
+    arm64) expected_sha256="f67c360e086a7f7eaa519b9fe18baa89e751890e0b979f0cde584dffa51fd361" ;;
   esac
-  echo "⬇️ 下载 flux_agent 2.0.13-beta 中..."
+  echo "⬇️ 下载 flux_agent 2.0.14-beta 中..."
   if ! curl -fL "$DOWNLOAD_URL" -o "$output_path"; then
     echo "⚠️ Release 暂无可用二进制，尝试从 beta 源码编译..."
     build_flux_agent_from_source "$output_path" || return 1
@@ -171,7 +171,7 @@ fetch_flux_agent_binary() {
   fi
 
   chmod +x "$output_path"
-  if ! "$output_path" -V | grep -q '2.0.13-beta'; then
+  if ! "$output_path" -V | grep -q '2.0.14-beta'; then
     echo "❌ Agent 版本校验失败。"
     rm -f "$output_path"
     return 1

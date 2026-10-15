@@ -355,6 +355,8 @@ public class TunnelServiceImpl extends ServiceImpl<TunnelMapper, Tunnel> impleme
     @Transactional(rollbackFor = Exception.class)
     public R updateTunnel(TunnelUpdateDto tunnelUpdateDto) {
         Tunnel existingTunnel = this.getById(tunnelUpdateDto.getId());
+        Integer sharedInbounds = tlsJdbc.queryForObject("SELECT COUNT(*) FROM forward_tls_inbound WHERE tunnel_id=?", Integer.class, tunnelUpdateDto.getId());
+        if (sharedInbounds != null && sharedInbounds > 0) return R.err("请先移除共享 TLS 入口及关联规则，再修改隧道拓扑");
         if (existingTunnel == null) return R.err("隧道不存在");
         Integer roleId = JwtUtil.getRoleIdFromToken();
         Integer userId = JwtUtil.getUserIdFromToken();
@@ -410,6 +412,8 @@ public class TunnelServiceImpl extends ServiceImpl<TunnelMapper, Tunnel> impleme
     @Override
     public R deleteTunnel(Long id) {
         Tunnel tunnel = this.getById(id);
+        Integer sharedInbounds = tlsJdbc.queryForObject("SELECT COUNT(*) FROM forward_tls_inbound WHERE tunnel_id=?", Integer.class, id);
+        if (sharedInbounds != null && sharedInbounds > 0) return R.err("请先移除共享 TLS 入口及关联规则，再删除隧道");
         if (tunnel == null) return R.err("隧道不存在");
         Integer roleId = JwtUtil.getRoleIdFromToken();
         Integer userId = JwtUtil.getUserIdFromToken();
@@ -1041,6 +1045,8 @@ public class TunnelServiceImpl extends ServiceImpl<TunnelMapper, Tunnel> impleme
                 .collect(Collectors.toSet());
         List<ForwardPort> list = forwardPortService.list(new QueryWrapper<ForwardPort>().eq("node_id", nodeId));
         usedPorts.addAll(list.stream().map(ForwardPort::getPort).filter(Objects::nonNull).collect(Collectors.toSet()));
+        usedPorts.addAll(tlsJdbc.queryForList("SELECT i.port FROM forward_tls_inbound i JOIN chain_tunnel c " +
+                "ON c.tunnel_id=i.tunnel_id WHERE c.chain_type=1 AND c.node_id=?", Integer.class, nodeId));
         return parsePorts(node.getPort()).stream()
                 .filter(p -> !usedPorts.contains(p))
                 .collect(Collectors.toList());
@@ -1051,6 +1057,9 @@ public class TunnelServiceImpl extends ServiceImpl<TunnelMapper, Tunnel> impleme
         private final List<ChainTunnel> chainTunnels;
         private final Map<Long, Node> nodeMap;
     }
+
+    @Resource
+    private org.springframework.jdbc.core.JdbcTemplate tlsJdbc;
 
     public Integer getNodePort(Long nodeId) {
 
@@ -1075,6 +1084,8 @@ public class TunnelServiceImpl extends ServiceImpl<TunnelMapper, Tunnel> impleme
             forwardUsedPorts.add(forwardPort.getPort());
         }
         usedPorts.addAll(forwardUsedPorts);
+        usedPorts.addAll(tlsJdbc.queryForList("SELECT i.port FROM forward_tls_inbound i JOIN chain_tunnel c " +
+                "ON c.tunnel_id=i.tunnel_id WHERE c.chain_type=1 AND c.node_id=?", Integer.class, nodeId));
 
         // 3. 从可用端口范围中筛选未被占用的端口
         List<Integer> parsedPorts = parsePorts(node.getPort());
