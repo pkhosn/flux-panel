@@ -74,7 +74,8 @@ public class CheckGostConfigAsync {
 
                     }
 
-                    if (Objects.equals(serviceIds.getLast(), "tcp")){
+                    if (serviceIds.size() >= 4 &&
+                            (Objects.equals(serviceIds.getLast(), "tcp") || Objects.equals(serviceIds.getLast(), "udp"))){
                         String forward_id = serviceIds.getFirst();
                         services.add(forward_id + "_" + serviceIds.get(1) + "_" + serviceIds.get(2) + "_tcp");
                         services.add(forward_id + "_" + serviceIds.get(1) + "_" + serviceIds.get(2) + "_udp");

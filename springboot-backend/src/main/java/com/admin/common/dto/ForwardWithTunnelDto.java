@@ -86,5 +86,9 @@ public class ForwardWithTunnelDto {
 
     private String strategy;
 
+    private String protocol;
+
+    private Integer groupId;
+
     private Integer inx;
 }

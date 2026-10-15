@@ -1,0 +1,46 @@
+# Flux 转发规则页面与底层能力复刻计划
+
+状态：用户已确认实施。第一阶段开发中；程序已有本地改动，尚未提交或推送。
+
+## 目标
+
+按 Nekopass `4fed7f4` 的转发规则页实现其可见操作及对应底层能力，同时延续 Flux 的用户、隧道、配额、Agent、数据库和生产数据。目标包括规则分组、协议选择、批量管理、入口切换、流量统计与清空展示值、Proxy Protocol、回源 TLS、共享 TLS 入口及 SNI 分流、完整规则导入导出。保留 Flux 的诊断、强制删除和旧版导入导出。
+
+对照资料：Nekopass `web/src/RulesPage.vue`、`web/src/rule-transfer.ts`、`docs/guide/rules.md`、`docs/security/tls-inbound.md`、`internal/control/rules.go`、`internal/control/tls_inbound.go`；Flux `vite-frontend/src/pages/forward.tsx`、`springboot-backend/src/main/java/com/admin/service/impl/ForwardServiceImpl.java`、`springboot-backend/src/main/java/com/admin/common/utils/GostUtil.java`、`springboot-backend/src/main/java/com/admin/controller/FlowController.java`、`springboot-backend/src/main/resources/schema.sql`、`springboot-backend/src/main/java/com/admin/config/SQLiteConfig.java`。
+
+## 已核实的架构差异
+
+- Nekopass 一条规则选择 TCP 或 UDP；Flux `GostUtil.AddAndUpdateService` 对每条转发同时下发 TCP、UDP 服务，旧规则依赖这个行为。迁移需给旧规则保留双协议语义，新规则可单选 TCP/UDP；更新、暂停、删除、端口冲突检查都要适配。
+- Nekopass 的 `rule_groups`、原子批量事务、`rule_events`、TLS 入口与 SNI 数据结构在 Flux `forward` 表及转发 API 中不存在。Flux 的“分组”目前只是用户/隧道展示，不是持久化规则分组。
+- Flux 已有逐条流量累计，见 `FlowController.processFlowData`；没有每规则逐小时事件或“清空展示流量但不返还用户已用额度”的基线数据。两者应单独建模。
+- Nekopass 的共享 TLS 入口会在 Agent 侧读取 ClientHello 并按 SNI 选择目标；Flux 当前下发的是独立监听的 GOST TCP/UDP 服务。此能力需要 Agent 协议/配置和服务生命周期变更，不能只加表单字段。
+- Flux 目前使用 SQLite、Spring Boot、React、GOST Agent；Nekopass 使用不同的存储、服务和前端架构。以行为对照逐项实现，不直接替换项目模块。
+
+## 任务分解和 TODO
+
+- [x] 阅读页面、接口、规则模型、Agent 下发和数据库迁移方式；记录关键差异。
+- [x] 用户确认完整范围、兼容与升级顺序。
+- [ ] 阶段一：扩充 SQLite 模型、迁移、规则 DTO/API。补规则分组和独立协议；旧记录迁移为 TCP+UDP，确保升级后运行方式一致。完成本地后端/Agent验证。
+  - [x] 兼容迁移及规则列表字段：旧规则协议默认 `tcp_udp`；预建用户规则分组表。
+  - [x] 规则分组 API、规则创建/编辑保存分组，以及 Agent 单协议下发联动。
+  - [x] 本地 Maven 测试通过；SQLite 新库与旧库迁移检查通过。
+  - [ ] 规则协议变更的数据库/Agent 一致性：当前后端明确拒绝编辑时改协议；新建规则可选 TCP 或 UDP。
+  - [ ] 本地端到端验证旧规则升级后的真实转发，以及新规则 TCP/UDP 下发。
+- [ ] 阶段二：实现批量启停、删除、分组、入口切换及一致的失败回滚；加入逐小时规则流量记录与展示基线，确保清空展示流量不返还用户配额。完成本地验证。
+- [ ] 阶段三：实现规则级 Proxy Protocol 接收/发送、可信来源配置、回源 TLS 与相关校验；核查 Flux/GOST 现成能力并复用。完成本地网络行为验证。
+- [ ] 阶段四：实现共享 TLS 入口、SNI 唯一性与允许范围校验、Agent TLS ClientHello 路由和密文透传；加 Agent 能力版本门槛、同步状态及端口冲突检查。完成本地双规则同端口、未知 SNI 和旧 Agent 测试。
+- [ ] 阶段五：实现 Nekopass 风格规则页面、详情、状态、分组、搜索、分页、快捷栏和高级表单；保留 Flux 诊断、强制删除、用户/隧道信息。完成本地前端构建与交互验证。
+- [ ] 阶段六：新增 Nekopass 完整 JSON/nyanpass 兼容导入导出，保留 Flux 原有 `目标地址|名称|端口` 格式。检查旧备份可导入、新格式导入失败时整批不落库。
+- [ ] 阶段七：完整回归、迁移前后数据检查、升级顺序和回退说明；本地验证通过后分阶段提交并推送 Flux `beta`。
+
+## 兼容与发布原则
+
+旧规则保留原 TCP+UDP、端口、目标、排序、累计流量、启停状态、隧道与用户归属。新增字段给旧记录安全默认值；迁移沿用 `SQLiteConfig.ensureSchema` 机制，新增表放进现有 `schema.sql`。新能力在旧 Agent 上明确显示需要升级，不默默下发无效配置。面板和 Agent 分阶段升级，部署前保留 SQLite 备份；不在本轮直接改生产服务。
+
+## 验证门槛
+
+使用项目现有 Maven、npm、Go 构建与测试命令；无需 CI。每阶段验证数据库迁移、权限、配置下发、旧规则继续转发和对应新功能，再提交。最终在本机独立测试环境验证 TCP/UDP、批量操作、分组、流量统计、Proxy Protocol、TLS/SNI、导入导出、诊断及移动端。验证失败立即停止提交；连续三次失败暂停并重新评估。
+
+## 需确认的范围
+
+默认理解为：Nekopass 当前规则页面上可见的底层能力都纳入，分阶段交付；Flux 现有能力保留。Nekopass 的套餐/节点授权体系不会整体移植，规则能力与 Flux 当前的用户、隧道和配额体系对接。具体实现过程中发现规则行为依赖其他 Nekopass 子系统时，先记录依赖并调整阶段边界。

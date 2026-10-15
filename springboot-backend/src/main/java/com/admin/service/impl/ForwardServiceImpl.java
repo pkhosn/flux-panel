@@ -19,6 +19,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import javax.annotation.Resource;
 import java.util.*;
@@ -56,6 +57,9 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
 
     @Resource
     ForwardPortService forwardPortService;
+
+    @Resource
+    JdbcTemplate jdbc;
 
     @Override
     public R getAllForwards() {
@@ -162,6 +166,10 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
         }
         Forward forward = new Forward();
         BeanUtils.copyProperties(forwardDto, forward);
+        String protocol = GostUtil.normalizeForwardProtocol(forwardDto.getProtocol());
+        if (protocol == null) return R.err("转发协议无效");
+        if (!validGroup(forwardDto.getGroupId(), currentUser.getUserId())) return R.err("分组不存在或无权使用");
+        forward.setProtocol(protocol);
         forward.setStatus(1);
         forward.setUserId(currentUser.getUserId());
         forward.setUserName(currentUser.getUserName());
@@ -196,9 +204,7 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
                 this.removeById(forward.getId());
                 forwardPortService.remove(new QueryWrapper<ForwardPort>().eq("forward_id", forward.getId()));
                 for (JSONObject jsonObject : success) {
-                    JSONArray se = new JSONArray();
-                    se.add(jsonObject.getString("name") + "_tcp");
-                    se.add(jsonObject.getString("name") + "_udp");
+                    JSONArray se = GostUtil.forwardServiceNames(jsonObject.getString("name"), forward.getProtocol());
                     GostUtil.DeleteService(jsonObject.getLong("node_id"), se);
                     return R.err(gostDto.getMsg());
                 }
@@ -255,6 +261,16 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
         }
 
         existForward.setRemoteAddr(forwardUpdateDto.getRemoteAddr());
+        String previousProtocol = GostUtil.normalizeForwardProtocol(existForward.getProtocol());
+        String nextProtocol = forwardUpdateDto.getProtocol() == null
+                ? previousProtocol : GostUtil.normalizeForwardProtocol(forwardUpdateDto.getProtocol());
+        if (nextProtocol == null) return R.err("转发协议无效");
+        if (!Objects.equals(previousProtocol, nextProtocol)) return R.err("暂不支持修改已有规则的转发协议");
+        if (forwardUpdateDto.getGroupId() != null) {
+            if (!validGroup(forwardUpdateDto.getGroupId(), existForward.getUserId())) return R.err("分组不存在或无权使用");
+            existForward.setGroupId(forwardUpdateDto.getGroupId() == 0 ? null : forwardUpdateDto.getGroupId());
+        }
+        existForward.setProtocol(nextProtocol);
         existForward.setName(forwardUpdateDto.getName());
         existForward.setStrategy(forwardUpdateDto.getStrategy());
         existForward.setTunnelId(targetTunnelId);
@@ -275,9 +291,7 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
             List<ChainTunnel> oldChainTunnels = chainTunnelService.list(new QueryWrapper<ChainTunnel>().eq("tunnel_id", oldTunnel.getId()).eq("chain_type", 1));
             String oldServiceName = buildServiceName(existForward.getId(), existForward.getUserId(), oldUserTunnel);
             for (ChainTunnel oldChainTunnel : oldChainTunnels) {
-                JSONArray services = new JSONArray();
-                services.add(oldServiceName + "_tcp");
-                services.add(oldServiceName + "_udp");
+                JSONArray services = GostUtil.forwardServiceNames(oldServiceName, previousProtocol);
                 GostUtil.DeleteService(oldChainTunnel.getNodeId(), services);
             }
             forwardPortService.remove(new QueryWrapper<ForwardPort>().eq("forward_id", existForward.getId()));
@@ -358,9 +372,7 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
                 return R.err("部分节点不存在");
             }
 
-            JSONArray services = new JSONArray();
-            services.add(serviceName + "_tcp");
-            services.add(serviceName + "_udp");
+            JSONArray services = GostUtil.forwardServiceNames(serviceName, forward.getProtocol());
             GostUtil.DeleteService(node.getId(), services);
         }
         forwardPortService.remove(new QueryWrapper<ForwardPort>().eq("forward_id", id));
@@ -681,7 +693,7 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
             if (node == null) {
                 return R.err("部分节点不存在");
             }
-            GostDto gostDto = GostUtil.PauseAndResumeService(node.getId(), serviceName, gostMethod);
+            GostDto gostDto = GostUtil.PauseAndResumeService(node.getId(), serviceName, forward.getProtocol(), gostMethod);
             if (!Objects.equals(gostDto.getMsg(), "OK")) return R.err(gostDto.getMsg());
         }
         forward.setStatus(targetStatus);
@@ -850,6 +862,15 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
         Integer roleId = JwtUtil.getRoleIdFromToken();
         String userName = JwtUtil.getNameFromToken();
         return new UserInfo(userId, roleId, userName);
+    }
+
+    private boolean validGroup(Integer groupId, Integer ownerId) {
+        if (groupId == null || groupId == 0) return true;
+        if (groupId < 0) return false;
+        Integer count = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM forward_group WHERE id=? AND user_id=?",
+                Integer.class, groupId, ownerId);
+        return count != null && count == 1;
     }
 
     private Tunnel validateTunnel(Integer tunnelId) {

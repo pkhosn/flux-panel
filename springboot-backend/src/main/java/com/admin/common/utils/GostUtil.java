@@ -139,7 +139,7 @@ public class GostUtil {
 
     public static GostDto AddAndUpdateService(String name, Integer limiter, Node node, Forward forward, ForwardPort forwardPort, Tunnel tunnel, String meth) {
         JSONArray services = new JSONArray();
-        String[] protocols = {"tcp", "udp"};
+        String[] protocols = forwardProtocols(forward.getProtocol());
         for (String protocol : protocols) {
             JSONObject service = new JSONObject();
             service.put("name", name + "_" + protocol);
@@ -196,12 +196,34 @@ public class GostUtil {
     }
 
     public static GostDto PauseAndResumeService(Long node_id, String name, String meth) {
+        return PauseAndResumeService(node_id, name, "tcp_udp", meth);
+    }
+
+    public static GostDto PauseAndResumeService(Long node_id, String name, String protocol, String meth) {
         JSONObject data = new JSONObject();
-        JSONArray services = new JSONArray();
-        services.add(name + "_tcp");
-        services.add(name + "_udp");
-        data.put("services", services);
+        data.put("services", forwardServiceNames(name, protocol));
         return WebSocketServer.send_msg(node_id, data, meth);
+    }
+
+    public static String normalizeForwardProtocol(String protocol) {
+        if (protocol == null || protocol.isBlank()) return "tcp_udp";
+        return switch (protocol) {
+            case "tcp", "udp", "tcp_udp" -> protocol;
+            default -> null;
+        };
+    }
+
+    public static String[] forwardProtocols(String protocol) {
+        String normalized = normalizeForwardProtocol(protocol);
+        if ("tcp".equals(normalized)) return new String[]{"tcp"};
+        if ("udp".equals(normalized)) return new String[]{"udp"};
+        return new String[]{"tcp", "udp"};
+    }
+
+    public static JSONArray forwardServiceNames(String name, String protocol) {
+        JSONArray services = new JSONArray();
+        for (String selected : forwardProtocols(protocol)) services.add(name + "_" + selected);
+        return services;
     }
 
 

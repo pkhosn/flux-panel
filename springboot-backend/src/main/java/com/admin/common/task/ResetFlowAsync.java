@@ -201,7 +201,7 @@ public class ResetFlowAsync {
                     UserTunnel userTunnel = userTunnelService.getOne(new QueryWrapper<UserTunnel>().eq("user_id", forward.getUserId()).eq("tunnel_id", forward.getTunnelId()));
                     if (userTunnel != null) {
                         String name = buildServiceName(forward.getId(), forward.getUserId(), userTunnel.getId());
-                        GostUtil.PauseAndResumeService(chainTunnel.getNodeId(), name, "PauseService");
+                        GostUtil.PauseAndResumeService(chainTunnel.getNodeId(), name, forward.getProtocol(), "PauseService");
                     }
                 }
 
@@ -224,7 +224,7 @@ public class ResetFlowAsync {
                 List<ChainTunnel> chainTunnels = chainTunnelService.list(new QueryWrapper<ChainTunnel>().eq("tunnel_id", forward.getTunnelId()).eq("chain_type", 1));
                 for (ChainTunnel chainTunnel : chainTunnels) {
                     String name = buildServiceName(forward.getId(), forward.getUserId(), userTunnel.getId());
-                    GostUtil.PauseAndResumeService(chainTunnel.getNodeId(), name, "PauseService");
+                    GostUtil.PauseAndResumeService(chainTunnel.getNodeId(), name, forward.getProtocol(), "PauseService");
                 }
                 forward.setStatus(0);
                 forwardService.updateById(forward);

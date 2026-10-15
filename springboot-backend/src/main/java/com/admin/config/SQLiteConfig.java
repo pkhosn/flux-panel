@@ -84,6 +84,9 @@ public class SQLiteConfig implements ApplicationRunner {
     }
 
     private void ensureSchema(Connection connection) throws Exception {
+        ensureColumn(connection, "forward", "protocol", "VARCHAR(10) NOT NULL DEFAULT 'tcp_udp'");
+        ensureColumn(connection, "forward", "group_id", "INTEGER");
+        ensureForwardGroupTable(connection);
         ensureColumn(connection, "node", "owner_user_id", "INTEGER");
         ensureColumn(connection, "node", "created_by_role", "INTEGER NOT NULL DEFAULT 0");
         ensureColumn(connection, "node", "detected_ipv4", "VARCHAR(100)");
@@ -94,6 +97,16 @@ public class SQLiteConfig implements ApplicationRunner {
         ensurePlanTable(connection);
         ensureOrderTable(connection);
         ensureRedeemCodeTable(connection);
+    }
+
+    private void ensureForwardGroupTable(Connection connection) throws Exception {
+        try (Statement statement = connection.createStatement()) {
+            statement.execute("CREATE TABLE IF NOT EXISTS forward_group (" +
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT," +
+                    "user_id INTEGER NOT NULL," +
+                    "name VARCHAR(64) NOT NULL," +
+                    "UNIQUE(user_id, name))");
+        }
     }
 
     private void ensureColumn(Connection connection, String table, String column, String definition) throws Exception {

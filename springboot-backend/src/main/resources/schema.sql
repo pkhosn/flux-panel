@@ -9,12 +9,21 @@ CREATE TABLE IF NOT EXISTS forward (
   tunnel_id INTEGER NOT NULL,
   remote_addr TEXT NOT NULL,
   strategy VARCHAR(100) NOT NULL DEFAULT 'fifo',
+  protocol VARCHAR(10) NOT NULL DEFAULT 'tcp_udp',
+  group_id INTEGER,
   in_flow INTEGER NOT NULL DEFAULT 0,
   out_flow INTEGER NOT NULL DEFAULT 0,
   created_time INTEGER NOT NULL,
   updated_time INTEGER NOT NULL,
   status INTEGER NOT NULL,
   inx INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS forward_group (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  name VARCHAR(64) NOT NULL,
+  UNIQUE(user_id, name)
 );
 
 CREATE TABLE IF NOT EXISTS forward_port (

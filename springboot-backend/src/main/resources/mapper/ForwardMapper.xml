@@ -16,6 +16,8 @@
             f.user_name AS userName,
             f.in_flow AS inFlow,
             f.strategy AS strategy,
+            f.protocol AS protocol,
+            f.group_id AS groupId,
             f.out_flow AS outFlow,
             f.inx AS inx,
             t.name AS tunnelName,
@@ -43,6 +45,8 @@
             f.in_flow AS inFlow,
             f.out_flow AS outFlow,
             f.strategy AS strategy,
+            f.protocol AS protocol,
+            f.group_id AS groupId,
             f.inx AS inx,
             t.name AS tunnelName,
             t.type

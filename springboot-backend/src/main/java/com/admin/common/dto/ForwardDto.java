@@ -22,5 +22,9 @@ public class ForwardDto {
 
     private String strategy;
 
+    private String protocol;
+
+    private Integer groupId;
+
     private Integer inPort;
-} 
+}

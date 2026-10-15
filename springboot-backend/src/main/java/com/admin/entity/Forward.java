@@ -37,6 +37,10 @@ public class Forward extends BaseEntity{
 
     private String strategy;
 
+    private String protocol;
+
+    private Integer groupId;
+
     private Long inFlow;
 
     private Long outFlow;

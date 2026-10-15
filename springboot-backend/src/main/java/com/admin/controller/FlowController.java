@@ -315,7 +315,7 @@ public class FlowController extends BaseController {
         for (Forward forward : forwardList) {
             List<ChainTunnel> chainTunnels = chainTunnelService.list(new QueryWrapper<ChainTunnel>().eq("tunnel_id", forward.getTunnelId()).eq("chain_type", 1));
             for (ChainTunnel chainTunnel : chainTunnels) {
-                GostUtil.PauseAndResumeService(chainTunnel.getNodeId(), name, "PauseService");
+                GostUtil.PauseAndResumeService(chainTunnel.getNodeId(), name, forward.getProtocol(), "PauseService");
             }
             forward.setStatus(0);
             forwardService.updateById(forward);
