@@ -206,8 +206,8 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
                 for (JSONObject jsonObject : success) {
                     JSONArray se = GostUtil.forwardServiceNames(jsonObject.getString("name"), forward.getProtocol());
                     GostUtil.DeleteService(jsonObject.getLong("node_id"), se);
-                    return R.err(gostDto.getMsg());
                 }
+                return R.err(gostDto.getMsg());
             }
 
         }
