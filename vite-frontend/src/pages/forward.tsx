@@ -687,7 +687,6 @@ export default function ForwardPage() {
     try {
       const nameById = new Map(forwards.map(forward => [forward.id, forward.name]));
       let successCount = 0;
-      let forceCount = 0;
       const failedItems: string[] = [];
 
       for (const id of batchDeleteIds) {
@@ -697,22 +696,14 @@ export default function ForwardPage() {
             successCount += 1;
             continue;
           }
-
-          const forceRes = await forceDeleteForward(id);
-          if (forceRes.code === 0) {
-            forceCount += 1;
-            continue;
-          }
-
-          failedItems.push(`${nameById.get(id) || `ID:${id}`}: ${forceRes.msg || res.msg || '删除失败'}`);
+          failedItems.push(`${nameById.get(id) || `ID:${id}`}: ${res.msg || '删除失败'}`);
         } catch (error) {
           failedItems.push(`${nameById.get(id) || `ID:${id}`}: 网络错误`);
         }
       }
 
-      const deletedCount = successCount + forceCount;
-      if (deletedCount > 0) {
-        toast.success(`批量删除完成：删除 ${deletedCount} 条，失败 ${failedItems.length} 条`);
+      if (successCount > 0) {
+        toast.success(`批量删除完成：删除 ${successCount} 条，失败 ${failedItems.length} 条`);
       }
       if (failedItems.length > 0) {
         const preview = failedItems.slice(0, 3).join('\n');
@@ -2291,7 +2282,7 @@ export default function ForwardPage() {
                     确定要删除已选择的 <span className="font-semibold text-foreground">{batchDeleteIds.length}</span> 条转发吗？
                   </p>
                   <p className="text-small text-default-500 mt-2">
-                    系统会先执行常规删除，失败时自动尝试强制删除。此操作无法撤销。
+                    系统会逐条执行常规删除；失败的规则会保留。此操作无法撤销。
                   </p>
                 </ModalBody>
                 <ModalFooter>

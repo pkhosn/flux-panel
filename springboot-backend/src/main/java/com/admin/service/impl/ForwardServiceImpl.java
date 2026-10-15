@@ -373,7 +373,8 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
             }
 
             JSONArray services = GostUtil.forwardServiceNames(serviceName, forward.getProtocol());
-            GostUtil.DeleteService(node.getId(), services);
+            GostDto gostDto = GostUtil.DeleteService(node.getId(), services);
+            if (!Objects.equals(gostDto.getMsg(), "OK")) return R.err(gostDto.getMsg());
         }
         forwardPortService.remove(new QueryWrapper<ForwardPort>().eq("forward_id", id));
         this.removeById(id);
