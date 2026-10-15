@@ -42,7 +42,10 @@ import {
   pauseForwardService,
   resumeForwardService,
   diagnoseForward,
-  updateForwardOrder
+  updateForwardOrder,
+  getForwardGroups,
+  createForwardGroup,
+  deleteForwardGroup
 } from "@/api";
 import { JwtUtil } from "@/utils/jwt";
 import { copyText } from "@/utils/clipboard";
@@ -65,6 +68,9 @@ interface Forward {
   userName?: string;
   userId?: number;
   inx?: number;
+  protocol?: "tcp" | "udp" | "tcp_udp";
+  groupId?: number | null;
+  trafficBytes?: number;
 }
 
 interface Tunnel {
@@ -83,6 +89,15 @@ interface ForwardForm {
   remoteAddr: string;
   interfaceName?: string;
   strategy: string;
+  protocol: "tcp" | "udp" | "tcp_udp";
+  groupId: number;
+}
+
+interface ForwardGroup {
+  id: number;
+  userId: number;
+  name: string;
+  ruleCount: number;
 }
 
 interface AddressItem {
@@ -128,6 +143,9 @@ export default function ForwardPage() {
   const [loading, setLoading] = useState(true);
   const [forwards, setForwards] = useState<Forward[]>([]);
   const [tunnels, setTunnels] = useState<Tunnel[]>([]);
+  const [ruleGroups, setRuleGroups] = useState<ForwardGroup[]>([]);
+  const [groupName, setGroupName] = useState("");
+  const [groupModalOpen, setGroupModalOpen] = useState(false);
   
   // 检测是否为移动端
   const [isMobile, setIsMobile] = useState(false);
@@ -201,7 +219,9 @@ export default function ForwardPage() {
     inPort: null,
     remoteAddr: '',
     interfaceName: '',
-    strategy: 'fifo'
+    strategy: 'fifo',
+    protocol: 'tcp',
+    groupId: 0
   });
   
   // 表单验证错误
@@ -280,9 +300,10 @@ export default function ForwardPage() {
   const loadData = async (lod = true) => {
     setLoading(lod);
     try {
-      const [forwardsRes, tunnelsRes] = await Promise.all([
+      const [forwardsRes, tunnelsRes, groupsRes] = await Promise.all([
         getForwardList(),
-        userTunnel()
+        userTunnel(),
+        getForwardGroups()
       ]);
       
       if (forwardsRes.code === 0) {
@@ -350,6 +371,9 @@ export default function ForwardPage() {
         setTunnels(tunnelsRes.data || []);
       } else {
         console.warn('获取隧道列表失败:', tunnelsRes.msg);
+      }
+      if (groupsRes.code === 0) {
+        setRuleGroups(groupsRes.data || []);
       }
     } catch (error) {
       console.error('加载数据失败:', error);
@@ -456,10 +480,23 @@ export default function ForwardPage() {
       inPort: null,
       remoteAddr: '',
       interfaceName: '',
-      strategy: 'fifo'
+      strategy: 'fifo',
+      protocol: 'tcp',
+      groupId: 0
     });
     setErrors({});
     setModalOpen(true);
+  };
+
+  const handleCreateGroup = async () => {
+    const name = groupName.trim();
+    if (!name) return toast.error("请输入分组名称");
+    const result = await createForwardGroup(name);
+    if (result.code !== 0) return toast.error(result.msg || "创建分组失败");
+    toast.success("分组已创建");
+    setGroupName("");
+    setGroupModalOpen(false);
+    await loadData(false);
   };
 
   // 编辑转发
@@ -473,7 +510,9 @@ export default function ForwardPage() {
       inPort: forward.inPort,
       remoteAddr: forward.remoteAddr.split(',').join('\n'),
       interfaceName: forward.interfaceName || '',
-      strategy: forward.strategy || 'fifo'
+      strategy: forward.strategy || 'fifo',
+      protocol: forward.protocol || 'tcp_udp',
+      groupId: forward.groupId || 0
     });
     setErrors({});
     setModalOpen(true);
@@ -639,7 +678,9 @@ export default function ForwardPage() {
           tunnelId: form.tunnelId,
           inPort: form.inPort,
           remoteAddr: processedRemoteAddr,
-          strategy: addressCount > 1 ? form.strategy : 'fifo'
+          strategy: addressCount > 1 ? form.strategy : 'fifo',
+          protocol: form.protocol,
+          groupId: form.groupId
         };
         res = await updateForward(updateData);
       } else {
@@ -649,7 +690,9 @@ export default function ForwardPage() {
           tunnelId: form.tunnelId,
           inPort: form.inPort,
           remoteAddr: processedRemoteAddr,
-          strategy: addressCount > 1 ? form.strategy : 'fifo'
+          strategy: addressCount > 1 ? form.strategy : 'fifo',
+          protocol: form.protocol,
+          groupId: form.groupId
         };
         res = await createForward(createData);
       }
@@ -1546,6 +1589,9 @@ export default function ForwardPage() {
           <div className="flex-1">
           </div>
           <div className="flex items-center gap-3">
+            <Button size="sm" variant="flat" onPress={() => setGroupModalOpen(true)}>
+              管理分组
+            </Button>
             {/* 显示模式切换按钮 */}
             <Button
               size="sm"
@@ -1784,6 +1830,36 @@ export default function ForwardPage() {
           )
         )}
 
+        <Modal isOpen={groupModalOpen} onOpenChange={setGroupModalOpen} size="md">
+          <ModalContent>
+            <ModalHeader>管理规则分组</ModalHeader>
+            <ModalBody>
+              <div className="flex gap-2">
+                <Input
+                  label="分组名称"
+                  value={groupName}
+                  onChange={(event) => setGroupName(event.target.value)}
+                  maxLength={64}
+                />
+                <Button color="primary" onPress={handleCreateGroup}>添加</Button>
+              </div>
+              <div className="space-y-2">
+                {ruleGroups.filter(group => group.userId === JwtUtil.getUserIdFromToken()).map(group => (
+                  <div key={group.id} className="flex items-center justify-between border border-divider rounded-lg p-2">
+                    <span>{group.name}（{group.ruleCount} 条）</span>
+                    <Button size="sm" color="danger" variant="light" onPress={async () => {
+                      if (!window.confirm("删除分组后，其中规则会移至未分组。")) return;
+                      const result = await deleteForwardGroup(group.id);
+                      if (result.code !== 0) return toast.error(result.msg || "删除分组失败");
+                      await loadData(false);
+                    }}>删除</Button>
+                  </div>
+                ))}
+              </div>
+            </ModalBody>
+          </ModalContent>
+        </Modal>
+
         {/* 新增/编辑模态框 */}
         <Modal 
           isOpen={modalOpen}
@@ -1806,6 +1882,21 @@ export default function ForwardPage() {
                 </ModalHeader>
                 <ModalBody>
                   <div className="space-y-4 pb-4">
+                    <Select
+                      label="转发协议"
+                      selectedKeys={[form.protocol]}
+                      onSelectionChange={(keys) => {
+                        const protocol = Array.from(keys)[0] as ForwardForm["protocol"];
+                        if (protocol) setForm(prev => ({ ...prev, protocol }));
+                      }}
+                      isDisabled={isEdit}
+                      variant="bordered"
+                      description={isEdit ? "已有规则的协议暂不可修改" : "新规则选择 TCP 或 UDP；旧规则保持 TCP+UDP"}
+                    >
+                      <SelectItem key="tcp">TCP</SelectItem>
+                      <SelectItem key="udp">UDP</SelectItem>
+                      <SelectItem key="tcp_udp">TCP+UDP（兼容模式）</SelectItem>
+                    </Select>
                     <Input
                       label="转发名称"
                       placeholder="请输入转发名称"
@@ -1835,6 +1926,24 @@ export default function ForwardPage() {
                           {tunnel.name}
                         </SelectItem>
                       ))}
+                    </Select>
+
+                    <Select
+                      label="规则分组"
+                      items={[
+                        { id: 0, name: "未分组" },
+                        ...ruleGroups.filter(group => group.userId === (form.userId || JwtUtil.getUserIdFromToken()))
+                      ]}
+                      selectedKeys={[String(form.groupId)]}
+                      onSelectionChange={(keys) => {
+                        const value = Array.from(keys)[0];
+                        if (value !== undefined) setForm(prev => ({ ...prev, groupId: Number(value) }));
+                      }}
+                      variant="bordered"
+                    >
+                      {(group) => (
+                        <SelectItem key={String(group.id)}>{group.name}</SelectItem>
+                      )}
                     </Select>
 
                     <Input

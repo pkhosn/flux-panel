@@ -93,6 +93,13 @@ export const diagnoseForward = (forwardId: number) => Network.post("/forward/dia
 
 // 转发排序操作
 export const updateForwardOrder = (data: { forwards: Array<{ id: number; inx: number }> }) => Network.post("/forward/update-order", data);
+export const getForwardGroups = () => Network.post("/forward/group/list");
+export const createForwardGroup = (name: string) => Network.post("/forward/group/create", { name });
+export const updateForwardGroup = (id: number, name: string) => Network.post("/forward/group/update", { id, name });
+export const deleteForwardGroup = (id: number) => Network.post("/forward/group/delete", { id });
+export const batchForward = (data: { ids: number[]; action: "group" | "clear"; groupId?: number }) => Network.post("/forward/batch", data);
+export const getForwardStats = (forwardId?: number) => Network.post("/forward/stats", forwardId ? { forwardId } : {});
+export const clearForwardTraffic = (id: number) => Network.post("/forward/clear-traffic", { id });
 
 // 限速规则CRUD操作 - 全部使用POST请求
 export const createSpeedLimit = (data: any) => Network.post("/speed-limit/create", data);
