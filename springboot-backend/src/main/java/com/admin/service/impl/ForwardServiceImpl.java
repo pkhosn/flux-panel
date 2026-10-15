@@ -177,6 +177,7 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
         forward.setUpdatedTime(System.currentTimeMillis());
         List<JSONObject> success = new ArrayList<>();
         List<ChainTunnel> chainTunnels = chainTunnelService.list(new QueryWrapper<ChainTunnel>().eq("tunnel_id", tunnel.getId()).eq("chain_type", 1));
+        if (chainTunnels.isEmpty()) return R.err("隧道未配置入口节点");
         chainTunnels = get_port(chainTunnels, forwardDto.getInPort(), 0L);
         Map<Long, Node> entryNodes = new HashMap<>();
         for (ChainTunnel chainTunnel : chainTunnels) {
@@ -285,6 +286,7 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
         existForward.setStatus(1);
 
         List<ChainTunnel> chainTunnels = chainTunnelService.list(new QueryWrapper<ChainTunnel>().eq("tunnel_id", tunnel.getId()).eq("chain_type", 1));
+        if (chainTunnels.isEmpty()) return R.err("目标隧道未配置入口节点");
 
         // 自己占用的应该不算
         chainTunnels = get_port(chainTunnels, forwardUpdateDto.getInPort(), existForward.getId());
