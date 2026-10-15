@@ -279,12 +279,19 @@ func pauseServices(req pauseServicesRequest) error {
 		serviceConfig := serviceConfigs[stp.name]
 		if serviceConfig == nil {
 			// 找不到配置，回滚已暂停的服务
-			rollbackPausedServices(pausedServices)
+			if rollbackErr := rollbackPausedServices(pausedServices); rollbackErr != nil {
+				return fmt.Errorf("service %s configuration not found; rollback failed: %w", stp.name, rollbackErr)
+			}
 			return errors.New(fmt.Sprintf("service %s configuration not found", stp.name))
 		}
 
 		// 暂停服务
-		stp.service.Close()
+		if err := stp.service.Close(); err != nil {
+			if rollbackErr := rollbackPausedServices(pausedServices); rollbackErr != nil {
+				return fmt.Errorf("pause service %s failed: %v; rollback failed: %w", stp.name, err, rollbackErr)
+			}
+			return fmt.Errorf("pause service %s failed: %w", stp.name, err)
+		}
 
 		// 强制断开端口的所有连接
 		if serviceConfig.Addr != "" {
@@ -317,8 +324,10 @@ func pauseServices(req pauseServicesRequest) error {
 
 	if err != nil {
 		// 配置更新失败，需要回滚所有暂停的服务
-		rollbackPausedServices(pausedServices)
-		return errors.New(fmt.Sprintf("Failed to update config, rolling back paused services: %v", err))
+		if rollbackErr := rollbackPausedServices(pausedServices); rollbackErr != nil {
+			return fmt.Errorf("failed to update config: %v; rollback failed: %w", err, rollbackErr)
+		}
+		return fmt.Errorf("failed to update config: %w", err)
 	}
 
 	return nil
@@ -453,17 +462,21 @@ func rollbackPausedServices(pausedServices []struct {
 	name          string
 	service       service.Service
 	serviceConfig *config.ServiceConfig
-}) {
+}) error {
+	var failures []string
 	for _, pss := range pausedServices {
+		registry.ServiceRegistry().Unregister(pss.name)
 		// 重新解析并启动服务
 		svc, err := parser.ParseService(pss.serviceConfig)
 		if err != nil {
-			continue // 回滚失败，记录日志但继续处理其他服务
+			failures = append(failures, pss.name+": "+err.Error())
+			continue
 		}
 
 		if err := registry.ServiceRegistry().Register(pss.name, svc); err != nil {
 			svc.Close()
-			continue // 回滚失败，记录日志但继续处理其他服务
+			failures = append(failures, pss.name+": "+err.Error())
+			continue
 		}
 
 		go svc.Serve()
@@ -484,6 +497,10 @@ func rollbackPausedServices(pausedServices []struct {
 			return nil
 		})
 	}
+	if len(failures) > 0 {
+		return errors.New(strings.Join(failures, "; "))
+	}
+	return nil
 }
 
 func rollbackResumedServices(resumedServices []struct {
