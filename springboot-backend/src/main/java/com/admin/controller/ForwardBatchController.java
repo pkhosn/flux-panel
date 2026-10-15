@@ -117,9 +117,9 @@ public class ForwardBatchController {
                     row.put("original_port", originalPort.intValue());
                     Integer allowed = jdbc.queryForObject(
                             "SELECT COUNT(*) FROM tunnel t WHERE t.id=? AND t.status=1 " +
-                                    "AND (? OR EXISTS (SELECT 1 FROM user_tunnel ut " +
-                                    "WHERE ut.tunnel_id=t.id AND ut.user_id=? AND ut.status=1))",
-                            Integer.class, tunnelId, admin, ruleOwner);
+                                    "AND EXISTS (SELECT 1 FROM user_tunnel ut " +
+                                    "WHERE ut.tunnel_id=t.id AND ut.user_id=? AND ut.status=1)",
+                            Integer.class, tunnelId, ruleOwner);
                     if (allowed == null || allowed != 1) return R.err("规则 " + row.get("id") + " 无目标隧道权限");
                 }
                 List<Map<String, Object>> completed = new ArrayList<>();
