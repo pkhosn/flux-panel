@@ -168,8 +168,14 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
         BeanUtils.copyProperties(forwardDto, forward);
         String protocol = GostUtil.normalizeForwardProtocol(forwardDto.getProtocol());
         if (protocol == null) return R.err("转发协议无效");
+        String proxyError = GostUtil.validateForwardProxy(protocol, forwardDto.getProxyAccept(),
+                forwardDto.getProxySend(), forwardDto.getProxyTrustedCidrs());
+        if (proxyError != null) return R.err(proxyError);
         if (!validGroup(forwardDto.getGroupId(), currentUser.getUserId())) return R.err("分组不存在或无权使用");
         forward.setProtocol(protocol);
+        forward.setProxyAccept(forwardDto.getProxyAccept() == null ? 0 : forwardDto.getProxyAccept());
+        forward.setProxySend(forwardDto.getProxySend() == null ? 0 : forwardDto.getProxySend());
+        forward.setProxyTrustedCidrs(forwardDto.getProxyTrustedCidrs() == null ? "" : forwardDto.getProxyTrustedCidrs());
         forward.setStatus(1);
         forward.setUserId(currentUser.getUserId());
         forward.setUserName(currentUser.getUserName());
@@ -183,6 +189,7 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
         for (ChainTunnel chainTunnel : chainTunnels) {
             Node node = nodeService.getById(chainTunnel.getNodeId());
             if (node == null) return R.err("部分节点不存在");
+            if (!GostUtil.supportsForwardProxy(node, forward)) return R.err("节点 " + node.getName() + " 需升级 Agent 后才能使用 Proxy Protocol");
             entryNodes.put(node.getId(), node);
         }
         this.save(forward);
@@ -241,6 +248,14 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
         String nextProtocol = forwardUpdateDto.getProtocol() == null
                 ? previousProtocol : GostUtil.normalizeForwardProtocol(forwardUpdateDto.getProtocol());
         if (nextProtocol == null) return R.err("转发协议无效");
+        Integer nextProxyAccept = forwardUpdateDto.getProxyAccept() == null
+                ? existForward.getProxyAccept() : forwardUpdateDto.getProxyAccept();
+        Integer nextProxySend = forwardUpdateDto.getProxySend() == null
+                ? existForward.getProxySend() : forwardUpdateDto.getProxySend();
+        String nextTrustedCidrs = forwardUpdateDto.getProxyTrustedCidrs() == null
+                ? existForward.getProxyTrustedCidrs() : forwardUpdateDto.getProxyTrustedCidrs();
+        String proxyError = GostUtil.validateForwardProxy(nextProtocol, nextProxyAccept, nextProxySend, nextTrustedCidrs);
+        if (proxyError != null) return R.err(proxyError);
         boolean recreateServices = tunnelChanged || !Objects.equals(previousProtocol, nextProtocol);
 
         Tunnel tunnel = validateTunnel(targetTunnelId);
@@ -280,6 +295,9 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
             existForward.setGroupId(forwardUpdateDto.getGroupId() == 0 ? null : forwardUpdateDto.getGroupId());
         }
         existForward.setProtocol(nextProtocol);
+        existForward.setProxyAccept(nextProxyAccept == null ? 0 : nextProxyAccept);
+        existForward.setProxySend(nextProxySend == null ? 0 : nextProxySend);
+        existForward.setProxyTrustedCidrs(nextTrustedCidrs == null ? "" : nextTrustedCidrs);
         existForward.setName(forwardUpdateDto.getName());
         existForward.setStrategy(forwardUpdateDto.getStrategy());
         existForward.setTunnelId(targetTunnelId);
@@ -294,6 +312,7 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
         for (ChainTunnel chainTunnel : chainTunnels) {
             Node node = nodeService.getById(chainTunnel.getNodeId());
             if (node == null) return R.err("部分节点不存在");
+            if (!GostUtil.supportsForwardProxy(node, existForward)) return R.err("节点 " + node.getName() + " 需升级 Agent 后才能使用 Proxy Protocol");
             entryNodes.put(node.getId(), node);
         }
 

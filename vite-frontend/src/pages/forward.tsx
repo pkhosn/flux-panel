@@ -73,6 +73,9 @@ interface Forward {
   userId?: number;
   inx?: number;
   protocol?: "tcp" | "udp" | "tcp_udp";
+  proxyAccept?: number;
+  proxySend?: number;
+  proxyTrustedCidrs?: string;
   groupId?: number | null;
   trafficBytes?: number;
 }
@@ -94,6 +97,9 @@ interface ForwardForm {
   interfaceName?: string;
   strategy: string;
   protocol: "tcp" | "udp" | "tcp_udp";
+  proxyAccept: number;
+  proxySend: number;
+  proxyTrustedCidrs: string;
   groupId: number;
 }
 
@@ -242,6 +248,9 @@ export default function ForwardPage() {
     interfaceName: '',
     strategy: 'fifo',
     protocol: 'tcp',
+    proxyAccept: 0,
+    proxySend: 0,
+    proxyTrustedCidrs: '',
     groupId: 0
   });
   
@@ -503,6 +512,9 @@ export default function ForwardPage() {
       interfaceName: '',
       strategy: 'fifo',
       protocol: 'tcp',
+      proxyAccept: 0,
+      proxySend: 0,
+      proxyTrustedCidrs: '',
       groupId: 0
     });
     setErrors({});
@@ -570,6 +582,9 @@ export default function ForwardPage() {
       interfaceName: forward.interfaceName || '',
       strategy: forward.strategy || 'fifo',
       protocol: forward.protocol || 'tcp_udp',
+      proxyAccept: forward.proxyAccept || 0,
+      proxySend: forward.proxySend || 0,
+      proxyTrustedCidrs: forward.proxyTrustedCidrs || '',
       groupId: forward.groupId || 0
     });
     setErrors({});
@@ -601,6 +616,9 @@ export default function ForwardPage() {
       remoteAddr: forward.remoteAddr,
       strategy: forward.strategy,
       protocol: forward.protocol || "tcp_udp",
+      proxyAccept: forward.proxyAccept || 0,
+      proxySend: forward.proxySend || 0,
+      proxyTrustedCidrs: forward.proxyTrustedCidrs || '',
       groupId: forward.groupId || 0
     });
     if (result.code !== 0) return toast.error(result.msg || "重命名失败");
@@ -765,6 +783,9 @@ export default function ForwardPage() {
           remoteAddr: processedRemoteAddr,
           strategy: addressCount > 1 ? form.strategy : 'fifo',
           protocol: form.protocol,
+          proxyAccept: form.proxyAccept,
+          proxySend: form.proxySend,
+          proxyTrustedCidrs: form.proxyTrustedCidrs,
           groupId: form.groupId
         };
         res = await updateForward(updateData);
@@ -777,6 +798,9 @@ export default function ForwardPage() {
           remoteAddr: processedRemoteAddr,
           strategy: addressCount > 1 ? form.strategy : 'fifo',
           protocol: form.protocol,
+          proxyAccept: form.proxyAccept,
+          proxySend: form.proxySend,
+          proxyTrustedCidrs: form.proxyTrustedCidrs,
           groupId: form.groupId
         };
         res = await createForward(createData);
@@ -2153,7 +2177,8 @@ export default function ForwardPage() {
                       selectedKeys={[form.protocol]}
                       onSelectionChange={(keys) => {
                         const protocol = Array.from(keys)[0] as ForwardForm["protocol"];
-                        if (protocol) setForm(prev => ({ ...prev, protocol }));
+                        if (protocol) setForm(prev => protocol === "tcp" ? { ...prev, protocol }
+                          : { ...prev, protocol, proxyAccept: 0, proxySend: 0, proxyTrustedCidrs: "" });
                       }}
                       variant="bordered"
                       description="可选 TCP、UDP；旧规则保持 TCP+UDP，编辑时也可切换"
@@ -2162,6 +2187,34 @@ export default function ForwardPage() {
                       <SelectItem key="udp">UDP</SelectItem>
                       <SelectItem key="tcp_udp">TCP+UDP（兼容模式）</SelectItem>
                     </Select>
+                    {form.protocol === "tcp" && (
+                      <div className="space-y-3 rounded-lg border border-default-200 p-3">
+                        <p className="text-sm font-medium">Proxy Protocol</p>
+                        <p className="text-xs text-default-500">入口节点需升级到支持版本。接收模式只信任下方填写的来源网段。</p>
+                        <Select label="接收" selectedKeys={[String(form.proxyAccept)]}
+                          onSelectionChange={keys => {
+                            const value = Array.from(keys)[0];
+                            if (value !== undefined) setForm(prev => ({ ...prev, proxyAccept: Number(value) }));
+                          }}>
+                          <SelectItem key="0">关闭</SelectItem>
+                          <SelectItem key="1">自动识别 v1/v2</SelectItem>
+                        </Select>
+                        {form.proxyAccept > 0 && <Textarea label="可信来源 CIDR"
+                          placeholder={"192.0.2.0/24\n2001:db8::/32"}
+                          value={form.proxyTrustedCidrs.split(",").join("\n")}
+                          onChange={event => setForm(prev => ({ ...prev, proxyTrustedCidrs: event.target.value.replace(/[\r\n]+/g, ",") }))}
+                          description="每行一个 IP 网段。请填写实际发送 Proxy 头的上游地址。" />}
+                        <Select label="发送" selectedKeys={[String(form.proxySend)]}
+                          onSelectionChange={keys => {
+                            const value = Array.from(keys)[0];
+                            if (value !== undefined) setForm(prev => ({ ...prev, proxySend: Number(value) }));
+                          }}>
+                          <SelectItem key="0">关闭</SelectItem>
+                          <SelectItem key="1">v1</SelectItem>
+                          <SelectItem key="2">v2</SelectItem>
+                        </Select>
+                      </div>
+                    )}
                     <Input
                       label="转发名称"
                       placeholder="请输入转发名称"

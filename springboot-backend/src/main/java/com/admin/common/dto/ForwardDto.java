@@ -24,6 +24,12 @@ public class ForwardDto {
 
     private String protocol;
 
+    private Integer proxyAccept;
+
+    private Integer proxySend;
+
+    private String proxyTrustedCidrs;
+
     private Integer groupId;
 
     private Integer inPort;

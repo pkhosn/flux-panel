@@ -10,6 +10,9 @@ import org.apache.commons.lang3.StringUtils;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.util.Arrays;
 
 public class GostUtil {
 
@@ -138,6 +141,15 @@ public class GostUtil {
     }
 
     public static GostDto AddAndUpdateService(String name, Integer limiter, Node node, Forward forward, ForwardPort forwardPort, Tunnel tunnel, String meth) {
+        JSONArray services = forwardServiceConfig(name, limiter, node, forward, forwardPort, tunnel);
+        GostDto gostDto = WebSocketServer.send_msg(node.getId(), services, meth);
+        if (gostDto.getMsg().contains("exists")){
+            gostDto.setMsg("OK");
+        }
+        return gostDto;
+    }
+
+    static JSONArray forwardServiceConfig(String name, Integer limiter, Node node, Forward forward, ForwardPort forwardPort, Tunnel tunnel) {
         JSONArray services = new JSONArray();
         String[] protocols = forwardProtocols(forward.getProtocol());
         for (String protocol : protocols) {
@@ -164,6 +176,11 @@ public class GostUtil {
             // 配置处理器
             JSONObject handler = new JSONObject();
             handler.put("type", protocol);
+            if (Objects.equals(protocol, "tcp") && forward.getProxySend() != null && forward.getProxySend() > 0) {
+                JSONObject metadata = new JSONObject();
+                metadata.put("proxyProtocol", forward.getProxySend());
+                handler.put("metadata", metadata);
+            }
             if (tunnel.getType() == 2){
                 handler.put("chain", "chains_" + forward.getTunnelId());
             }
@@ -171,6 +188,13 @@ public class GostUtil {
 
             // 配置监听器
             JSONObject listener = createListener(protocol);
+            if (Objects.equals(protocol, "tcp") && forward.getProxyAccept() != null && forward.getProxyAccept() > 0) {
+                service.put("metadata", mergeProxyAccept(service.getJSONObject("metadata"), forward));
+                JSONObject metadata = new JSONObject();
+                metadata.put("proxyTrustedCIDRs", Arrays.stream(forward.getProxyTrustedCidrs().split(","))
+                        .map(String::trim).toList());
+                listener.put("metadata", metadata);
+            }
             service.put("listener", listener);
 
             JSONObject forwarder = createForwarder(forward.getRemoteAddr(), forward.getStrategy());
@@ -178,11 +202,7 @@ public class GostUtil {
 
             services.add(service);
         }
-        GostDto gostDto = WebSocketServer.send_msg(node.getId(), services, meth);
-        if (gostDto.getMsg().contains("exists")){
-            gostDto.setMsg("OK");
-        }
-        return gostDto;
+        return services;
     }
 
     public static GostDto DeleteService(Long node_id, JSONArray services) {
@@ -211,6 +231,63 @@ public class GostUtil {
             case "tcp", "udp", "tcp_udp" -> protocol;
             default -> null;
         };
+    }
+
+    private static JSONObject mergeProxyAccept(JSONObject existing, Forward forward) {
+        JSONObject metadata = existing == null ? new JSONObject() : existing;
+        metadata.put("proxyProtocol", forward.getProxyAccept());
+        return metadata;
+    }
+
+    public static String validateForwardProxy(String protocol, Integer accept, Integer send, String trustedCidrs) {
+        int receiveVersion = accept == null ? 0 : accept;
+        int sendVersion = send == null ? 0 : send;
+        if (receiveVersion < 0 || receiveVersion > 1 || sendVersion < 0 || sendVersion > 2) {
+            return "接收模式只能关闭或自动识别；发送模式只能关闭、v1 或 v2";
+        }
+        if ((receiveVersion != 0 || sendVersion != 0) && !"tcp".equals(protocol)) {
+            return "Proxy Protocol 仅支持单 TCP 规则";
+        }
+        if (receiveVersion != 0 && (trustedCidrs == null || trustedCidrs.isBlank())) {
+            return "接收 Proxy Protocol 时必须填写可信来源 CIDR";
+        }
+        if (trustedCidrs != null && !trustedCidrs.isBlank()) {
+            for (String value : trustedCidrs.split(",")) {
+                String cidr = value.trim();
+                String[] parts = cidr.split("/", -1);
+                if (parts.length != 2) return "可信来源 CIDR 格式无效";
+                try {
+                    if (!(parts[0].contains(":") || parts[0].matches("(?:[0-9]{1,3}\\.){3}[0-9]{1,3}"))) {
+                        return "可信来源 CIDR 必须使用 IP 地址";
+                    }
+                    InetAddress address = InetAddress.getByName(parts[0]);
+                    if (!parts[0].contains(":")) {
+                        for (String octet : parts[0].split("\\.")) {
+                            if (Integer.parseInt(octet) > 255) return "可信来源 CIDR 格式无效";
+                        }
+                    }
+                    int prefix = Integer.parseInt(parts[1]);
+                    if (prefix < 0 || prefix > address.getAddress().length * 8) return "可信来源 CIDR 前缀无效";
+                } catch (UnknownHostException | NumberFormatException ex) {
+                    return "可信来源 CIDR 格式无效";
+                }
+            }
+        }
+        return null;
+    }
+
+    public static boolean supportsForwardProxy(Node node, Forward forward) {
+        if ((forward.getProxyAccept() == null || forward.getProxyAccept() == 0)
+                && (forward.getProxySend() == null || forward.getProxySend() == 0)) return true;
+        String version = node.getVersion();
+        if (version == null) return false;
+        java.util.regex.Matcher match = java.util.regex.Pattern.compile("^(\\d+)\\.(\\d+)\\.(\\d+)-beta$")
+                .matcher(version);
+        if (!match.matches()) return false;
+        int major = Integer.parseInt(match.group(1));
+        int minor = Integer.parseInt(match.group(2));
+        int patch = Integer.parseInt(match.group(3));
+        return major > 2 || (major == 2 && (minor > 0 || (minor == 0 && patch >= 12)));
     }
 
     public static String[] forwardProtocols(String protocol) {

@@ -39,6 +39,12 @@ public class Forward extends BaseEntity{
 
     private String protocol;
 
+    private Integer proxyAccept;
+
+    private Integer proxySend;
+
+    private String proxyTrustedCidrs;
+
     private Integer groupId;
 
     private Long trafficBaseline;
