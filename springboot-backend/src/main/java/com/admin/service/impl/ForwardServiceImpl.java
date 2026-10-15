@@ -263,6 +263,8 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
             }
         }
 
+        Forward previousForward = new Forward();
+        BeanUtils.copyProperties(existForward, previousForward);
         existForward.setRemoteAddr(forwardUpdateDto.getRemoteAddr());
         String previousProtocol = GostUtil.normalizeForwardProtocol(existForward.getProtocol());
         String nextProtocol = forwardUpdateDto.getProtocol() == null
@@ -290,11 +292,72 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
             entryNodes.put(node.getId(), node);
         }
 
-        this.updateById(existForward);
-
-
         String newServiceName = buildServiceName(existForward.getId(), existForward.getUserId(), newUserTunnel);
 
+        if (!tunnelChanged) {
+            Map<Long, ForwardPort> oldPorts = forwardPortService.list(
+                    new QueryWrapper<ForwardPort>().eq("forward_id", existForward.getId())
+            ).stream().collect(Collectors.toMap(ForwardPort::getNodeId, port -> port));
+            List<ChainTunnel> attempted = new ArrayList<>();
+            String failure = null;
+            for (ChainTunnel chainTunnel : chainTunnels) {
+                Node node = entryNodes.get(chainTunnel.getNodeId());
+                ForwardPort proposed = new ForwardPort();
+                proposed.setForwardId(existForward.getId());
+                proposed.setNodeId(node.getId());
+                proposed.setPort(chainTunnel.getPort());
+                String method = oldPorts.containsKey(node.getId()) ? "UpdateService" : "AddService";
+                attempted.add(chainTunnel);
+                GostDto result = GostUtil.AddAndUpdateService(newServiceName, permissionResult.getLimiter(),
+                        node, existForward, proposed, tunnel, method);
+                if (!Objects.equals(result.getMsg(), "OK")) {
+                    failure = result.getMsg();
+                    break;
+                }
+            }
+            if (failure != null) {
+                List<String> rollbackFailures = new ArrayList<>();
+                Collections.reverse(attempted);
+                for (ChainTunnel chainTunnel : attempted) {
+                    Node node = entryNodes.get(chainTunnel.getNodeId());
+                    ForwardPort oldPort = oldPorts.get(node.getId());
+                    GostDto restored;
+                    if (oldPort == null) {
+                        restored = GostUtil.DeleteService(node.getId(),
+                                GostUtil.forwardServiceNames(newServiceName, previousProtocol));
+                    } else {
+                        restored = GostUtil.AddAndUpdateService(newServiceName, permissionResult.getLimiter(),
+                                node, previousForward, oldPort, tunnel, "UpdateService");
+                        if (!Objects.equals(restored.getMsg(), "OK")) {
+                            restored = GostUtil.AddAndUpdateService(newServiceName, permissionResult.getLimiter(),
+                                    node, previousForward, oldPort, tunnel, "AddService");
+                        }
+                    }
+                    if (!Objects.equals(restored.getMsg(), "OK")) {
+                        rollbackFailures.add(String.valueOf(node.getId()));
+                    }
+                }
+                return R.err(rollbackFailures.isEmpty() ? failure
+                        : failure + "；以下节点回滚失败：" + String.join(",", rollbackFailures));
+            }
+            this.updateById(existForward);
+            for (ChainTunnel chainTunnel : chainTunnels) {
+                ForwardPort port = oldPorts.get(chainTunnel.getNodeId());
+                if (port == null) {
+                    port = new ForwardPort();
+                    port.setForwardId(existForward.getId());
+                    port.setNodeId(chainTunnel.getNodeId());
+                    port.setPort(chainTunnel.getPort());
+                    forwardPortService.save(port);
+                } else {
+                    port.setPort(chainTunnel.getPort());
+                    forwardPortService.updateById(port);
+                }
+            }
+            return R.ok();
+        }
+
+        this.updateById(existForward);
         if (tunnelChanged && oldTunnel != null) {
             List<ChainTunnel> oldChainTunnels = chainTunnelService.list(new QueryWrapper<ChainTunnel>().eq("tunnel_id", oldTunnel.getId()).eq("chain_type", 1));
             String oldServiceName = buildServiceName(existForward.getId(), existForward.getUserId(), oldUserTunnel);
