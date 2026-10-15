@@ -357,42 +357,76 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
             return R.ok();
         }
 
+        if (oldTunnel == null) return R.err("原隧道不存在，无法安全迁移规则");
+        List<ForwardPort> oldPorts = forwardPortService.list(
+                new QueryWrapper<ForwardPort>().eq("forward_id", existForward.getId()));
+        Map<Long, Node> oldNodes = new HashMap<>();
+        for (ForwardPort oldPort : oldPorts) {
+            Node node = nodeService.getById(oldPort.getNodeId());
+            if (node == null) return R.err("原入口节点不存在，无法安全迁移规则");
+            oldNodes.put(node.getId(), node);
+        }
+        String oldServiceName = buildServiceName(existForward.getId(), existForward.getUserId(), oldUserTunnel);
+        Integer oldLimiter = oldUserTunnel == null ? null : oldUserTunnel.getSpeedId();
+        List<ForwardPort> deletedOld = new ArrayList<>();
+        List<ForwardPort> addedNew = new ArrayList<>();
+        String failure = null;
+        for (ForwardPort oldPort : oldPorts) {
+            deletedOld.add(oldPort);
+            GostDto result = GostUtil.DeleteService(oldPort.getNodeId(),
+                    GostUtil.forwardServiceNames(oldServiceName, previousProtocol));
+            if (!Objects.equals(result.getMsg(), "OK")) {
+                failure = result.getMsg();
+                break;
+            }
+        }
+        if (failure == null) {
+            for (ChainTunnel chainTunnel : chainTunnels) {
+                ForwardPort proposed = new ForwardPort();
+                proposed.setForwardId(existForward.getId());
+                proposed.setNodeId(chainTunnel.getNodeId());
+                proposed.setPort(chainTunnel.getPort());
+                addedNew.add(proposed);
+                GostDto result = GostUtil.AddAndUpdateService(newServiceName, permissionResult.getLimiter(),
+                        entryNodes.get(proposed.getNodeId()), existForward, proposed, tunnel, "AddService");
+                if (!Objects.equals(result.getMsg(), "OK")) {
+                    failure = result.getMsg();
+                    break;
+                }
+            }
+        }
+        if (failure != null) {
+            List<String> rollbackFailures = new ArrayList<>();
+            Collections.reverse(addedNew);
+            for (ForwardPort added : addedNew) {
+                GostDto result = GostUtil.DeleteService(added.getNodeId(),
+                        GostUtil.forwardServiceNames(newServiceName, nextProtocol));
+                if (!Objects.equals(result.getMsg(), "OK")) rollbackFailures.add(String.valueOf(added.getNodeId()));
+            }
+            Collections.reverse(deletedOld);
+            for (ForwardPort oldPort : deletedOld) {
+                Node node = oldNodes.get(oldPort.getNodeId());
+                GostDto result = GostUtil.AddAndUpdateService(oldServiceName, oldLimiter,
+                        node, previousForward, oldPort, oldTunnel, "AddService");
+                if (!Objects.equals(result.getMsg(), "OK")) {
+                    result = GostUtil.AddAndUpdateService(oldServiceName, oldLimiter,
+                            node, previousForward, oldPort, oldTunnel, "UpdateService");
+                }
+                if (!Objects.equals(result.getMsg(), "OK")) rollbackFailures.add(String.valueOf(node.getId()));
+            }
+            return R.err(rollbackFailures.isEmpty() ? failure
+                    : failure + "；以下节点回滚失败：" + String.join(",", rollbackFailures));
+        }
+
         this.updateById(existForward);
-        if (tunnelChanged && oldTunnel != null) {
-            List<ChainTunnel> oldChainTunnels = chainTunnelService.list(new QueryWrapper<ChainTunnel>().eq("tunnel_id", oldTunnel.getId()).eq("chain_type", 1));
-            String oldServiceName = buildServiceName(existForward.getId(), existForward.getUserId(), oldUserTunnel);
-            for (ChainTunnel oldChainTunnel : oldChainTunnels) {
-                JSONArray services = GostUtil.forwardServiceNames(oldServiceName, previousProtocol);
-                GostUtil.DeleteService(oldChainTunnel.getNodeId(), services);
-            }
-            forwardPortService.remove(new QueryWrapper<ForwardPort>().eq("forward_id", existForward.getId()));
-        }
-
+        forwardPortService.remove(new QueryWrapper<ForwardPort>().eq("forward_id", existForward.getId()));
         for (ChainTunnel chainTunnel : chainTunnels) {
-            Integer limiter = permissionResult.getLimiter();
-            Node node = entryNodes.get(chainTunnel.getNodeId());
-
-            ForwardPort forwardPort = forwardPortService.getOne(
-                    new QueryWrapper<ForwardPort>()
-                            .eq("forward_id", existForward.getId())
-                            .eq("node_id", node.getId())
-            );
-            if (forwardPort == null) {
-                forwardPort = new ForwardPort();
-                forwardPort.setForwardId(existForward.getId());
-                forwardPort.setNodeId(chainTunnel.getNodeId());
-                forwardPort.setPort(chainTunnel.getPort());
-                forwardPortService.save(forwardPort);
-            } else {
-                forwardPort.setPort(chainTunnel.getPort());
-                forwardPortService.updateById(forwardPort);
-            }
-
-            String method = tunnelChanged ? "AddService" : "UpdateService";
-            GostDto gostDto = GostUtil.AddAndUpdateService(newServiceName, limiter, node, existForward, forwardPort, tunnel, method);
-            if (!Objects.equals(gostDto.getMsg(), "OK")) return R.err(gostDto.getMsg());
+            ForwardPort port = new ForwardPort();
+            port.setForwardId(existForward.getId());
+            port.setNodeId(chainTunnel.getNodeId());
+            port.setPort(chainTunnel.getPort());
+            forwardPortService.save(port);
         }
-
         return R.ok();
     }
 
