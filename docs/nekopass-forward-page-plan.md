@@ -203,3 +203,5 @@ Release 2.0.14-beta 已创建并上传 amd64/arm64/SHA256SUMS，全部通过公�
 升级顺序：先将入口 Agent 更新到 2.0.16-beta，再使用 panel_install.sh 选项 2 更新面板；未更新 Agent 时原转发继续运行，但涉及节点的规则变更会提示升级。仅更新面板不会升级远程 Agent。离线节点需等恢复网络后执行恢复；故障恢复会短暂重建该节点上的转发连接，不影响 API/中转服务。网络隔离期间不可能提供立即跨节点原子可见性，本轮实现持久化补偿与最终恢复。
 
 TODO 已按最新验证结果收齐；上述历史描述中的“待做/尚未”保留为当时记录，以本节结果为准。最少连接在多目标连接退出时释放计数；故障恢复仅作用于受影响的入口节点。2.0.16-beta 资产 SHA256：amd64 525361db938732c140334340fb99504412dad7d4cc3a47e49dff5267b5d4ca62；arm64 a265e05d5a21511f41e573e2579c0abdd63a5880f9e7c8c0af5e5bdabfd3ea6f。
+
+发布确认：实现提交 42851a8 已推送 beta。Release https://github.com/pkhosn/flux-panel/releases/tag/2.0.16-beta 已上传 gost-amd64、gost-arm64、SHA256SUMS，三项公开下载校验全部通过；临时发布凭证文件已删除。最终 Maven package、前端构建、Go race 测试、页面浏览器回归和真实双 Agent 故障验证均通过。
