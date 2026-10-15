@@ -48,6 +48,24 @@ public class ForwardTlsInboundController {
         } catch (IllegalArgumentException ex) { return R.err("入口参数或 SNI 域名无效"); }
     }
 
+    @PostMapping("/update")
+    public synchronized R update(@RequestBody Map<String, Object> input) {
+        if (JwtUtil.getRoleIdFromToken() != 0) return R.err("仅管理员可管理共享 TLS 入口");
+        try {
+            long id = Long.parseLong(String.valueOf(input.get("id")));
+            String name = String.valueOf(input.getOrDefault("name", "")).trim();
+            String allowed = ForwardSni.normalize(String.valueOf(input.getOrDefault("allowedSni", "")), true);
+            if (name.isEmpty() || name.length() > 64) return R.err("入口名称须为 1–64 个字符");
+            for (String existing : jdbc.queryForList("SELECT sni_names FROM forward WHERE tls_inbound_id=?", String.class, id)) {
+                for (String domain : existing.split(",")) {
+                    if (!ForwardSni.allows(allowed, domain)) return R.err("已有规则域名超出新范围：" + domain);
+                }
+            }
+            return jdbc.update("UPDATE forward_tls_inbound SET name=?,allowed_sni=? WHERE id=?", name, allowed, id) == 1
+                    ? R.ok() : R.err("入口不存在");
+        } catch (IllegalArgumentException ex) { return R.err("入口参数或域名范围无效"); }
+    }
+
     @PostMapping("/delete")
     public synchronized R delete(@RequestBody Map<String, Object> input) {
         if (JwtUtil.getRoleIdFromToken() != 0) return R.err("仅管理员可管理共享 TLS 入口");

@@ -98,3 +98,26 @@ func TestSharedSNIRejectsInvalidNames(t *testing.T) {
 		}
 	}
 }
+
+func TestSharedSNICloseDuringClassification(t *testing.T) {
+	for i := 0; i < 10; i++ {
+		ln, err := listenSharedSNI("tcp", "127.0.0.1:0", []string{"pending.example.com"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		client, err := net.DialTimeout("tcp", ln.Addr().String(), time.Second)
+		if err != nil {
+			t.Fatal(err)
+		}
+		// A partial record must not prevent closing the listener and reusing the socket.
+		client.Write([]byte{22, 3})
+		address := ln.Addr().String()
+		ln.Close()
+		client.Close()
+		rebound, err := net.Listen("tcp", address)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rebound.Close()
+	}
+}

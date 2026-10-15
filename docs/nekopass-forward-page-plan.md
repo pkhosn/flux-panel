@@ -120,3 +120,17 @@ Agent 编译产物：/tmp/flux-agent-2.0.13-beta/gost-amd64、gost-arm64。SHA25
 本轮本地验证：Maven `mvn -q test`（含迁移字段、配置生成和 SNI 范围边界），Go `go test -mod=mod -p=2 ./listener/tcp ./handler/forward/local ./socket -count=1` 全部通过；额外完成两个 TLS 目标在同一入口端口的完整握手和 HTTP 数据转发。Agent 2.0.14-beta amd64/arm64 已本机构建，amd64 -V 已核对。Release 尚未上传，安装脚本可回退源码编译。共享端口只在至少一条规则激活时实际监听。分类阶段读取字节在选中规则后回放，沿用原监听包装器计入该规则；完整面板到 Agent 和故障注入尚未完成。
 
 Agent 产物 /tmp/flux-agent-2.0.14-beta：amd64 SHA256 bf182f23259f6433978dbfe8be97879032d3c5fe7b9516d7af4adf3df5f76b69；arm64 SHA256 f67c360e086a7f7eaa519b9fe18baa89e751890e0b979f0cde584dffa51fd361。
+
+## 收尾任务（用户要求继续并发布资产）
+
+- [x] 完整 JSON 保留共享入口端口映射、SNI、暂停状态；批量预校验防止重复域名，失败补偿清理。目标入口需管理员先创建，按目标隧道/端口映射，避免使用备份中的旧 ID。
+- [x] 共享入口名称与允许域名范围可修改；收窄范围前检查所有关联规则（包括暂停规则）。
+- [x] Agent 共享监听关闭行为与 Go race 检查通过，资产版本与 SHA256 核对完成。
+- [x] 本地 Maven/npm/Go 验证；发布文件及 SHA256SUMS 已准备，推送前最后核对端口分配回归。
+- [ ] 获取 GitHub API 发布权限后创建 Release 并上传二进制，下载校验。Git SSH 权限不含 Release API 权限，已提前通知用户配置。
+
+仍需继续实现的高级功能：入口级 Proxy/默认规则/开关、节点仅 TLS 策略、跨 Agent 与数据库写入失败完整补偿和浏览器端到端回归。上述功能不应因本轮发布而标记完成。
+
+收尾验证：Go x 模块 `go test -race -mod=mod -p=2 ./listener/tcp ./handler/forward/local ./socket -count=1` 全部通过；后端 `mvn -q test` 通过；前端 `NODE_OPTIONS=--max-old-space-size=768 npm run build` 通过。增加使用独立内存 SQLite 的入口控制器测试（端口冲突、范围收窄、引用删除保护）与共享规则端口分配测试（暂停 SNI 仍保留、越界域名、普通规则占用）。TypeScript 转译检查共享入口端口映射、暂停状态及缺少映射信息拒绝。禁止把 Agent “服务已存在”错误转为成功，避免掩盖真实下发失败。
+
+更新顺序：面板选项 4 备份后以选项 2 更新，再更新需要 TLS 新能力的入口 Agent 到 2.0.14-beta；普通转发无需开启 TLS。管理员在规则页共享入口中选择隧道和端口，再创建 TCP 规则选择入口并填写域名。导入含共享规则的 JSON 前，需在目标隧道预建同端口入口。回退必须同时恢复备份数据库与对应面板代码/镜像，单独恢复旧 Compose 配置不足以回退已迁移数据。

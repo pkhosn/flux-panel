@@ -1,4 +1,8 @@
 export interface TransferRule {
+  status: number;
+  tlsInboundId: number;
+  tlsInboundPort: number;
+  sniNames: string;
   name: string;
   tunnelId: number;
   remoteAddr: string;
@@ -33,7 +37,12 @@ export function parseRuleTransfer(text: string, tunnelId: number): TransferRule[
   return rows.map((row, index) => {
     const fail = (reason: string): never => { throw Error(`第 ${index + 1} 条：${reason}`); };
     if (!object(row)) return fail("规则必须是 JSON 对象");
-    if (row.tls_inbound_id || row.tlsInboundId) return fail("共享 TLS 尚未支持导入");
+    const inbound = Number(row.tlsInboundId ?? row.tls_inbound_id ?? 0);
+    const inboundPort = Number(row.tlsInboundPort ?? row.tls_inbound_port ?? 0);
+    const sniNames = row.sniNames ?? (Array.isArray(row.sni_names) ? row.sni_names.join(",") : "");
+    if (!Number.isInteger(inbound) || inbound < 0 || !Number.isInteger(inboundPort) || inboundPort < 0 || inboundPort > 65535
+      || typeof sniNames !== "string") return fail("共享入口配置无效");
+    if (inbound && !inboundPort) return fail("共享入口备份缺少端口，请重新导出或补充 tlsInboundPort");
     const origin = object(row.origin_tls) ? row.origin_tls : {};
     const originTls = row.originTls ?? (origin.enabled ? 1 : 0);
     const originServerName = row.originServerName ?? origin.server_name ?? "";
@@ -41,7 +50,8 @@ export function parseRuleTransfer(text: string, tunnelId: number): TransferRule[
     const originAlpn = row.originAlpn ?? (Array.isArray(origin.alpn) ? origin.alpn.join(",") : "");
     if (![0, 1].includes(Number(originTls)) || typeof originServerName !== "string"
       || typeof originRootCa !== "string" || typeof originAlpn !== "string") return fail("回源 TLS 配置无效");
-    if (row.enabled === false || row.status === 0) return fail("暂停规则请先恢复后导入");
+    if (row.status !== undefined && row.status !== 0 && row.status !== 1) return fail("规则状态无效");
+    const status = row.enabled === false || row.status === 0 ? 0 : 1;
     const protocol = row.protocol ?? (row.dest ? "tcp" : "tcp_udp");
     if (!["tcp", "udp", "tcp_udp"].includes(String(protocol))) return fail("协议无效");
     if (Number(originTls) === 1 && protocol !== "tcp") return fail("回源 TLS 仅支持 TCP");
@@ -69,6 +79,7 @@ export function parseRuleTransfer(text: string, tunnelId: number): TransferRule[
     const strategy = row.strategy ?? balances[String(row.balance)] ?? "fifo";
     if (!["fifo", "rand", "round", "hash"].includes(String(strategy))) return fail("负载策略无效");
     return {
+      status, tlsInboundId: 0, tlsInboundPort: inboundPort, sniNames,
       originTls: Number(originTls), originServerName, originRootCa, originAlpn,
       name: row.name.trim(), tunnelId, remoteAddr: remoteAddr.trim(),
       inPort: Number(port) || null, protocol: protocol as TransferRule["protocol"],

@@ -30,6 +30,8 @@ public class ForwardDto {
 
     private String proxyTrustedCidrs;
 
+    private Integer status;
+    private Integer tlsInboundPort;
     private Integer tlsInboundId;
     private String sniNames;
 

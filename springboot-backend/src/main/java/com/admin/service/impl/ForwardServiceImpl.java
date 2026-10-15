@@ -226,7 +226,7 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
     }
 
     @Override
-    public R importForwards(ForwardImportDto input) {
+    public synchronized R importForwards(ForwardImportDto input) {
         if (input == null || input.getRules() == null || input.getRules().isEmpty()
                 || input.getRules().size() > 500) return R.err("每次导入 1–500 条规则");
         UserInfo currentUser = getCurrentUserInfo();
@@ -239,9 +239,6 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
             }
             for (int i = 0; i < rules.size(); i++) {
                 ForwardDto rule = rules.get(i);
-                if (rule != null && rule.getTlsInboundId() != null && rule.getTlsInboundId() != 0) {
-                    return R.err("共享 TLS 规则请通过表单创建；批量导入尚未支持入口映射");
-                }
                 if (rule == null || rule.getTunnelId() == null || rule.getName() == null
                         || rule.getName().isBlank() || rule.getRemoteAddr() == null
                         || rule.getRemoteAddr().isBlank()) {
@@ -257,6 +254,13 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
                             || Integer.parseInt(address.group(1)) > 65535) {
                         return R.err("第 " + (i + 1) + " 条目标地址格式无效");
                     }
+                }
+                if (rule.getStatus() != null && rule.getStatus() != 0 && rule.getStatus() != 1) return R.err("规则状态无效");
+                if (rule.getTlsInboundPort() != null && rule.getTlsInboundPort() > 0) {
+                    List<Integer> mapped = jdbc.queryForList("SELECT id FROM forward_tls_inbound WHERE tunnel_id=? AND port=?",
+                            Integer.class, rule.getTunnelId(), rule.getTlsInboundPort());
+                    if (mapped.size() != 1) return R.err("请先在目标隧道创建端口 " + rule.getTlsInboundPort() + " 的共享 TLS 入口");
+                    rule.setTlsInboundId(mapped.getFirst());
                 }
                 String protocol = GostUtil.normalizeForwardProtocol(rule.getProtocol());
                 if (protocol == null) return R.err("第 " + (i + 1) + " 条协议无效");
@@ -291,10 +295,23 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
                 }
             }
             Map<Long, Set<Integer>> reservedPorts = new HashMap<>();
+            Map<Integer, Set<String>> importedSni = new HashMap<>();
             for (int i = 0; i < rules.size(); i++) {
                 ForwardDto rule = rules.get(i);
                 List<ChainTunnel> entries = chainTunnelService.list(new QueryWrapper<ChainTunnel>()
                         .eq("tunnel_id", rule.getTunnelId()).eq("chain_type", 1));
+                Forward proposedRule = new Forward();
+                BeanUtils.copyProperties(rule, proposedRule);
+                boolean shared = proposedRule.getTlsInboundId() != null && proposedRule.getTlsInboundId() > 0;
+                if (shared) {
+                    try { allocateForwardPorts(proposedRule, entries, rule.getInPort(), 0L); }
+                    catch (IllegalArgumentException ex) { return R.err("第 " + (i + 1) + " 条：" + ex.getMessage()); }
+                    Set<String> names = importedSni.computeIfAbsent(proposedRule.getTlsInboundId(), key -> new HashSet<>());
+                    for (String name : proposedRule.getSniNames().split(",")) {
+                        if (!names.add(name)) return R.err("导入规则 SNI 重复：" + name);
+                    }
+                    rule.setSniNames(proposedRule.getSniNames());
+                }
                 for (ChainTunnel entry : entries) {
                     Forward proposed = new Forward();
                     BeanUtils.copyProperties(rule, proposed);
@@ -302,6 +319,7 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
                     if (node == null || !GostUtil.supportsForwardProxy(node, proposed)) {
                         return R.err("第 " + (i + 1) + " 条入口节点不存在或需要升级 Agent");
                     }
+                    if (shared) continue;
                     Set<Integer> reserved = reservedPorts.computeIfAbsent(entry.getNodeId(), id -> new HashSet<>());
                     List<Integer> available = getNodePort(entry.getNodeId(), 0L);
                     Integer selected = rule.getInPort();
@@ -318,6 +336,14 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
                 R result;
                 try {
                     result = createForward(rules.get(i));
+                    if (result.getCode() == 0 && Integer.valueOf(0).equals(rules.get(i).getStatus())) {
+                        Long newId = ((Number) result.getData()).longValue();
+                        R paused = pauseForward(newId);
+                        if (paused.getCode() != 0) {
+                            created.add(newId);
+                            result = R.err("保留暂停状态失败：" + paused.getMsg());
+                        }
+                    }
                 } catch (RuntimeException ex) {
                     log.error("导入第 {} 条规则失败", i + 1, ex);
                     result = R.err("创建规则异常，请检查节点端口和服务状态");
@@ -662,12 +688,12 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
     }
 
     @Override
-    public R pauseForward(Long id) {
+    public synchronized R pauseForward(Long id) {
         return changeForwardStatus(id, 0, "PauseService");
     }
 
     @Override
-    public R resumeForward(Long id) {
+    public synchronized R resumeForward(Long id) {
         return changeForwardStatus(id, 1, "ResumeService");
     }
 

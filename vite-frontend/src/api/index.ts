@@ -129,3 +129,5 @@ export const verifyCaptcha = (data: { captchaId: string; trackData: string }) =>
 export const getTlsInbounds = () => Network.post("/forward/tls-inbound/list");
 export const createTlsInbound = (data: any) => Network.post("/forward/tls-inbound/create", data);
 export const deleteTlsInbound = (data: any) => Network.post("/forward/tls-inbound/delete", data);
+
+export const updateTlsInbound = (data: any) => Network.post("/forward/tls-inbound/update", data);

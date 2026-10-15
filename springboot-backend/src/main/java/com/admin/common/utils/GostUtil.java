@@ -143,9 +143,6 @@ public class GostUtil {
     public static GostDto AddAndUpdateService(String name, Integer limiter, Node node, Forward forward, ForwardPort forwardPort, Tunnel tunnel, String meth) {
         JSONArray services = forwardServiceConfig(name, limiter, node, forward, forwardPort, tunnel);
         GostDto gostDto = WebSocketServer.send_msg(node.getId(), services, meth);
-        if (gostDto.getMsg().contains("exists")){
-            gostDto.setMsg("OK");
-        }
         return gostDto;
     }
 

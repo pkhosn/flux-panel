@@ -44,7 +44,7 @@ import {
   resumeForwardService,
   diagnoseForward,
   updateForwardOrder,
-  getTlsInbounds, createTlsInbound, deleteTlsInbound,
+  getTlsInbounds, createTlsInbound, updateTlsInbound, deleteTlsInbound,
   getForwardGroups,
   createForwardGroup,
   updateForwardGroup,
@@ -175,7 +175,7 @@ export default function ForwardPage() {
   const [tunnels, setTunnels] = useState<Tunnel[]>([]);
   const [tlsInbounds, setTlsInbounds] = useState<{id: number; tunnelId: number; name: string; port: number; allowedSni: string}[]>([]);
   const [tlsModalOpen, setTlsModalOpen] = useState(false);
-  const [tlsDraft, setTlsDraft] = useState({ name: "", tunnelId: "", port: "443", allowedSni: "" });
+  const [tlsDraft, setTlsDraft] = useState({ id: 0, name: "", tunnelId: "", port: "443", allowedSni: "" });
   const [ruleGroups, setRuleGroups] = useState<ForwardGroup[]>([]);
   const [groupName, setGroupName] = useState("");
   const [groupModalOpen, setGroupModalOpen] = useState(false);
@@ -1184,7 +1184,7 @@ export default function ForwardPage() {
           protocol: row.protocol || "tcp_udp", strategy: row.strategy || "fifo",
           groupId: row.groupId || 0, status: row.status, proxyAccept: row.proxyAccept || 0,
           proxySend: row.proxySend || 0, proxyTrustedCidrs: row.proxyTrustedCidrs || "",
-          tlsInboundId: row.tlsInboundId || 0, sniNames: row.sniNames || "",
+          tlsInboundId: row.tlsInboundId || 0, tlsInboundPort: tlsInbounds.find(item => item.id === row.tlsInboundId)?.port || 0, sniNames: row.sniNames || "",
           originTls: row.originTls || 0, originServerName: row.originServerName || "",
           originRootCa: row.originRootCa || "", originAlpn: row.originAlpn || ""
         })) }, null, 2);
@@ -2195,6 +2195,7 @@ export default function ForwardPage() {
             <p className="text-sm text-default-500">多个 TCP 规则共用端口，按客户端 SNI 分流，原样透传 TLS。无需在节点安装证书。</p>
             {tlsInbounds.map(item => <div key={item.id} className="flex items-center justify-between gap-2 border-b py-2">
               <span>{item.name} · 隧道 #{item.tunnelId} · :{item.port}<br />{item.allowedSni || "不限域名"}</span>
+              <Button size="sm" variant="light" onPress={() => setTlsDraft({ id: item.id, name: item.name, tunnelId: String(item.tunnelId), port: String(item.port), allowedSni: item.allowedSni })}>编辑</Button>
               <Button size="sm" color="danger" variant="light" onPress={async () => {
                 const result = await deleteTlsInbound({ id: item.id });
                 if (result.code === 0) { toast.success("入口已删除"); loadData(false); }
@@ -2202,19 +2203,19 @@ export default function ForwardPage() {
               }}>删除</Button>
             </div>)}
             <Input label="入口名称" value={tlsDraft.name} onValueChange={name => setTlsDraft(prev => ({ ...prev, name }))} />
-            <Select label="所属隧道" selectedKeys={tlsDraft.tunnelId ? [tlsDraft.tunnelId] : []}
+            <Select isDisabled={!!tlsDraft.id} label="所属隧道" selectedKeys={tlsDraft.tunnelId ? [tlsDraft.tunnelId] : []}
               onSelectionChange={keys => setTlsDraft(prev => ({ ...prev, tunnelId: String(Array.from(keys)[0] || "") }))}>
               {tunnels.map(tunnel => <SelectItem key={String(tunnel.id)}>{tunnel.name}</SelectItem>)}
             </Select>
-            <Input label="共享端口" type="number" value={tlsDraft.port} onValueChange={port => setTlsDraft(prev => ({ ...prev, port }))} />
+            <Input isDisabled={!!tlsDraft.id} label="共享端口" type="number" value={tlsDraft.port} onValueChange={port => setTlsDraft(prev => ({ ...prev, port }))} />
             <Textarea label="允许的 SNI 范围（留空不限）" placeholder={"example.com\n.example.org"} value={tlsDraft.allowedSni}
               onValueChange={allowedSni => setTlsDraft(prev => ({ ...prev, allowedSni }))} />
           </ModalBody><ModalFooter><Button onPress={() => setTlsModalOpen(false)}>关闭</Button>
             <Button color="primary" onPress={async () => {
-              const result = await createTlsInbound({ ...tlsDraft, tunnelId: Number(tlsDraft.tunnelId), port: Number(tlsDraft.port) });
-              if (result.code === 0) { toast.success("入口已创建"); loadData(false); }
+              const result = await (tlsDraft.id ? updateTlsInbound : createTlsInbound)({ ...tlsDraft, tunnelId: Number(tlsDraft.tunnelId), port: Number(tlsDraft.port) });
+              if (result.code === 0) { toast.success("入口已保存"); setTlsDraft({ id: 0, name: "", tunnelId: "", port: "443", allowedSni: "" }); loadData(false); }
               else toast.error(result.msg || "创建失败");
-            }}>创建入口</Button>
+            }}>{tlsDraft.id ? "保存修改" : "创建入口"}</Button>
           </ModalFooter></ModalContent>
         </Modal>
         <Modal isOpen={groupModalOpen} onOpenChange={setGroupModalOpen} size="md">
