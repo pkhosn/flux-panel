@@ -178,6 +178,12 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
         List<JSONObject> success = new ArrayList<>();
         List<ChainTunnel> chainTunnels = chainTunnelService.list(new QueryWrapper<ChainTunnel>().eq("tunnel_id", tunnel.getId()).eq("chain_type", 1));
         chainTunnels = get_port(chainTunnels, forwardDto.getInPort(), 0L);
+        Map<Long, Node> entryNodes = new HashMap<>();
+        for (ChainTunnel chainTunnel : chainTunnels) {
+            Node node = nodeService.getById(chainTunnel.getNodeId());
+            if (node == null) return R.err("部分节点不存在");
+            entryNodes.put(node.getId(), node);
+        }
         this.save(forward);
 
         for (ChainTunnel chainTunnel : chainTunnels) {
@@ -190,10 +196,7 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
             String serviceName = buildServiceName(forward.getId(), forward.getUserId(), permissionResult.getUserTunnel());
             Integer limiter = permissionResult.getLimiter();
 
-            Node node = nodeService.getById(chainTunnel.getNodeId());
-            if (node == null) {
-                return R.err("部分节点不存在");
-            }
+            Node node = entryNodes.get(chainTunnel.getNodeId());
             GostDto gostDto = GostUtil.AddAndUpdateService(serviceName, limiter, node, forward, forwardPort, tunnel, "AddService");
             if (Objects.equals(gostDto.getMsg(), "OK")) {
                 JSONObject data = new JSONObject();
