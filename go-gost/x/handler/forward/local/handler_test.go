@@ -1,6 +1,7 @@
 package local
 
 import (
+	"fmt"
 	"io"
 	"net"
 	"testing"
@@ -12,6 +13,7 @@ import (
 	_ "github.com/go-gost/x/connector/http"
 	_ "github.com/go-gost/x/dialer/tcp"
 	_ "github.com/go-gost/x/listener/tcp"
+	_ "github.com/go-gost/x/listener/udp"
 	xlogger "github.com/go-gost/x/logger"
 )
 
@@ -71,5 +73,74 @@ func TestTCPForwardProxyHeader(t *testing.T) {
 		case <-time.After(2 * time.Second):
 			t.Fatal("forward service did not stop")
 		}
+	}
+}
+
+func TestLegacyTCPAndUDPForwardSamePort(t *testing.T) {
+	logger.SetDefault(xlogger.NewLogger(xlogger.OutputOption(io.Discard)))
+	tcpTarget, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tcpTarget.Close()
+	udpTarget, err := net.ListenPacket("udp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer udpTarget.Close()
+
+	tcpCfg := &config.ServiceConfig{
+		Name: "legacy_tcp", Addr: "127.0.0.1:0",
+		Listener:  &config.ListenerConfig{Type: "tcp"},
+		Handler:   &config.HandlerConfig{Type: "tcp"},
+		Forwarder: &config.ForwarderConfig{Nodes: []*config.ForwardNodeConfig{{Name: "target", Addr: tcpTarget.Addr().String()}}},
+	}
+	tcpSvc, err := serviceparser.ParseService(tcpCfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tcpSvc.Close()
+	port := tcpSvc.Addr().(*net.TCPAddr).Port
+	udpCfg := &config.ServiceConfig{
+		Name: "legacy_udp", Addr: net.JoinHostPort("127.0.0.1", fmt.Sprint(port)),
+		Listener:  &config.ListenerConfig{Type: "udp", Metadata: map[string]any{"keepAlive": true}},
+		Handler:   &config.HandlerConfig{Type: "udp"},
+		Forwarder: &config.ForwarderConfig{Nodes: []*config.ForwardNodeConfig{{Name: "target", Addr: udpTarget.LocalAddr().String()}}},
+	}
+	udpSvc, err := serviceparser.ParseService(udpCfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer udpSvc.Close()
+	go tcpSvc.Serve()
+	go udpSvc.Serve()
+
+	tcpClient, err := net.DialTimeout("tcp", tcpSvc.Addr().String(), time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tcpClient.Close()
+	tcpClient.Write([]byte("tcp"))
+	upstream, err := tcpTarget.Accept()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer upstream.Close()
+	upstream.SetReadDeadline(time.Now().Add(time.Second))
+	tcpData := make([]byte, 3)
+	if _, err := io.ReadFull(upstream, tcpData); err != nil || string(tcpData) != "tcp" {
+		t.Fatalf("legacy TCP forwarding failed: %q %v", tcpData, err)
+	}
+
+	udpClient, err := net.DialTimeout("udp", udpSvc.Addr().String(), time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer udpClient.Close()
+	udpClient.Write([]byte("udp"))
+	udpTarget.SetReadDeadline(time.Now().Add(time.Second))
+	udpData := make([]byte, 3)
+	if n, _, err := udpTarget.ReadFrom(udpData); err != nil || n != 3 || string(udpData) != "udp" {
+		t.Fatalf("legacy UDP forwarding failed: %q %v", udpData, err)
 	}
 }
