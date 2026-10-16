@@ -12,7 +12,7 @@ RUN --mount=type=cache,target=/var/cache/flux-npm sh -c '\
   fi'
 
 COPY . .
-RUN npm run build
+RUN NODE_OPTIONS=--max-old-space-size=768 npm run build
 
 # 生产阶段
 FROM nginx:stable-alpine AS production-stage

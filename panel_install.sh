@@ -12,7 +12,7 @@ REPO_OWNER="pkhosn"
 REPO_NAME="flux-panel"
 REPO_BRANCH="beta"
 COMPOSE_PROJECT_NAME="flux-panel"
-SCRIPT_VERSION="2026-10-15.2"
+SCRIPT_VERSION="2026-10-16.1"
 DOCKER_COMPOSEV4_URL="https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/refs/heads/${REPO_BRANCH}/docker-compose-v4.yml"
 DOCKER_COMPOSEV6_URL="https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/refs/heads/${REPO_BRANCH}/docker-compose-v6.yml"
 
@@ -55,7 +55,16 @@ check_docker() {
 # 固定 Compose 项目名，确保从任意部署目录更新时都复用原有容器、
 # gost-network、sqlite_data 和 backend_logs。
 compose() {
-  COMPOSE_PROJECT_NAME="$COMPOSE_PROJECT_NAME" $DOCKER_CMD "$@"
+  COMPOSE_BAKE=false COMPOSE_PROJECT_NAME="$COMPOSE_PROJECT_NAME" $DOCKER_CMD "$@"
+}
+
+# Build services separately so Maven and Vite do not compete for memory.
+# Do not stop or replace running services before both builds succeed.
+build_panel() {
+  echo "🏗️ 构建后端（1/2）..."
+  compose "$@" build backend || return 1
+  echo "🏗️ 构建前端（2/2）..."
+  compose "$@" build frontend || return 1
 }
 
 backend_container_id() {
@@ -276,7 +285,8 @@ BACKEND_PORT=$BACKEND_PORT
 EOF
 
   echo "🚀 构建并启动 docker 服务..."
-  compose up -d --build
+  build_panel || return 1
+  compose up -d --no-build
 
   echo "🎉 部署完成"
   echo "🌐 访问地址: http://服务器IP:$FRONTEND_PORT"
@@ -311,7 +321,7 @@ update_panel() {
     return 1
   fi
   echo "🏗️ 构建新版本（现有服务继续运行）..."
-  if ! compose -f "$candidate" build; then
+  if ! build_panel -f "$candidate"; then
     rm -f "$candidate"
     echo "❌ 构建失败，现有服务继续运行"
     return 1
@@ -516,7 +526,8 @@ import_backup() {
   rm -rf "${TMP_DIR}"
 
   echo "🚀 启动服务..."
-  compose up -d --build
+  build_panel || return 1
+  compose up -d --no-build
 
   echo "🔍 检查后端服务状态..."
   for i in {1..90}; do

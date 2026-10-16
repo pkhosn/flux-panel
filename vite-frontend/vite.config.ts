@@ -19,6 +19,7 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: false,
+    reportCompressedSize: false,
     minify: false,  
     rollupOptions: {
       treeshake: false,
