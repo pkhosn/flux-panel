@@ -41,3 +41,6 @@ SHA256：`dc2031203c2084d7efce6e201d17499df84c1a552e2d73ca7dbcf96fdcfa7763`。
 本机实际构建生产镜像成功；临时容器仅绑定 `127.0.0.1:26367`，检查 `/forward` 返回页面、`/build-info.json` 返回对应版本后已清理。两份 Compose `config -q` 通过；规则交互浏览器检查通过。传入全零 FRONTEND_SHA256 时构建按预期失败；模拟前端构建失败时原配置不变，未执行接管或启动。未连接生产数据库。
 
 本地打包使用系统 `tar -czf /tmp/flux-frontend.tar.gz -C vite-frontend/dist .`，然后执行 `sha256sum /tmp/flux-frontend.tar.gz`。`build-info.json` 须在打包前写入本次版本和前端源码树 ID（`git rev-parse HEAD:vite-frontend`）；若前端修改尚未提交，应先提交已验证的源码再生成版本信息。每次重新打包须以实际生成包的 SHA256 更新生产 Dockerfile。
+
+
+后续版本 `frontend-2026.10.16.2`：源码提交 `413aa49`；移除用户与目标筛选，批量切换使用弹窗。完成本地构建、批量弹窗浏览器检查、匿名下载 SHA256 校验和生产 Dockerfile 构建。SHA256：`48342598b48d4a4d81535f85d697b8191a11ff463e146f707a4e8f28307311d2`。
