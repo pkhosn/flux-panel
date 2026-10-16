@@ -247,7 +247,7 @@ export default function ForwardPage() {
   }, []);
 
   // 加载所有数据
-  const loadData = async (lod = true) => {
+  const loadData = async (lod = true, notify = false) => {
     setLoading(lod);
     try {
       const [forwardsRes, tunnelsRes, groupsRes, tlsRes] = await Promise.all([
@@ -276,6 +276,13 @@ export default function ForwardPage() {
       if (tlsRes.code === 0) setTlsInbounds(tlsRes.data || []);
       if (groupsRes.code === 0) {
         setRuleGroups(groupsRes.data || []);
+      }
+      if (notify) {
+        if ([forwardsRes, tunnelsRes, groupsRes, tlsRes].every(result => result.code === 0)) {
+          toast.success(translate("刷新成功"));
+        } else {
+          toast.error(translate("部分数据刷新失败，请重试"));
+        }
       }
     } catch (error) {
       console.error('加载数据失败:', error);
@@ -1140,7 +1147,7 @@ export default function ForwardPage() {
   const ownUserId = JwtUtil.getUserIdFromToken();
   const isAdmin = JwtUtil.getRoleIdFromToken() === 0;
   const ownRuleGroups = ruleGroups.filter(group => group.userId === ownUserId);
-  const filterRuleGroups = isAdmin ? ruleGroups : ownRuleGroups;
+  const filterRuleGroups = ownRuleGroups;
   const tableRules = [...forwards].sort((a, b) => (a.inx ?? 0) - (b.inx ?? 0)).filter(forward => {
     const matchesGroup = activeGroupId === -1 ||
       (activeGroupId === 0 ? !forward.groupId : forward.groupId === activeGroupId);
@@ -1151,7 +1158,7 @@ export default function ForwardPage() {
   const tableSelectedIds = selectedForwardIds.filter(id => tableRuleIds.has(id));
   const selectedOwners = new Set(tableRules.filter(row => tableSelectedIds.includes(row.id)).map(row => row.userId));
   const movableGroups = isAdmin
-    ? selectedOwners.size === 1 ? ruleGroups.filter(group => selectedOwners.has(group.userId)) : []
+    ? selectedOwners.size === 1 && selectedOwners.has(ownUserId!) ? ownRuleGroups : []
     : ownRuleGroups;
   const pagedRules = tableRules.slice((rulePage - 1) * rulePageSize, rulePage * rulePageSize);
 
@@ -1165,7 +1172,7 @@ export default function ForwardPage() {
               <h1 className="text-sm font-semibold">{translate("转发规则")}</h1>
               <div className="flex flex-wrap gap-2">
                 <Button className="rules-text-action" size="sm" variant="bordered" title={translate("搜索规则")} aria-label={translate("搜索规则")} onPress={() => setSearchVisible(value => !value)}><RuleIcon name="search" />{translate("搜索规则")}</Button>
-                <Button className="rules-text-action" title={translate("刷新")} aria-label={translate("刷新")} size="sm" variant="flat" onPress={() => loadData(false)}><RuleIcon name="refresh" />{translate("刷新")}</Button>
+                <Button className="rules-text-action" title={translate("刷新")} aria-label={translate("刷新")} size="sm" variant="flat" onPress={() => loadData(false, true)}><RuleIcon name="refresh" />{translate("刷新")}</Button>
                 <Button className="rules-text-action" title={translate("统计数据")} aria-label={translate("统计数据")} size="sm" variant="flat" onPress={() => showForwardStats()}><RuleIcon name="stats" />{translate("统计数据")}</Button>
               </div>
             </div>

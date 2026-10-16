@@ -23,11 +23,6 @@ public class ForwardGroupController {
     @PostMapping("/list")
     public R list() {
         int userId = JwtUtil.getUserIdFromToken();
-        if (JwtUtil.getRoleIdFromToken() == 0) {
-            return R.ok(jdbc.queryForList("SELECT g.id, g.user_id AS userId, g.name, " +
-                    "(SELECT COUNT(*) FROM forward f WHERE f.group_id=g.id) AS ruleCount " +
-                    "FROM forward_group g ORDER BY g.user_id, g.id"));
-        }
         return R.ok(jdbc.queryForList("SELECT g.id, g.user_id AS userId, g.name, " +
                 "(SELECT COUNT(*) FROM forward f WHERE f.group_id=g.id) AS ruleCount " +
                 "FROM forward_group g WHERE g.user_id=? ORDER BY g.id", userId));

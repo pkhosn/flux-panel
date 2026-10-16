@@ -775,5 +775,7 @@
   "配置并管理转发速率限制": "Configure forwarding rate limits",
   "生成和管理套餐兑换码": "Create and manage plan redemption codes",
   "设置品牌、站点公告和支付接口": "Configure branding, announcements and payments",
-  "查看账户资料和套餐使用情况": "View account details and plan usage"
+  "查看账户资料和套餐使用情况": "View account details and plan usage",
+  "刷新成功": "Refreshed successfully",
+  "部分数据刷新失败，请重试": "Some data could not be refreshed. Please try again."
 }

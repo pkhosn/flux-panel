@@ -1,5 +1,7 @@
 package com.admin.service.impl;
 
+import com.admin.common.task.OrderExpiry;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import cn.hutool.core.map.MapUtil;
 import com.admin.common.lang.R;
 import com.admin.entity.OrderRecord;
@@ -50,6 +52,9 @@ public class PaymentServiceImpl implements PaymentService {
 
     @Override
     public R createPayment(OrderRecord order) {
+        if (!Objects.equals(order.getStatus(), 0) || OrderExpiry.isExpired(order, System.currentTimeMillis())) {
+            return R.err("订单已关闭，请重新下单");
+        }
         String paymentEnabled = getConfig("payment_enabled");
         if (!"1".equals(paymentEnabled) && !"true".equalsIgnoreCase(paymentEnabled)) {
             return R.err("支付未启用，请联系管理员配置 payment_enabled=1");
@@ -465,9 +470,12 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     private R savePayUrlAndReturn(OrderRecord order, String payUrl) {
-        order.setPayUrl(payUrl);
-        order.setUpdatedTime(System.currentTimeMillis());
-        orderRecordMapper.updateById(order);
+        long now = System.currentTimeMillis();
+        int changed = orderRecordMapper.update(null, new UpdateWrapper<OrderRecord>()
+                .eq("id", order.getId()).eq("status", 0)
+                .gt("created_time", now - OrderExpiry.PAYMENT_WINDOW_MS)
+                .set("pay_url", payUrl).set("updated_time", now));
+        if (changed != 1) return R.err("订单已关闭或已支付，请刷新订单");
         return R.ok(MapUtil.builder().put("payUrl", payUrl).put("orderNo", order.getOrderNo()).build());
     }
 

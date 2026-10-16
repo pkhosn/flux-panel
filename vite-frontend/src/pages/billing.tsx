@@ -110,6 +110,8 @@ export default function BillingPage() {
       loadPaymentMethods();
     }
     loadOrders();
+    const timer = window.setInterval(loadOrders, 30000);
+    return () => window.clearInterval(timer);
   }, []);
 
   const loadPaymentMethods = async () => {
@@ -288,6 +290,7 @@ export default function BillingPage() {
       toast.error(translate("继续支付失败"));
     } finally {
       setSubmitLoading(false);
+      void loadOrders();
     }
   };
 

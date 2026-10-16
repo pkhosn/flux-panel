@@ -2,6 +2,7 @@ package com.admin.service.impl;
 
 import cn.hutool.core.map.MapUtil;
 import com.admin.common.dto.CreateOrderDto;
+import com.admin.common.task.OrderExpiry;
 import com.admin.common.lang.R;
 import com.admin.common.utils.JwtUtil;
 import com.admin.entity.OrderRecord;
@@ -31,6 +32,9 @@ public class OrderServiceImpl extends ServiceImpl<OrderRecordMapper, OrderRecord
 
     @Resource
     private PaymentService paymentService;
+
+    @Resource
+    private OrderExpiry orderExpiry;
 
     @PostConstruct
     public void initSeed() {
@@ -89,9 +93,14 @@ public class OrderServiceImpl extends ServiceImpl<OrderRecordMapper, OrderRecord
 
     @Override
     public R repayOrder(Long id) {
+        orderExpiry.closeExpiredOrders();
         OrderRecord order = getById(id);
         if (order == null) return R.err("订单不存在");
-        if (order.getStatus() != null && order.getStatus() == 1) return R.err("订单已支付");
+        if (!Objects.equals(order.getUserId(), Long.valueOf(JwtUtil.getUserIdFromToken()))) return R.err("无权支付此订单");
+        if (Objects.equals(order.getStatus(), 1)) return R.err("订单已支付");
+        if (!Objects.equals(order.getStatus(), 0) || OrderExpiry.isExpired(order, System.currentTimeMillis())) {
+            return R.err("订单已关闭，请重新下单");
+        }
 
         R paymentResult = paymentService.createPayment(order);
         if (paymentResult.getCode() != 0) {
@@ -102,6 +111,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderRecordMapper, OrderRecord
 
     @Override
     public R getMyOrderList() {
+        orderExpiry.closeExpiredOrders();
         Integer userId = JwtUtil.getUserIdFromToken();
         return R.ok(list(new QueryWrapper<OrderRecord>().eq("user_id", userId).orderByDesc("id")));
     }
@@ -111,6 +121,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderRecordMapper, OrderRecord
         if (JwtUtil.getRoleIdFromToken() != 0) {
             return R.err("无权限");
         }
+        orderExpiry.closeExpiredOrders();
         QueryWrapper<OrderRecord> wrapper = new QueryWrapper<>();
         Object status = params.get("status");
         Object keyword = params.get("keyword");
