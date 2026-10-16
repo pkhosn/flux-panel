@@ -21,6 +21,8 @@ public class Node extends BaseEntity {
 
     private String name;
 
+    private String groupName;
+
     private String secret;
 
     private String serverIp;

@@ -783,5 +783,12 @@
   "用户规则": "User rules",
   "返回用户管理": "Back to users",
   "入口筛选": "Filter by ingress",
-  "全部入口": "All ingress routes"
+  "全部入口": "All ingress routes",
+  "节点分组筛选": "Filter node groups",
+  "节点分组": "Node group",
+  "全部节点分组": "All node groups",
+  "入口节点分组": "Ingress node group",
+  "用户筛选": "Filter users",
+  "全部用户": "All users",
+  "例如：日本、香港、专线；留空为未分组": "For example: Japan, Hong Kong, dedicated line; leave blank for ungrouped"
 }

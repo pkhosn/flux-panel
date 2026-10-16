@@ -58,6 +58,7 @@ public class NodeServiceImpl extends ServiceImpl<NodeMapper, Node> implements No
         node.setStatus(0);
         node.setPort(nodeDto.getPort());
         node.setName(nodeDto.getName());
+        node.setGroupName(nodeDto.getGroupName() == null ? "" : nodeDto.getGroupName().trim());
         node.setServerIp(nodeDto.getServerIp() == null ? "" : nodeDto.getServerIp().trim());
         node.setOwnerUserId(roleId == 0 ? null : userId);
         node.setCreatedByRole(roleId);
@@ -205,6 +206,7 @@ public class NodeServiceImpl extends ServiceImpl<NodeMapper, Node> implements No
         Node node = new Node();
         node.setId(nodeUpdateDto.getId());
         node.setName(nodeUpdateDto.getName());
+        node.setGroupName(nodeUpdateDto.getGroupName() == null ? "" : nodeUpdateDto.getGroupName().trim());
         node.setServerIp(nodeUpdateDto.getServerIp() == null ? "" : nodeUpdateDto.getServerIp().trim());
         node.setPort(nodeUpdateDto.getPort());
         node.setHttp(nodeUpdateDto.getHttp());

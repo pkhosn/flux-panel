@@ -26,6 +26,7 @@ class ForwardAccountScopeTest {
     @Test void listDefaultsToSelfAndOnlyAdminCanInspectOthers() {
         var mapper = mock(ForwardMapper.class);
         when(mapper.selectForwardsWithTunnelByUserId(anyInt())).thenReturn(List.of());
+        when(mapper.selectAllForwardsWithTunnel()).thenReturn(List.of());
         var service = new ForwardServiceImpl();
         ReflectionTestUtils.setField(service,"baseMapper",mapper);
         try {
@@ -34,11 +35,13 @@ class ForwardAccountScopeTest {
             verify(mapper).selectForwardsWithTunnelByUserId(1);
             assertEquals(0,service.getForwardsForUser(2).getCode());
             verify(mapper).selectForwardsWithTunnelByUserId(2);
-            verify(mapper,never()).selectAllForwardsWithTunnel();
+            assertEquals(0,service.getForwardsForUser(0).getCode());
+            verify(mapper).selectAllForwardsWithTunnel();
             clearInvocations(mapper);
             login(1);
             assertNotEquals(0,service.getForwardsForUser(2).getCode());
             assertNotEquals(0,service.getForwardsForUser(-1).getCode());
+            assertNotEquals(0,service.getForwardsForUser(0).getCode());
             verifyNoInteractions(mapper);
         } finally { RequestContextHolder.resetRequestAttributes(); }
     }
@@ -55,7 +58,10 @@ class ForwardAccountScopeTest {
             assertEquals(10,((Number)own.get(0).get("bytes")).intValue());
             var other = (List<Map<String,Object>>)controller.stats(Map.of("userId",2)).getData();
             assertEquals(20,((Number)other.get(0).get("bytes")).intValue());
+            var all = (List<Map<String,Object>>)controller.stats(Map.of("userId",0)).getData();
+            assertEquals(30,((Number)all.get(0).get("bytes")).intValue());
             login(1);
+            assertNotEquals(0,controller.stats(Map.of("userId",0)).getCode());
             assertNotEquals(0,controller.stats(Map.of("userId",2)).getCode());
         } finally { RequestContextHolder.resetRequestAttributes(); ds.destroy(); }
     }

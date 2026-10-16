@@ -74,11 +74,12 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
         UserInfo currentUser = getCurrentUserInfo();
         int owner = currentUser.getUserId();
         if (requestedUserId != null) {
-            if (requestedUserId <= 0) return R.err("用户 ID 无效");
+            if (requestedUserId < 0) return R.err("用户 ID 无效");
             if (requestedUserId != owner && currentUser.getRoleId() != 0) return R.err("无权查看其他用户规则");
             owner = requestedUserId;
         }
-        List<ForwardWithTunnelDto> forwardList = baseMapper.selectForwardsWithTunnelByUserId(owner);
+        List<ForwardWithTunnelDto> forwardList = owner == 0
+                ? baseMapper.selectAllForwardsWithTunnel() : baseMapper.selectForwardsWithTunnelByUserId(owner);
 
         // 填充入口IP和端口信息
         for (ForwardWithTunnelDto forward : forwardList) {

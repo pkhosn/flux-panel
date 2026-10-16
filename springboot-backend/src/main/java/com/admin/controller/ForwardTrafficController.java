@@ -24,7 +24,7 @@ public class ForwardTrafficController {
         Long forwardId = id(input.get("forwardId"));
         int owner = JwtUtil.getUserIdFromToken();
         boolean admin = JwtUtil.getRoleIdFromToken() == 0;
-        Long requestedOwner = id(input.get("userId"));
+        Long requestedOwner = "0".equals(String.valueOf(input.get("userId"))) ? Long.valueOf(0) : id(input.get("userId"));
         if (input.get("userId") != null && (requestedOwner == null || requestedOwner > Integer.MAX_VALUE)) return R.err("用户 ID 无效");
         if (requestedOwner != null) {
             if (!admin && requestedOwner != owner) return R.err("无权查看其他用户统计");
@@ -45,6 +45,9 @@ public class ForwardTrafficController {
                             "WHERE forward_id=? AND hour_start>=? AND (? OR user_id=?) " +
                             "GROUP BY hour_start ORDER BY hour_start",
                     forwardId, since, admin, owner);
+        } else if (admin && owner == 0) {
+            rows = jdbc.queryForList("SELECT hour_start AS hourStart, SUM(bytes) AS bytes FROM forward_flow_hour " +
+                    "WHERE hour_start>=? GROUP BY hour_start ORDER BY hour_start", since);
         } else {
             rows = jdbc.queryForList(
                     "SELECT hour_start AS hourStart, SUM(bytes) AS bytes FROM forward_flow_hour " +

@@ -95,6 +95,7 @@ interface Forward {
 interface Tunnel {
   id: number;
   name: string;
+  entryGroups?: string[];
   inNodePortSta?: number;
   inNodePortEnd?: number;
 }
@@ -160,12 +161,14 @@ interface DiagnosisResult {
 }
 
 export default function ForwardPage() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const rawUserId = Number(searchParams.get('userId'));
+  const queriedOwner = isAdminWorkspace() ? (Number.isSafeInteger(rawUserId) && rawUserId > 0 ? rawUserId : 0) : undefined;
   const inspectedUserId = isAdminWorkspace() && Number.isSafeInteger(rawUserId) && rawUserId > 0
     && rawUserId !== JwtUtil.getUserIdFromToken() ? rawUserId : undefined;
 
   const [loading, setLoading] = useState(true);
+  const [ruleOwners, setRuleOwners] = useState<{id: number; name: string}[]>([]);
   const [forwards, setForwards] = useState<Forward[]>([]);
   const [tunnels, setTunnels] = useState<Tunnel[]>([]);
   const [tlsInbounds, setTlsInbounds] = useState<{id: number; tunnelId: number; name: string; port: number; allowedSni: string; enabled: number; policy: string}[]>([]);
@@ -182,6 +185,7 @@ export default function ForwardPage() {
   const [searchVisible, setSearchVisible] = useState(false);
   const [activeGroupId, setActiveGroupId] = useState(-1);
   const [entryFilter, setEntryFilter] = useState("all");
+  const [nodeGroupFilter, setNodeGroupFilter] = useState("all");
   const [rulePage, setRulePage] = useState(1);
   const [rulePageSize, setRulePageSize] = useState(20);
   const [statsOpen, setStatsOpen] = useState(false);
@@ -256,25 +260,29 @@ export default function ForwardPage() {
     setEntryFilter("all");
     setRulePage(1);
     loadData();
-  }, [inspectedUserId]);
+  }, [queriedOwner]);
 
   // 加载所有数据
   const loadData = async (lod = true, notify = false) => {
     setLoading(lod);
     try {
       const [forwardsRes, tunnelsRes, groupsRes, tlsRes] = await Promise.all([
-        getForwardList(inspectedUserId),
+        getForwardList(queriedOwner),
         userTunnel(),
         getForwardGroups(),
         getTlsInbounds()
       ]);
 
       if (forwardsRes.code === 0) {
-        const forwardsData = forwardsRes.data?.map((forward: any) => ({
+        const forwardsData: Forward[] = forwardsRes.data?.map((forward: any) => ({
           ...forward,
           serviceRunning: forward.status === 1
         })) || [];
         setForwards(forwardsData);
+        if (isAdminWorkspace()) setRuleOwners(previous => Array.from(new Map([
+          ...previous.map(user => [user.id, user] as const),
+          ...forwardsData.map((row: Forward) => [row.userId!, { id: row.userId!, name: row.userName || `#${row.userId}` }] as const)
+        ]).values()));
 
       } else {
         toast.error(forwardsRes.msg || '获取转发列表失败');
@@ -351,6 +359,7 @@ export default function ForwardPage() {
   // 新增转发
   const handleAdd = () => {
     setIsEdit(false);
+    setNodeGroupFilter("all");
     setForm({
       name: '',
       tunnelId: null,
@@ -404,10 +413,10 @@ export default function ForwardPage() {
   };
 
   const showForwardStats = async (forward?: Forward) => {
-    const result = await getForwardStats(forward?.id, inspectedUserId);
+    const result = await getForwardStats(forward?.id, queriedOwner);
     if (result.code !== 0) return toast.error(result.msg || "获取统计失败");
     setRuleHours(result.data || []);
-    setStatsTitle(forward ? `${forward.name} · 最近 24 小时流量` : translate("最近 24 小时流量"));
+    setStatsTitle(forward ? `${forward.name} · 最近 24 小时流量` : translate(queriedOwner === 0 ? "全站最近 24 小时流量" : "最近 24 小时流量"));
     setStatsOpen(true);
   };
 
@@ -420,6 +429,7 @@ export default function ForwardPage() {
 
   // 编辑转发
   const handleEdit = (forward: Forward) => {
+    setNodeGroupFilter("all");
     setIsEdit(true);
     setForm({
       id: forward.id,
@@ -1163,6 +1173,9 @@ export default function ForwardPage() {
   const ruleEntries = Array.from(new Map(forwards.map(row => [row.tunnelId, {
     id: row.tunnelId, name: row.tunnelName || `#${row.tunnelId}`
   }])).values()).sort((a, b) => a.name.localeCompare(b.name));
+  const ruleUsers = ruleOwners;
+  const nodeGroups = Array.from(new Set(tunnels.flatMap(tunnel => tunnel.entryGroups || []))).sort();
+  const selectableTunnels = nodeGroupFilter === "all" ? tunnels : tunnels.filter(tunnel => tunnel.entryGroups?.includes(nodeGroupFilter));
   const tableRules = [...forwards].sort((a, b) => (a.inx ?? 0) - (b.inx ?? 0)).filter(forward => {
     const matchesGroup = activeGroupId === -1 ||
       (activeGroupId === 0 ? !forward.groupId : forward.groupId === activeGroupId);
@@ -1184,7 +1197,7 @@ export default function ForwardPage() {
         <Card className="rules-toolbar border border-divider shadow-none">
           <CardBody className="gap-3 p-4">
             <div className="rules-title-row flex flex-wrap items-center gap-3">
-              <h1 className="text-sm font-semibold">{inspectedUserId ? `${translate("用户规则")} #${inspectedUserId}` : translate("我的转发")}</h1>
+              <h1 className="text-sm font-semibold">{inspectedUserId ? `${translate("用户规则")} #${inspectedUserId}` : translate(isAdmin ? "转发管理" : "我的转发")}</h1>
               {inspectedUserId && <Link to="/user" className="text-sm text-primary">{translate("返回用户管理")}</Link>}
               <div className="flex flex-wrap gap-2">
                 <Button className="rules-text-action" size="sm" variant="bordered" title={translate("搜索规则")} aria-label={translate("搜索规则")} onPress={() => setSearchVisible(value => !value)}><RuleIcon name="search" />{translate("搜索规则")}</Button>
@@ -1205,6 +1218,12 @@ export default function ForwardPage() {
                 </Button>
               ))}
             </div>
+            {isAdmin && <Select aria-label={translate("用户筛选")} label={translate("用户筛选")} size="sm" variant="bordered" className="w-full sm:max-w-xs"
+              selectedKeys={[String(queriedOwner || 0)]}
+              items={[{ id: 0, name: translate("全部用户") }, ...ruleUsers, ...(queriedOwner && !ruleUsers.some(user => user.id === queriedOwner) ? [{ id: queriedOwner, name: `#${queriedOwner}` }] : [])]}
+              onSelectionChange={keys => { const value = Array.from(keys)[0]; if (value !== undefined) setSearchParams(Number(value) ? { userId: String(value) } : {}); }}>
+              {user => <SelectItem key={String(user.id)}>{user.name}</SelectItem>}
+            </Select>}
             <Select
               aria-label={translate("入口筛选")}
               label={translate("入口筛选")}
@@ -1556,6 +1575,17 @@ export default function ForwardPage() {
                       variant="bordered"
                     />
 
+                    <Select label={translate("入口节点分组")} aria-label={translate("入口节点分组")} selectedKeys={[nodeGroupFilter]} onSelectionChange={keys => {
+                      const value = Array.from(keys)[0];
+                      if (value !== undefined) {
+                        const group = String(value); setNodeGroupFilter(group);
+                        if (form.tunnelId && group !== "all" && !tunnels.find(tunnel => tunnel.id === form.tunnelId)?.entryGroups?.includes(group)) {
+                          setForm(prev => ({ ...prev, tunnelId: null, tlsInboundId: 0 }));
+                        }
+                      }
+                    }}>
+                      {[{ id: 'all', name: translate("全部节点分组") }, ...nodeGroups.map(group => ({ id: group, name: group || translate("未分组") }))].map(group => <SelectItem key={group.id}>{group.name}</SelectItem>)}
+                    </Select>
                     <Select
                       label={translate("选择隧道")}
                       placeholder={translate("请选择关联的隧道")}
@@ -1570,7 +1600,7 @@ export default function ForwardPage() {
                       errorMessage={errors.tunnelId}
                       variant="bordered"
                     >
-                      {tunnels.map((tunnel) => (
+                      {selectableTunnels.map((tunnel) => (
                         <SelectItem key={tunnel.id} >
                           {tunnel.name}
                         </SelectItem>
@@ -1579,10 +1609,10 @@ export default function ForwardPage() {
 
                     <Select
                       label={translate("规则分组")}
-                      isDisabled={!!inspectedUserId}
+                      isDisabled={!!form.userId && form.userId !== JwtUtil.getUserIdFromToken()}
                       items={[
                         { id: 0, name: translate("未分组") },
-                        ...(inspectedUserId && form.groupId ? [{ id: form.groupId, name: `#${form.groupId}` }] : []),
+                        ...(form.userId && form.userId !== JwtUtil.getUserIdFromToken() && form.groupId ? [{ id: form.groupId, name: `#${form.groupId}` }] : []),
                         ...ruleGroups.filter(group => group.userId === (form.userId || JwtUtil.getUserIdFromToken()))
                       ]}
                       selectedKeys={[String(form.groupId)]}

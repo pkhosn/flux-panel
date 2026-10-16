@@ -28,6 +28,9 @@ public class Tunnel extends BaseEntity {
 
     private String name;
 
+    @TableField(exist = false)
+    private List<String> entryGroups;
+
     private Integer type;
 
     private int flow;

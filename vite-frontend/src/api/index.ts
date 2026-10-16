@@ -80,7 +80,7 @@ export const userTunnel = () => Network.post("/tunnel/user/tunnel");
 // 转发CRUD操作 - 全部使用POST请求
 export const createForward = (data: any) => Network.post("/forward/create", data);
 export const importForwardRules = (rules: unknown[]) => Network.post("/forward/import", { rules });
-export const getForwardList = (userId?: number) => Network.post("/forward/list", userId ? { userId } : {});
+export const getForwardList = (userId?: number) => Network.post("/forward/list", userId !== undefined ? { userId } : {});
 export const updateForward = (data: any) => Network.post("/forward/update", data);
 export const deleteForward = (id: number) => Network.post("/forward/delete", { id });
 export const forceDeleteForward = (id: number) => Network.post("/forward/force-delete", { id });

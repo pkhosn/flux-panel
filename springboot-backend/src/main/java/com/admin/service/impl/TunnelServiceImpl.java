@@ -500,6 +500,11 @@ public class TunnelServiceImpl extends ServiceImpl<TunnelMapper, Tunnel> impleme
             }
 
         }
+        for (Tunnel tunnel : tunnelEntities) {
+            tunnel.setEntryGroups(tlsJdbc.queryForList(
+                    "SELECT DISTINCT COALESCE(n.group_name,'') FROM chain_tunnel c JOIN node n ON n.id=c.node_id " +
+                    "WHERE c.tunnel_id=? AND c.chain_type=1 ORDER BY 1", String.class, tunnel.getId()));
+        }
         return R.ok(tunnelEntities);
     }
 

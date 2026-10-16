@@ -1,3 +1,4 @@
+import { Select, SelectItem } from '@/components/select';
 import { translate } from '@/utils/locale';
 import { useState, useEffect, useRef } from "react";
 import { Card, CardBody, CardHeader } from "@heroui/card";
@@ -27,6 +28,7 @@ import { copyText } from "@/utils/clipboard";
 interface Node {
   id: number;
   name: string;
+  groupName?: string;
   ip: string;
   serverIp: string;
   detectedIpv4?: string;
@@ -58,6 +60,7 @@ interface Node {
 interface NodeForm {
   id: number | null;
   name: string;
+  groupName?: string;
   serverIp: string;
   port: string;
   tcpListenAddr: string;
@@ -70,6 +73,9 @@ interface NodeForm {
 
 export default function NodePage() {
   const [nodeList, setNodeList] = useState<Node[]>([]);
+  const [groupFilter, setGroupFilter] = useState("all");
+  const nodeGroups = Array.from(new Set(nodeList.map(node => node.groupName || ""))).sort();
+  const visibleNodes = groupFilter === "all" ? nodeList : nodeList.filter(node => (node.groupName || "") === groupFilter);
   const [loading, setLoading] = useState(false);
   const [dialogVisible, setDialogVisible] = useState(false);
   const [dialogTitle, setDialogTitle] = useState('');
@@ -83,6 +89,7 @@ export default function NodePage() {
   const [form, setForm] = useState<NodeForm>({
     id: null,
     name: '',
+    groupName: '',
     serverIp: '',
     port: '1000-65535',
     tcpListenAddr: '[::]',
@@ -469,6 +476,7 @@ export default function NodePage() {
     setForm({
       id: node.id,
       name: node.name,
+      groupName: node.groupName || '',
       serverIp: node.serverIp || '',
       port: node.port || '1000-65535',
       tcpListenAddr: node.tcpListenAddr || '[::]',
@@ -585,6 +593,7 @@ export default function NodePage() {
             n.id === form.id ? {
               ...n,
               name: form.name,
+              groupName: form.groupName?.trim() || '',
               serverIp: form.serverIp,
               port: form.port,
               tcpListenAddr: form.tcpListenAddr,
@@ -613,6 +622,7 @@ export default function NodePage() {
     setForm({
       id: null,
       name: '',
+      groupName: '',
       serverIp: '',
       port: '1000-65535',
       tcpListenAddr: '[::]',
@@ -631,6 +641,11 @@ export default function NodePage() {
         {/* 页面头部 */}
         <div className="flex items-center justify-between mb-6">
         <div className="flex-1">
+          <Select aria-label={translate("节点分组筛选")} label={translate("节点分组筛选")} size="sm" className="max-w-xs" selectedKeys={[groupFilter]} onSelectionChange={keys => {
+            const value = Array.from(keys)[0]; if (value !== undefined) setGroupFilter(String(value));
+          }}>
+            {[{ id: 'all', name: translate("全部节点分组") }, ...nodeGroups.map(group => ({ id: group, name: group || translate("未分组") }))].map(group => <SelectItem key={group.id}>{group.name}</SelectItem>)}
+          </Select>
         </div>
 
         <Button
@@ -651,7 +666,7 @@ export default function NodePage() {
               <span className="text-default-600">{translate("正在加载...")}</span>
             </div>
           </div>
-        ) : nodeList.length === 0 ? (
+        ) : visibleNodes.length === 0 ? (
           <Card className="shadow-sm border border-gray-200 dark:border-gray-700">
             <CardBody className="text-center py-16">
               <div className="flex flex-col items-center gap-4">
@@ -669,7 +684,7 @@ export default function NodePage() {
           </Card>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
-            {nodeList.map((node) => (
+            {visibleNodes.map((node) => (
               <Card
                 key={node.id}
                 className="shadow-sm border border-divider hover:shadow-md transition-shadow duration-200"
@@ -683,6 +698,7 @@ export default function NodePage() {
                       )}
                     </div>
                     <div className="flex items-center gap-1.5 ml-2">
+                      {node.groupName && <Chip size="sm" variant="flat">{node.groupName}</Chip>}
                       <Chip
                         color={node.connectionStatus === 'online' ? 'success' : 'danger'}
                         variant="flat"
@@ -877,6 +893,8 @@ export default function NodePage() {
                   variant="bordered"
                 />
 
+                <Input label={translate("节点分组")} placeholder={translate("例如：日本、香港、专线；留空为未分组")}
+                  value={form.groupName || ''} maxLength={64} onValueChange={value => setForm(prev => ({ ...prev, groupName: value }))} />
                 <Input
                   label={translate("服务器地址（可留空，Agent 连接后自动获取）")}
                   placeholder={translate("可留空，或填写 IP / 域名作为获取前的地址")}
