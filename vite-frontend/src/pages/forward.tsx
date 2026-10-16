@@ -28,10 +28,6 @@ import {
   diagnoseForward,
   getNodeList,
   getTlsInbounds, createTlsInbound, updateTlsInbound, toggleTlsInbound, saveTlsPolicy, saveNodeTlsPolicy, deleteTlsInbound,
-  getForwardGroups,
-  createForwardGroup,
-  updateForwardGroup,
-  deleteForwardGroup,
   batchForward,
   getForwardStats,
   clearForwardTraffic
@@ -123,13 +119,6 @@ interface ForwardForm {
   groupId: number;
 }
 
-interface ForwardGroup {
-  id: number;
-  userId: number;
-  name: string;
-  ruleCount: number;
-}
-
 interface ForwardHour {
   hourStart: number;
   bytes: number;
@@ -178,12 +167,8 @@ export default function ForwardPage() {
   const [tlsNodeId, setTlsNodeId] = useState("");
   const [tlsModalOpen, setTlsModalOpen] = useState(false);
   const [tlsDraft, setTlsDraft] = useState({ id: 0, name: "", tunnelId: "", port: "443", allowedSni: "" });
-  const [ruleGroups, setRuleGroups] = useState<ForwardGroup[]>([]);
-  const [groupName, setGroupName] = useState("");
-  const [groupModalOpen, setGroupModalOpen] = useState(false);
   const [ruleQuery, setRuleQuery] = useState("");
   const [searchVisible, setSearchVisible] = useState(false);
-  const [activeGroupId, setActiveGroupId] = useState(-1);
   const [entryFilter, setEntryFilter] = useState("all");
   const [nodeGroupFilter, setNodeGroupFilter] = useState("all");
   const [rulePage, setRulePage] = useState(1);
@@ -192,7 +177,6 @@ export default function ForwardPage() {
   const [detailForward, setDetailForward] = useState<Forward | null>(null);
   const [statsTitle, setStatsTitle] = useState("最近 24 小时流量");
   const [ruleHours, setRuleHours] = useState<ForwardHour[]>([]);
-  const [batchGroupId, setBatchGroupId] = useState(0);
   const [batchTunnelId, setBatchTunnelId] = useState<number | null>(null);
   const [switchModalOpen, setSwitchModalOpen] = useState(false);
   const [switchLoading, setSwitchLoading] = useState(false);
@@ -259,7 +243,6 @@ export default function ForwardPage() {
 
   useEffect(() => {
     setSelectedForwardIds([]);
-    setActiveGroupId(-1);
     setEntryFilter("all");
     setRulePage(1);
     loadData();
@@ -269,10 +252,9 @@ export default function ForwardPage() {
   const loadData = async (lod = true, notify = false) => {
     setLoading(lod);
     try {
-      const [forwardsRes, tunnelsRes, groupsRes, tlsRes] = await Promise.all([
+      const [forwardsRes, tunnelsRes, tlsRes] = await Promise.all([
         getForwardList(queriedOwner),
         userTunnel(),
-        getForwardGroups(),
         getTlsInbounds()
       ]);
 
@@ -294,11 +276,8 @@ export default function ForwardPage() {
         console.warn('获取隧道列表失败:', tunnelsRes.msg);
       }
       if (tlsRes.code === 0) setTlsInbounds(tlsRes.data || []);
-      if (groupsRes.code === 0) {
-        setRuleGroups(groupsRes.data || []);
-      }
       if (notify) {
-        if ([forwardsRes, tunnelsRes, groupsRes, tlsRes].every(result => result.code === 0)) {
+        if ([forwardsRes, tunnelsRes, tlsRes].every(result => result.code === 0)) {
           toast.success(translate("刷新成功"));
         } else {
           toast.error(translate("部分数据刷新失败，请重试"));
@@ -379,22 +358,11 @@ export default function ForwardPage() {
     setModalOpen(true);
   };
 
-  const handleCreateGroup = async () => {
-    const name = groupName.trim();
-    if (!name) return toast.error(translate("请输入分组名称"));
-    const result = await createForwardGroup(name);
-    if (result.code !== 0) return toast.error(result.msg || "创建分组失败");
-    toast.success(translate("分组已创建"));
-    setGroupName("");
-    setGroupModalOpen(false);
-    await loadData(false);
-  };
-
-  const handleBatchMeta = async (action: "group" | "clear" | "enable" | "disable", groupId?: number) => {
+  const handleBatchMeta = async (action: "clear" | "enable" | "disable") => {
     const ids = selectedForwardIds.filter(id => tableRules.some(row => row.id === id));
     if (!ids.length) return toast.error(translate("请先选择规则"));
     if (action === "clear" && !window.confirm("清空所选规则的展示流量？用户已消耗额度不会返还。")) return;
-    const result = await batchForward({ ids, action, groupId });
+    const result = await batchForward({ ids, action });
     if (result.code !== 0) return toast.error(result.msg || "批量操作失败");
     toast.success(translate("操作完成"));
     setSelectedForwardIds([]);
@@ -1174,27 +1142,18 @@ export default function ForwardPage() {
     );
   }
 
-  const ownUserId = JwtUtil.getUserIdFromToken();
   const isAdmin = isAdminWorkspace();
-  const ownRuleGroups = inspectedUserId ? [] : ruleGroups.filter(group => group.userId === ownUserId);
-  const filterRuleGroups = ownRuleGroups;
   const ruleEntries = Array.from(new Map(forwards.map(row => [row.tunnelId, {
     id: row.tunnelId, name: row.tunnelName || `#${row.tunnelId}`
   }])).values()).sort((a, b) => a.name.localeCompare(b.name));
   const nodeGroups = Array.from(new Set(tunnels.flatMap(tunnel => tunnel.entryGroups || []))).sort();
   const selectableTunnels = nodeGroupFilter === "all" ? tunnels : tunnels.filter(tunnel => tunnel.entryGroups?.includes(nodeGroupFilter));
   const tableRules = [...forwards].sort((a, b) => (a.inx ?? 0) - (b.inx ?? 0)).filter(forward => {
-    const matchesGroup = activeGroupId === -1 ||
-      (activeGroupId === 0 ? !forward.groupId : forward.groupId === activeGroupId);
     const haystack = `${forward.name} ${forward.tunnelName} ${forward.inIp} ${forward.inPort} ${forward.remoteAddr} ${forward.userName || ""}`.toLowerCase();
-    return matchesGroup && (entryFilter === "all" || forward.tunnelId === Number(entryFilter)) && haystack.includes(ruleQuery.trim().toLowerCase());
+    return (entryFilter === "all" || forward.tunnelId === Number(entryFilter)) && haystack.includes(ruleQuery.trim().toLowerCase());
   });
   const tableRuleIds = new Set(tableRules.map(row => row.id));
   const tableSelectedIds = selectedForwardIds.filter(id => tableRuleIds.has(id));
-  const selectedOwners = new Set(tableRules.filter(row => tableSelectedIds.includes(row.id)).map(row => row.userId));
-  const movableGroups = isAdmin
-    ? selectedOwners.size === 1 && selectedOwners.has(ownUserId!) ? ownRuleGroups : []
-    : ownRuleGroups;
   const pagedRules = tableRules.slice((rulePage - 1) * rulePageSize, rulePage * rulePageSize);
 
   return (
@@ -1216,15 +1175,9 @@ export default function ForwardPage() {
             <div className="flex flex-wrap items-center gap-2 text-sm">
               <Chip size="sm" variant="flat">{translate("规则数：")}{forwards.length}</Chip>
               <Chip size="sm" variant="flat">{translate("已用流量：")}{formatFlow(forwards.reduce((sum, row) => sum + (row.inFlow || 0) + (row.outFlow || 0), 0))}</Chip>
-              <Button className="rules-text-action" title={translate("管理分组")} aria-label={translate("管理分组")} size="sm" variant="bordered" isDisabled={!!inspectedUserId} onPress={() => setGroupModalOpen(true)}><RuleIcon name="group" />{translate("管理分组")}</Button>
+
               {isAdmin && <Button className="rules-text-action" title={translate("共享 TLS 入口")} aria-label={translate("共享 TLS 入口")} size="sm" variant="bordered" onPress={async () => { setTlsModalOpen(true); const result = await getNodeList(); if (result.code === 0) setTlsNodes(result.data || []); }}><RuleIcon name="tls" />{translate("共享 TLS 入口")}</Button>}
-              <Button size="sm" variant={activeGroupId === -1 ? "solid" : "flat"} onPress={() => { setActiveGroupId(-1); setRulePage(1); }}>{translate("全部")}</Button>
-              <Button size="sm" variant={activeGroupId === 0 ? "solid" : "flat"} onPress={() => { setActiveGroupId(0); setRulePage(1); }}>{translate("未分组")}</Button>
-              {filterRuleGroups.map(group => (
-                <Button key={group.id} size="sm" variant={activeGroupId === group.id ? "solid" : "flat"} onPress={() => { setActiveGroupId(group.id); setRulePage(1); }}>
-                  {isAdmin ? `${forwards.find(row => row.userId === group.userId)?.userName || `用户 #${group.userId}`} / ` : ""}{group.name}（{group.ruleCount}）
-                </Button>
-              ))}
+
             </div>
             {(searchVisible || ruleQuery) && <Input
               autoFocus
@@ -1243,13 +1196,6 @@ export default function ForwardPage() {
             <Button className="rules-text-action" title={translate("恢复选中")} aria-label={translate("恢复选中")} size="sm" variant="flat" isDisabled={!tableSelectedIds.length} onPress={() => handleBatchMeta("enable")}><RuleIcon name="play" />{translate("恢复选中")}</Button>
             <Button className="rules-text-action" title={translate("暂停选中")} aria-label={translate("暂停选中")} size="sm" variant="flat" isDisabled={!tableSelectedIds.length} onPress={() => handleBatchMeta("disable")}><RuleIcon name="pause" />{translate("暂停选中")}</Button>
             {!!tableSelectedIds.length && <>
-            <Select aria-label={translate("批量移动到分组")} size="sm" className="w-48" items={[{id: 0, name: translate("未分组")}, ...movableGroups]} selectedKeys={[String(batchGroupId)]} onSelectionChange={keys => {
-              const value = Array.from(keys)[0];
-              if (value !== undefined) setBatchGroupId(Number(value));
-            }}>
-              {group => <SelectItem key={String(group.id)}>{group.name}</SelectItem>}
-            </Select>
-            <Button className="rules-text-action" title={translate("移动分组")} aria-label={translate("移动分组")} size="sm" variant="flat" isDisabled={!tableSelectedIds.length || !!inspectedUserId} onPress={() => handleBatchMeta("group", batchGroupId)}><RuleIcon name="group" />{translate("移动分组")}</Button>
             <Button className="rules-text-action" title={translate("切换入口")} aria-label={translate("切换入口")} size="sm" variant="flat" isDisabled={!tableSelectedIds.length} onPress={() => { setBatchTunnelId(null); setSwitchResult(null); setSwitchModalOpen(true); }}><RuleIcon name="switch" />{translate("切换入口")}</Button>
             </>}
             <Button className="rules-text-action" title={translate("删除选中")} aria-label={translate("删除选中")} size="sm" color="danger" variant="flat" isDisabled={!tableSelectedIds.length} onPress={handleBatchDelete}><RuleIcon name="delete" />{translate("删除选中")}</Button>
@@ -1335,7 +1281,7 @@ export default function ForwardPage() {
                 <dl className="grid grid-cols-[6rem_1fr] gap-x-3 gap-y-2 text-sm break-all">
                   <dt className="text-default-500">{translate("名称")}</dt><dd>{detailForward.name} #{detailForward.id}</dd>
                   <dt className="text-default-500">{translate("所属用户")}</dt><dd>{detailForward.userName || `用户 #${detailForward.userId}`}</dd>
-                  <dt className="text-default-500">{translate("规则分组")}</dt><dd>{ruleGroups.find(group => group.id === detailForward.groupId)?.name || "未分组"}</dd>
+
                   <dt className="text-default-500">{translate("协议")}</dt><dd>{detailForward.protocol === "tcp" ? "TCP" : detailForward.protocol === "udp" ? "UDP" : "TCP+UDP"}</dd>
                   <dt className="text-default-500">{translate("入口")}</dt><dd>{detailForward.tunnelName} · {formatInAddress(detailForward.inIp, detailForward.inPort)}</dd>
                   <dt className="text-default-500">{translate("目标")}</dt><dd>{detailForward.remoteAddr.split(",").join(" / ")}</dd>
@@ -1432,46 +1378,6 @@ export default function ForwardPage() {
             }}>{tlsDraft.id ? translate("保存修改") : translate("创建入口")}</Button>
           </ModalFooter></ModalContent>
         </Modal>
-        <Modal isOpen={groupModalOpen} onOpenChange={setGroupModalOpen} size="md">
-          <ModalContent>
-            <ModalHeader>{translate("管理规则分组")}</ModalHeader>
-            <ModalBody>
-              <div className="flex gap-2">
-                <Input
-                  label={translate("分组名称")}
-                  value={groupName}
-                  onChange={(event) => setGroupName(event.target.value)}
-                  maxLength={64}
-                />
-                <Button color="primary" onPress={handleCreateGroup}>{translate("添加")}</Button>
-              </div>
-              <div className="space-y-2">
-                {ruleGroups.filter(group => group.userId === JwtUtil.getUserIdFromToken()).map(group => (
-                  <div key={group.id} className="flex items-center justify-between border border-divider rounded-lg p-2">
-                    <span>{group.name}（{group.ruleCount}{translate("条）")}</span>
-                    <div className="flex gap-1">
-                    <Button size="sm" variant="light" onPress={async () => {
-                      const name = window.prompt("分组新名称", group.name)?.trim();
-                      if (name === undefined) return;
-                      if (!name || name.length > 64) return toast.error(translate("分组名称须为 1–64 个字符"));
-                      const result = await updateForwardGroup(group.id, name);
-                      if (result.code !== 0) return toast.error(result.msg || "分组改名失败");
-                      await loadData(false);
-                    }}>{translate("改名")}</Button>
-                    <Button size="sm" color="danger" variant="light" onPress={async () => {
-                      if (!window.confirm("删除分组后，其中规则会移至未分组。")) return;
-                      const result = await deleteForwardGroup(group.id);
-                      if (result.code !== 0) return toast.error(result.msg || "删除分组失败");
-                      await loadData(false);
-                    }}>{translate("删除")}</Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </ModalBody>
-          </ModalContent>
-        </Modal>
-
         {/* 新增/编辑模态框 */}
         <Modal
           isOpen={modalOpen}
@@ -1552,25 +1458,6 @@ export default function ForwardPage() {
                       ))}
                     </Select>
 
-                    <Select
-                      label={translate("规则分组")}
-                      isDisabled={!!form.userId && form.userId !== JwtUtil.getUserIdFromToken()}
-                      items={[
-                        { id: 0, name: translate("未分组") },
-                        ...(form.userId && form.userId !== JwtUtil.getUserIdFromToken() && form.groupId ? [{ id: form.groupId, name: `#${form.groupId}` }] : []),
-                        ...ruleGroups.filter(group => group.userId === (form.userId || JwtUtil.getUserIdFromToken()))
-                      ]}
-                      selectedKeys={[String(form.groupId)]}
-                      onSelectionChange={(keys) => {
-                        const value = Array.from(keys)[0];
-                        if (value !== undefined) setForm(prev => ({ ...prev, groupId: Number(value) }));
-                      }}
-                      variant="bordered"
-                    >
-                      {(group) => (
-                        <SelectItem key={String(group.id)}>{group.name}</SelectItem>
-                      )}
-                    </Select>
 
                     <Input
                       isDisabled={!!form.tlsInboundId}
