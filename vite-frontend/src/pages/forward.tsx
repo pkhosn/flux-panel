@@ -1802,19 +1802,19 @@ export default function ForwardPage() {
             <div className="rules-title-row flex flex-wrap items-center gap-3">
               <h1 className="text-sm font-semibold">{translate("转发规则")}</h1>
               <div className="flex flex-wrap gap-2">
-                <Button isIconOnly size="sm" variant="bordered" title={translate("搜索规则")} aria-label={translate("搜索规则")} onPress={() => setSearchVisible(value => !value)}><RuleIcon name="search" /></Button>
+                <Button className="rules-text-action" size="sm" variant="bordered" title={translate("搜索规则")} aria-label={translate("搜索规则")} onPress={() => setSearchVisible(value => !value)}><RuleIcon name="search" />{translate("搜索规则")}</Button>
                 <Button isIconOnly title={ruleView === "table" ? translate("卡片视图") : translate("表格视图")} aria-label={translate("切换视图")} size="sm" variant="flat" onPress={() => { setSelectedForwardIds([]); setRuleView(ruleView === "table" ? "cards" : "table"); }}>
                   <RuleIcon name="view" />
                 </Button>
-                <Button isIconOnly title={translate("刷新")} aria-label={translate("刷新")} size="sm" variant="flat" onPress={() => loadData(false)}><RuleIcon name="refresh" /></Button>
-                <Button isIconOnly title={translate("统计数据")} aria-label={translate("统计数据")} size="sm" variant="flat" onPress={() => showForwardStats()}><RuleIcon name="stats" /></Button>
+                <Button className="rules-text-action" title={translate("刷新")} aria-label={translate("刷新")} size="sm" variant="flat" onPress={() => loadData(false)}><RuleIcon name="refresh" />{translate("刷新")}</Button>
+                <Button className="rules-text-action" title={translate("统计数据")} aria-label={translate("统计数据")} size="sm" variant="flat" onPress={() => showForwardStats()}><RuleIcon name="stats" />{translate("统计数据")}</Button>
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2 text-sm">
               <Chip size="sm" variant="flat">{translate("规则数：")}{forwards.length}</Chip>
               <Chip size="sm" variant="flat">{translate("已用流量：")}{formatFlow(forwards.reduce((sum, row) => sum + (row.inFlow || 0) + (row.outFlow || 0), 0))}</Chip>
-              <Button isIconOnly title={translate("管理分组")} aria-label={translate("管理分组")} size="sm" variant="bordered" onPress={() => setGroupModalOpen(true)}><RuleIcon name="group" /></Button>
-              {isAdmin && <Button isIconOnly title={translate("共享 TLS 入口")} aria-label={translate("共享 TLS 入口")} size="sm" variant="bordered" onPress={async () => { setTlsModalOpen(true); const result = await getNodeList(); if (result.code === 0) setTlsNodes(result.data || []); }}><RuleIcon name="tls" /></Button>}
+              <Button className="rules-text-action" title={translate("管理分组")} aria-label={translate("管理分组")} size="sm" variant="bordered" onPress={() => setGroupModalOpen(true)}><RuleIcon name="group" />{translate("管理分组")}</Button>
+              {isAdmin && <Button className="rules-text-action" title={translate("共享 TLS 入口")} aria-label={translate("共享 TLS 入口")} size="sm" variant="bordered" onPress={async () => { setTlsModalOpen(true); const result = await getNodeList(); if (result.code === 0) setTlsNodes(result.data || []); }}><RuleIcon name="tls" />{translate("共享 TLS 入口")}</Button>}
               <Button size="sm" variant={activeGroupId === -1 ? "solid" : "flat"} onPress={() => { setActiveGroupId(-1); setRulePage(1); }}>{translate("全部")}</Button>
               <Button size="sm" variant={activeGroupId === 0 ? "solid" : "flat"} onPress={() => { setActiveGroupId(0); setRulePage(1); }}>{translate("未分组")}</Button>
               {filterRuleGroups.map(group => (
@@ -1834,12 +1834,12 @@ export default function ForwardPage() {
         </Card>
         {ruleView === "table" && (
           <div className="rules-batch flex flex-wrap items-center gap-2">
-            <Button isIconOnly title={translate("添加规则")} aria-label={translate("添加规则")} size="sm" color="primary" onPress={handleAdd}><RuleIcon name="add" /></Button>
-            <Button isIconOnly title={translate("批量导入")} aria-label={translate("批量导入")} size="sm" variant="flat" onPress={handleImport}><RuleIcon name="import" /></Button>
-            <Button isIconOnly title={translate("批量导出")} aria-label={translate("批量导出")} size="sm" variant="flat" onPress={handleExport}><RuleIcon name="export" /></Button>
-            <Button isIconOnly title={translate("清空选中流量")} aria-label={translate("清空选中流量")} size="sm" variant="flat" isDisabled={!tableSelectedIds.length} onPress={() => handleBatchMeta("clear")}><RuleIcon name="clear" /></Button>
-            <Button isIconOnly title={translate("恢复选中")} aria-label={translate("恢复选中")} size="sm" variant="flat" isDisabled={!tableSelectedIds.length} onPress={() => handleBatchMeta("enable")}><RuleIcon name="play" /></Button>
-            <Button isIconOnly title={translate("暂停选中")} aria-label={translate("暂停选中")} size="sm" variant="flat" isDisabled={!tableSelectedIds.length} onPress={() => handleBatchMeta("disable")}><RuleIcon name="pause" /></Button>
+            <Button className="rules-text-action" title={translate("添加规则")} aria-label={translate("添加规则")} size="sm" color="primary" onPress={handleAdd}><RuleIcon name="add" />{translate("添加规则")}</Button>
+            <Button className="rules-text-action" title={translate("批量导入")} aria-label={translate("批量导入")} size="sm" variant="flat" onPress={handleImport}><RuleIcon name="import" />{translate("批量导入")}</Button>
+            <Button className="rules-text-action" title={translate("批量导出")} aria-label={translate("批量导出")} size="sm" variant="flat" onPress={handleExport}><RuleIcon name="export" />{translate("批量导出")}</Button>
+            <Button className="rules-text-action" title={translate("清空选中流量")} aria-label={translate("清空选中流量")} size="sm" variant="flat" isDisabled={!tableSelectedIds.length} onPress={() => handleBatchMeta("clear")}><RuleIcon name="clear" />{translate("清空选中流量")}</Button>
+            <Button className="rules-text-action" title={translate("恢复选中")} aria-label={translate("恢复选中")} size="sm" variant="flat" isDisabled={!tableSelectedIds.length} onPress={() => handleBatchMeta("enable")}><RuleIcon name="play" />{translate("恢复选中")}</Button>
+            <Button className="rules-text-action" title={translate("暂停选中")} aria-label={translate("暂停选中")} size="sm" variant="flat" isDisabled={!tableSelectedIds.length} onPress={() => handleBatchMeta("disable")}><RuleIcon name="pause" />{translate("暂停选中")}</Button>
             {!!tableSelectedIds.length && <>
             <Select aria-label={translate("批量移动到分组")} size="sm" className="w-48" items={[{id: 0, name: translate("未分组")}, ...movableGroups]} selectedKeys={[String(batchGroupId)]} onSelectionChange={keys => {
               const value = Array.from(keys)[0];
@@ -1847,16 +1847,16 @@ export default function ForwardPage() {
             }}>
               {group => <SelectItem key={String(group.id)}>{group.name}</SelectItem>}
             </Select>
-            <Button isIconOnly title={translate("移动分组")} aria-label={translate("移动分组")} size="sm" variant="flat" isDisabled={!tableSelectedIds.length} onPress={() => handleBatchMeta("group", batchGroupId)}><RuleIcon name="group" /></Button>
+            <Button className="rules-text-action" title={translate("移动分组")} aria-label={translate("移动分组")} size="sm" variant="flat" isDisabled={!tableSelectedIds.length} onPress={() => handleBatchMeta("group", batchGroupId)}><RuleIcon name="group" />{translate("移动分组")}</Button>
             <Select aria-label={translate("批量目标隧道")} size="sm" className="w-48" placeholder={translate("目标隧道")} selectedKeys={batchTunnelId ? [String(batchTunnelId)] : []} onSelectionChange={keys => {
               const value = Array.from(keys)[0];
               setBatchTunnelId(value === undefined ? null : Number(value));
             }}>
               {tunnels.map(tunnel => <SelectItem key={String(tunnel.id)}>{tunnel.name}</SelectItem>)}
             </Select>
-            <Button isIconOnly title={translate("切换入口")} aria-label={translate("切换入口")} size="sm" variant="flat" isDisabled={!tableSelectedIds.length || !batchTunnelId} onPress={handleBatchSwitch}><RuleIcon name="switch" /></Button>
+            <Button className="rules-text-action" title={translate("切换入口")} aria-label={translate("切换入口")} size="sm" variant="flat" isDisabled={!tableSelectedIds.length || !batchTunnelId} onPress={handleBatchSwitch}><RuleIcon name="switch" />{translate("切换入口")}</Button>
             </>}
-            <Button isIconOnly title={translate("删除选中")} aria-label={translate("删除选中")} size="sm" color="danger" variant="flat" isDisabled={!tableSelectedIds.length} onPress={handleBatchDelete}><RuleIcon name="delete" /></Button>
+            <Button className="rules-text-action" title={translate("删除选中")} aria-label={translate("删除选中")} size="sm" color="danger" variant="flat" isDisabled={!tableSelectedIds.length} onPress={handleBatchDelete}><RuleIcon name="delete" />{translate("删除选中")}</Button>
             {!!tableSelectedIds.length && <span className="text-sm text-default-500">{translate("已选择")}{tableSelectedIds.length}{translate("条")}</span>}
           </div>
         )}
