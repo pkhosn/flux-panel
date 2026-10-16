@@ -12,7 +12,7 @@ REPO_OWNER="pkhosn"
 REPO_NAME="flux-panel"
 REPO_BRANCH="beta"
 COMPOSE_PROJECT_NAME="flux-panel"
-SCRIPT_VERSION="2026-10-16.1"
+SCRIPT_VERSION="2026-10-16.2"
 DOCKER_COMPOSEV4_URL="https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/refs/heads/${REPO_BRANCH}/docker-compose-v4.yml"
 DOCKER_COMPOSEV6_URL="https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/refs/heads/${REPO_BRANCH}/docker-compose-v6.yml"
 
@@ -63,7 +63,7 @@ compose() {
 build_panel() {
   echo "🏗️ 构建后端（1/2）..."
   compose "$@" build backend || return 1
-  echo "🏗️ 构建前端（2/2）..."
+  echo "📦 下载已编译前端并构建 Nginx 镜像（2/2）..."
   compose "$@" build frontend || return 1
 }
 

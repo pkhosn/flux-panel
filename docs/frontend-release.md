@@ -1,0 +1,43 @@
+# 前端本机发布
+
+## 计划（已获用户确认）
+
+- [x] 本机沿用 npm build 编译静态文件，生成 tar.gz 与 SHA256。
+- [x] 新增只包含 Nginx 的生产 Dockerfile，固定下载版本并校验 SHA256；两份 Compose 默认使用它。
+- [x] 本地验证静态包、生产镜像、HTTP 页面，以及下载失败不替换服务。
+- [x] 上传独立 GitHub Release 资源，确认公网可下载后推送 beta；记录后续默认发布规范。
+
+生产操作仍为 `git pull --ff-only origin beta` 后运行 `./panel_install.sh`，选择 2。后端仍在生产服务器构建。前端下载或校验失败直接终止，运行中的服务继续保留，不回退到源码编译。
+
+## 默认发布约定
+
+今后前端改动必须在本机编译、验证和发布静态资源后才算交付完成，不使用 CI。生产使用 `vite-frontend/Dockerfile.prebuilt`；`Dockerfile` 保留作为本地源码构建入口。
+
+前端资源使用独立版本，例如 `frontend-2026.10.16.1`，不覆盖已有 Agent Release。包包含 `dist` 内容以及记录前端源码树 ID 的 `build-info.json`。生产 Dockerfile 固定版本和 SHA256，禁止使用 `latest` 或覆盖已发布资源。
+
+本机沿用现有构建命令：
+
+```bash
+NODE_OPTIONS=--max-old-space-size=768 npm --prefix vite-frontend run build
+```
+
+随后将 dist 内容用系统 tar 打包，记录 SHA256，把版本与校验值写入生产 Dockerfile。发布上传 tar.gz 和校验文件后，确认匿名下载与 SHA256 一致，再推送部署配置。安装及更新只从该固定地址取包；旧安装使用选项 2 时会自动下载新 Compose 切换到此方式。
+
+
+## 首次发布验证
+
+版本：`frontend-2026.10.16.1`，前端源码基准 `c6ddc03`。包大小 1,512,722 字节。
+
+```bash
+bash -n panel_install.sh
+git diff --check
+docker build -f vite-frontend/Dockerfile.prebuilt -t flux-frontend-prebuilt-check:local vite-frontend
+curl -fL https://github.com/pkhosn/flux-panel/releases/download/frontend-2026.10.16.1/flux-frontend.tar.gz -o /tmp/flux-frontend-public.tar.gz
+sha256sum /tmp/flux-frontend-public.tar.gz
+```
+
+SHA256：`dc2031203c2084d7efce6e201d17499df84c1a552e2d73ca7dbcf96fdcfa7763`。
+
+本机实际构建生产镜像成功；临时容器仅绑定 `127.0.0.1:26367`，检查 `/forward` 返回页面、`/build-info.json` 返回对应版本后已清理。两份 Compose `config -q` 通过；规则交互浏览器检查通过。传入全零 FRONTEND_SHA256 时构建按预期失败；模拟前端构建失败时原配置不变，未执行接管或启动。未连接生产数据库。
+
+本地打包使用系统 `tar -czf /tmp/flux-frontend.tar.gz -C vite-frontend/dist .`，然后执行 `sha256sum /tmp/flux-frontend.tar.gz`。`build-info.json` 须在打包前写入本次版本和前端源码树 ID（`git rev-parse HEAD:vite-frontend`）；若前端修改尚未提交，应先提交已验证的源码再生成版本信息。每次重新打包须以实际生成包的 SHA256 更新生产 Dockerfile。

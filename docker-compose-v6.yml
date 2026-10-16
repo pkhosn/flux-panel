@@ -29,7 +29,7 @@ services:
   frontend:
     build:
       context: https://github.com/pkhosn/flux-panel.git#beta:vite-frontend
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.prebuilt
     image: pkhosn/vite-frontend:2.0.8-beta
     restart: unless-stopped
     ports:
