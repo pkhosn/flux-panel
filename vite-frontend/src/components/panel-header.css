@@ -1,5 +1,5 @@
 .panel-header{height:56px;min-height:56px;display:flex;align-items:center;justify-content:space-between;background:#fff;border-bottom:1px solid #e9ebef;box-shadow:none;position:relative;z-index:30;color:#293548}
-.panel-header-brand{width:240px;height:55px;flex:0 0 240px;background:#fafafa;border-right:1px solid #e9ebef;padding:0 12px 0 14px;display:flex;align-items:center;gap:8px;min-width:0}
+.panel-header-brand{width:240px;height:55px;flex:0 0 240px;background:#fff;border-right:1px solid #e9ebef;padding:0 12px 0 14px;display:flex;align-items:center;gap:8px;min-width:0}
 .panel-header-brand-link{display:flex;align-items:center;gap:9px;min-width:0;flex:1;color:inherit;font-size:17px;font-weight:700;text-decoration:none}
 .panel-header-brand-link span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .panel-header-logo{width:26px;height:26px;object-fit:contain;flex-shrink:0}
@@ -20,7 +20,7 @@
 .panel-header-brand.is-compact .panel-header-brand-link span,.panel-header-brand.is-compact .panel-header-collapse{display:none}
 .panel-header-avatar.is-vip{border-color:#eddbad}
 .dark .panel-header{background:#15181e;color:#e5e9f0;border-bottom-color:#303641}
-.dark .panel-header-brand{background:#191d24;border-right-color:#303641}
+.dark .panel-header-brand{background:#15181e;border-right-color:#303641}
 .dark .panel-header-tool{background:#262c36;color:#a6b3c8}
 .dark .panel-header-tool:hover{background:#343d4a}
 .dark .panel-header-collapse{color:#a6b3c8}

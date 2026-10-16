@@ -760,5 +760,20 @@
   "该操作只会重置隧道权限流量不会重置账号流量，重置后该隧道权限的上下行流量将归零，此操作不可撤销。": "This operation will only reset the tunnel permission traffic but not the account traffic. After the reset, the upstream and downstream traffic of the tunnel permission will be reset to zero. This operation cannot be undone.",
   "出口/目标": "Egress / Target",
   "页": "page",
-  "切换视图": "Switch view"
+  "切换视图": "Switch view",
+  "快捷管理": "Quick management",
+  "管理后台": "Administration",
+  "快捷入口": "Quick links",
+  "选择需要管理的内容": "Choose what you want to manage",
+  "进入管理": "Open",
+  "管理转发规则、分组及入口配置": "Manage forwarding rules, groups and ingress settings",
+  "购买套餐、兑换额度和查询订单": "Buy plans, redeem credits and view orders",
+  "管理账号、套餐分配和用户转发权限": "Manage accounts, plans and forwarding permissions",
+  "配置套餐额度、有效期和销售价格": "Configure plan quotas, validity and prices",
+  "查看节点运行状态并管理 Agent": "Monitor nodes and manage agents",
+  "配置入口、出口和转发链路": "Configure ingress, egress and forwarding chains",
+  "配置并管理转发速率限制": "Configure forwarding rate limits",
+  "生成和管理套餐兑换码": "Create and manage plan redemption codes",
+  "设置品牌、站点公告和支付接口": "Configure branding, announcements and payments",
+  "查看账户资料和套餐使用情况": "View account details and plan usage"
 }

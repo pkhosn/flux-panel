@@ -1,14 +1,13 @@
 import { translate } from '@/utils/locale';
 import { Card, CardBody, CardHeader } from "@heroui/card";
-import { Button } from "@heroui/button";
-import { Modal, ModalContent, ModalHeader, ModalBody } from "@heroui/modal";
+import { Link } from "react-router-dom";
+import { JwtUtil } from "@/utils/jwt";
 import { useState, useEffect } from "react";
 import toast from 'react-hot-toast';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 
 import { getUserPackageInfo } from "@/api";
-import { copyText } from "@/utils/clipboard";
 
 interface UserInfo {
   flow: number;
@@ -44,13 +43,6 @@ interface Forward {
   outFlow: number;
 }
 
-interface AddressItem {
-  id: number;
-  ip: string;
-  address: string;
-  copying: boolean;
-}
-
 interface StatisticsFlow {
   id: number;
   userId: number;
@@ -59,6 +51,79 @@ interface StatisticsFlow {
   time: string;
 }
 
+const dashboardEntries = [
+  {
+    "path": "/forward",
+    "title": "转发管理",
+    "description": "管理转发规则、分组及入口配置",
+    "icon": "M4 7h16m-4-4 4 4-4 4M20 17H4l4-4m-4 4 4 4",
+    "adminOnly": false
+  },
+  {
+    "path": "/billing",
+    "title": "购买充值",
+    "description": "购买套餐、兑换额度和查询订单",
+    "icon": "M4 3h16v18l-4-2-4 2-4-2-4 2zM8 8h8m-8 4h6",
+    "adminOnly": false
+  },
+  {
+    "path": "/user",
+    "title": "用户管理",
+    "description": "管理账号、套餐分配和用户转发权限",
+    "icon": "M20 21v-2a7 7 0 0 0-14 0v2M17 7a5 5 0 1 1-10 0 5 5 0 0 1 10 0",
+    "adminOnly": true
+  },
+  {
+    "path": "/plan",
+    "title": "套餐管理",
+    "description": "配置套餐额度、有效期和销售价格",
+    "icon": "M3 7h7l2 2h9v12H3zM3 7V3h7l2 4m2 6v5m-3-2h6",
+    "adminOnly": true
+  },
+  {
+    "path": "/node",
+    "title": "节点监控",
+    "description": "查看节点运行状态并管理 Agent",
+    "icon": "M3 3h18v14H3zM8 21h8m-4-4v4",
+    "adminOnly": true
+  },
+  {
+    "path": "/tunnel",
+    "title": "隧道管理",
+    "description": "配置入口、出口和转发链路",
+    "icon": "M3 4h6v6H3zM15 14h6v6h-6zM6 10v7h9m3-3V7H9",
+    "adminOnly": true
+  },
+  {
+    "path": "/limit",
+    "title": "限速管理",
+    "description": "配置并管理转发速率限制",
+    "icon": "M4 19a9 9 0 1 1 16 0M12 13l5-5m-6 5h2v2h-2z",
+    "adminOnly": true
+  },
+  {
+    "path": "/redeem",
+    "title": "兑换码管理",
+    "description": "生成和管理套餐兑换码",
+    "icon": "M3 7h18v5a3 3 0 0 0 0 6v3H3v-3a3 3 0 0 0 0-6zM15 7v3m0 4v3",
+    "adminOnly": true
+  },
+  {
+    "path": "/config",
+    "title": "网站配置",
+    "description": "设置品牌、站点公告和支付接口",
+    "icon": "M12 3v2m0 14v2M3 12h2m14 0h2M6 6l2 2m8 8 2 2M6 18l2-2m8-8 2-2M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0",
+    "adminOnly": true
+  },
+  {
+    "path": "/profile",
+    "title": "个人中心",
+    "description": "查看账户资料和套餐使用情况",
+    "icon": "M4 21v-2a8 8 0 0 1 16 0v2M16 6a4 4 0 1 1-8 0 4 4 0 0 1 8 0",
+    "adminOnly": false
+  }
+];
+
 export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [userInfo, setUserInfo] = useState<UserInfo>({} as UserInfo);
@@ -66,10 +131,6 @@ export default function DashboardPage() {
   const [forwardList, setForwardList] = useState<Forward[]>([]);
   const [statisticsFlows, setStatisticsFlows] = useState<StatisticsFlow[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
-
-  const [addressModalOpen, setAddressModalOpen] = useState(false);
-  const [addressModalTitle, setAddressModalTitle] = useState('');
-  const [addressList, setAddressList] = useState<AddressItem[]>([]);
 
   // 检查有效期通知
   const checkExpirationNotifications = (userInfo: UserInfo, tunnels: UserTunnel[]) => {
@@ -170,8 +231,7 @@ export default function DashboardPage() {
     setStatisticsFlows([]);
 
     // 检查用户是否是管理员
-    const adminStatus = localStorage.getItem('admin');
-    setIsAdmin(adminStatus === 'true');
+    setIsAdmin(JwtUtil.getRoleIdFromToken() === 0);
 
     loadPackageData();
     localStorage.setItem('e', '/dashboard');
@@ -409,201 +469,6 @@ export default function DashboardPage() {
     } else {
       return `${daysUntilReset}天后重置`;
     }
-  };
-
-  const groupedForwards = () => {
-    const groups: { [key: string]: { tunnelName: string; forwards: Forward[] } } = {};
-    forwardList.forEach(forward => {
-      const tunnelName = forward.tunnelName || '未知隧道';
-      if (!groups[tunnelName]) {
-        groups[tunnelName] = {
-          tunnelName,
-          forwards: []
-        };
-      }
-      groups[tunnelName].forwards.push(forward);
-    });
-    return Object.values(groups);
-  };
-
-  const formatInAddress = (ipString: string, port: number): string => {
-    if (!ipString) return '';
-
-    const items = ipString.split(',').map(item => item.trim()).filter(item => item);
-    if (items.length === 0) return '';
-
-    // 检查第一项是否已经包含端口（格式：IP:端口）
-    const firstItem = items[0];
-    const hasPort = /:\d+$/.test(firstItem);
-
-    if (hasPort) {
-      // inIp 已经包含完整的 IP:Port 组合
-      if (items.length === 1) {
-        return items[0];
-      }
-      return `${items[0]} (+${items.length - 1}个)`;
-    }
-
-    // inIp 只包含IP，需要添加端口（兼容旧数据）
-    if (!port) return '';
-
-    if (items.length === 1) {
-      const ip = items[0];
-      if (ip.includes(':') && !ip.startsWith('[')) {
-        return `[${ip}]:${port}`;
-      } else {
-        return `${ip}:${port}`;
-      }
-    }
-
-    const firstIp = items[0];
-    let formattedFirstIp;
-    if (firstIp.includes(':') && !firstIp.startsWith('[')) {
-      formattedFirstIp = `[${firstIp}]`;
-    } else {
-      formattedFirstIp = firstIp;
-    }
-
-    return `${formattedFirstIp}:${port} (+${items.length - 1}个)`;
-  };
-
-  const formatRemoteAddress = (remoteAddr: string): string => {
-    if (!remoteAddr) return '';
-
-    const addresses = remoteAddr.split(',').map(addr => addr.trim()).filter(addr => addr);
-
-    if (addresses.length === 0) return '';
-
-    if (addresses.length === 1) {
-      return addresses[0];
-    }
-
-    return `${addresses[0]} (+${addresses.length - 1})`;
-  };
-
-  const hasMultipleIps = (ipString: string): boolean => {
-    if (!ipString) return false;
-    const ips = ipString.split(',').map(ip => ip.trim()).filter(ip => ip);
-    return ips.length > 1;
-  };
-
-  const hasMultipleRemoteAddresses = (remoteAddr: string): boolean => {
-    if (!remoteAddr) return false;
-    const addresses = remoteAddr.split(',').map(addr => addr.trim()).filter(addr => addr);
-    return addresses.length > 1;
-  };
-
-  const showAddressModal = (ipString: string, port: number, title: string) => {
-    if (!ipString) return;
-
-    const items = ipString.split(',').map(item => item.trim()).filter(item => item);
-
-    if (items.length <= 1) {
-      copyToClipboard(formatInAddress(ipString, port));
-      return;
-    }
-
-    // 检查是否已经包含端口
-    const hasPort = /:\d+$/.test(items[0]);
-
-    let formattedList;
-    if (hasPort) {
-      // 已经包含完整的 IP:Port 组合，直接使用
-      formattedList = items.map((item, index) => ({
-        id: index,
-        ip: item,
-        address: item,
-        copying: false
-      }));
-    } else {
-      // 只包含IP，需要添加端口
-      formattedList = items.map((ip, index) => {
-        let formattedAddress;
-        if (ip.includes(':') && !ip.startsWith('[')) {
-          formattedAddress = `[${ip}]:${port}`;
-        } else {
-          formattedAddress = `${ip}:${port}`;
-        }
-        return {
-          id: index,
-          ip: ip,
-          address: formattedAddress,
-          copying: false
-        };
-      });
-    }
-
-    setAddressList(formattedList);
-    setAddressModalTitle(`${title} (${items.length}个)`);
-    setAddressModalOpen(true);
-  };
-
-  const showRemoteAddressModal = (remoteAddr: string, title: string) => {
-    if (!remoteAddr) return;
-
-    const addresses = remoteAddr.split(',').map(addr => addr.trim()).filter(addr => addr);
-
-    if (addresses.length <= 1) {
-              copyToClipboard(remoteAddr);
-      return;
-    }
-
-    const formattedList = addresses.map((address, index) => {
-      return {
-        id: index,
-        ip: address,
-        address: address,
-        copying: false
-      };
-    });
-
-    setAddressList(formattedList);
-    setAddressModalTitle(`${title} (${addresses.length}个)`);
-    setAddressModalOpen(true);
-  };
-
-  const copyToClipboard = async (text: string) => {
-    try {
-      const copied = await copyText(text);
-      if (!copied) {
-        toast.error(translate("复制失败"));
-        return;
-      }
-      toast.success(`已复制`);
-    } catch (error) {
-      toast.error(translate("复制失败"));
-    }
-  };
-
-  const copyAddress = async (addressItem: AddressItem) => {
-    try {
-      setAddressList(prev => prev.map(item =>
-        item.id === addressItem.id ? { ...item, copying: true } : item
-      ));
-      await copyToClipboard(addressItem.address);
-    } catch (error) {
-      toast.error(translate("复制失败"));
-    } finally {
-      setAddressList(prev => prev.map(item =>
-        item.id === addressItem.id ? { ...item, copying: false } : item
-      ));
-    }
-  };
-
-  const copyAllAddresses = async () => {
-    if (addressList.length === 0) return;
-    const allAddresses = addressList.map(item => item.address).join('\n');
-    await copyToClipboard(allAddresses);
-  };
-
-  const calculateForwardBillingFlow = (forward: Forward): number => {
-    if (!forward) return 0;
-
-    const inFlow = forward.inFlow || 0;
-    const outFlow = forward.outFlow || 0;
-
-    // 后端已按计费类型处理流量，前端直接使用入站+出站总和
-    return inFlow + outFlow;
   };
 
       if (loading) {
@@ -870,117 +735,20 @@ export default function DashboardPage() {
         </Card>
          )}
 
-                 {/* 转发配置 */}
-         <Card className="border border-gray-200 dark:border-default-200 shadow-md">
-           <CardHeader className="pb-3">
-             <div className="flex items-center gap-2">
-               <svg className="w-5 h-5 text-primary" fill="currentColor" viewBox="0 0 20 20">
-                 <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
-               </svg>
-               <h2 className="text-lg lg:text-xl font-semibold text-foreground">{translate("转发配置")}</h2>
-               <span className="px-2 py-1 bg-default-100 dark:bg-default-50 text-default-600 rounded-full text-xs">
-                 {forwardList.length}
-               </span>
-             </div>
-           </CardHeader>
-           <CardBody className="pt-0">
-            {groupedForwards().length === 0 ? (
-              <div className="text-center py-12">
-                <svg className="w-12 h-12 text-default-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 9l4-4 4 4m0 6l-4 4-4-4" />
-                </svg>
-                <p className="text-default-500">{translate("暂无转发配置")}</p>
-              </div>
-            ) : (
-                             <div className="space-y-4">
-                 {groupedForwards().map((group) => (
-                   <div key={group.tunnelName} className="border border-gray-200 dark:border-default-100 rounded-lg p-3 lg:p-4">
-                     <div className="flex items-center justify-between mb-3">
-                       <h3 className="font-semibold text-foreground">{group.tunnelName}</h3>
-                       <span className="px-2 py-1 bg-primary-100 dark:bg-primary-500/20 text-primary-700 dark:text-primary-300 rounded-md text-sm">
-                         {group.forwards.length}{translate("个转发")}</span>
-                     </div>
-
-                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
-                       {group.forwards.map((forward) => (
-                         <div key={forward.id} className="bg-white dark:bg-default-100/50 border border-gray-200 dark:border-default-200 rounded-lg p-3 hover:shadow-md transition-shadow">
-                          <div className="space-y-3">
-                            <div>
-                              <h4 className="font-medium text-foreground text-sm mb-2 truncate">{forward.name}</h4>
-                              <div className="space-y-1">
-                                <code
-                                  className={`block px-2 py-1 bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-300 rounded font-mono text-xs truncate ${hasMultipleIps(forward.inIp) ? 'cursor-pointer hover:bg-green-200 dark:hover:bg-green-500/30' : ''}`}
-                                  onClick={() => hasMultipleIps(forward.inIp) && showAddressModal(forward.inIp, forward.inPort, '入口地址')}
-                                  title={formatInAddress(forward.inIp, forward.inPort)}
-                                >
-                                  {formatInAddress(forward.inIp, forward.inPort)}
-                                </code>
-                                <div className="text-center text-default-400 text-xs">↓</div>
-                                <code
-                                  className={`block px-2 py-1 bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 rounded font-mono text-xs truncate ${hasMultipleRemoteAddresses(forward.remoteAddr) ? 'cursor-pointer hover:bg-blue-200 dark:hover:bg-blue-500/30' : ''}`}
-                                  onClick={() => hasMultipleRemoteAddresses(forward.remoteAddr) && showRemoteAddressModal(forward.remoteAddr, '出口地址')}
-                                  title={formatRemoteAddress(forward.remoteAddr)}
-                                >
-                                  {formatRemoteAddress(forward.remoteAddr)}
-                                </code>
-                              </div>
-                            </div>
-
-                            <div className="pt-2 border-t border-gray-200 dark:border-default-200">
-                              <div className="grid grid-cols-3 gap-1 text-xs">
-                                <div className="text-center">
-                                  <div className="text-default-500 mb-1">{translate("上传")}</div>
-                                  <div className="font-medium text-green-600 dark:text-green-400 truncate">{formatFlow(forward.inFlow || 0)}</div>
-                                </div>
-                                <div className="text-center">
-                                  <div className="text-default-500 mb-1">{translate("下载")}</div>
-                                  <div className="font-medium text-orange-600 dark:text-orange-400 truncate">{formatFlow(forward.outFlow || 0)}</div>
-                                </div>
-                                <div className="text-center">
-                                  <div className="text-default-500 mb-1">{translate("计费")}</div>
-                                  <div className="font-medium text-primary truncate">{formatFlow(calculateForwardBillingFlow(forward))}</div>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardBody>
-        </Card>
-
-        {/* 地址列表弹窗 */}
-        <Modal isOpen={addressModalOpen} onClose={() => setAddressModalOpen(false)} size="2xl"
-        scrollBehavior="outside"
-        backdrop="blur"
-        placement="center">
-          <ModalContent>
-            <ModalHeader className="text-base">{addressModalTitle}</ModalHeader>
-            <ModalBody className="pb-6">
-              <div className="mb-4 text-right">
-                <Button size="sm" onClick={copyAllAddresses}>{translate("复制全部")}</Button>
-              </div>
-
-              <div className="space-y-2 max-h-60 overflow-y-auto">
-                {addressList.map((item) => (
-                  <div key={item.id} className="flex justify-between items-center p-3 border border-default-200 dark:border-default-100 rounded-lg">
-                    <code className="text-sm flex-1 mr-3 text-foreground">{item.address}</code>
-                    <Button
-                      size="sm"
-                      variant="light"
-                      isLoading={item.copying}
-                      onClick={() => copyAddress(item)}
-                    >{translate("复制")}</Button>
-                  </div>
-                ))}
-              </div>
-            </ModalBody>
-          </ModalContent>
-        </Modal>
+        <section aria-label={translate("快捷管理")} className="mt-6">
+          <h2 className="text-xl font-semibold text-foreground">{translate(isAdmin ? "管理后台" : "快捷入口")}</h2>
+          <p className="mt-2 mb-6 text-sm text-default-500">{translate("选择需要管理的内容")}</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 min-[1800px]:grid-cols-6 gap-5">
+            {dashboardEntries.filter(entry => isAdmin || !entry.adminOnly).map(entry => (
+              <Link key={entry.path} to={entry.path} className="group flex min-h-[194px] flex-col items-start rounded-[20px] border border-default-200 bg-content1 p-6 shadow-sm transition-colors hover:border-primary-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
+                <svg aria-hidden="true" width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="mb-5 text-primary"><path d={entry.icon} /></svg>
+                <h3 className="text-base font-semibold text-foreground">{translate(entry.title)}</h3>
+                <p className="mt-3 mb-5 text-xs leading-6 text-default-500">{translate(entry.description)}</p>
+                <span className="mt-auto text-xs text-primary">{translate("进入管理")} <span aria-hidden="true">→</span></span>
+              </Link>
+            ))}
+          </div>
+        </section>
       </div>
 
   );
