@@ -181,6 +181,7 @@ export default function ForwardPage() {
   const [ruleQuery, setRuleQuery] = useState("");
   const [searchVisible, setSearchVisible] = useState(false);
   const [activeGroupId, setActiveGroupId] = useState(-1);
+  const [entryFilter, setEntryFilter] = useState("all");
   const [rulePage, setRulePage] = useState(1);
   const [rulePageSize, setRulePageSize] = useState(20);
   const [statsOpen, setStatsOpen] = useState(false);
@@ -252,6 +253,7 @@ export default function ForwardPage() {
   useEffect(() => {
     setSelectedForwardIds([]);
     setActiveGroupId(-1);
+    setEntryFilter("all");
     setRulePage(1);
     loadData();
   }, [inspectedUserId]);
@@ -1158,11 +1160,14 @@ export default function ForwardPage() {
   const isAdmin = isAdminWorkspace();
   const ownRuleGroups = inspectedUserId ? [] : ruleGroups.filter(group => group.userId === ownUserId);
   const filterRuleGroups = ownRuleGroups;
+  const ruleEntries = Array.from(new Map(forwards.map(row => [row.tunnelId, {
+    id: row.tunnelId, name: row.tunnelName || `#${row.tunnelId}`
+  }])).values()).sort((a, b) => a.name.localeCompare(b.name));
   const tableRules = [...forwards].sort((a, b) => (a.inx ?? 0) - (b.inx ?? 0)).filter(forward => {
     const matchesGroup = activeGroupId === -1 ||
       (activeGroupId === 0 ? !forward.groupId : forward.groupId === activeGroupId);
     const haystack = `${forward.name} ${forward.tunnelName} ${forward.inIp} ${forward.inPort} ${forward.remoteAddr} ${forward.userName || ""}`.toLowerCase();
-    return matchesGroup && haystack.includes(ruleQuery.trim().toLowerCase());
+    return matchesGroup && (entryFilter === "all" || forward.tunnelId === Number(entryFilter)) && haystack.includes(ruleQuery.trim().toLowerCase());
   });
   const tableRuleIds = new Set(tableRules.map(row => row.id));
   const tableSelectedIds = selectedForwardIds.filter(id => tableRuleIds.has(id));
@@ -1200,6 +1205,21 @@ export default function ForwardPage() {
                 </Button>
               ))}
             </div>
+            <Select
+              aria-label={translate("入口筛选")}
+              label={translate("入口筛选")}
+              size="sm"
+              variant="bordered"
+              className="w-full sm:max-w-xs"
+              selectedKeys={[entryFilter]}
+              items={[{ id: 'all', name: translate("全部入口") }, ...ruleEntries.map(entry => ({ id: String(entry.id), name: entry.name }))]}
+              onSelectionChange={keys => {
+                const value = Array.from(keys)[0];
+                if (value !== undefined) { setEntryFilter(String(value)); setRulePage(1); }
+              }}
+            >
+              {entry => <SelectItem key={entry.id}>{entry.name}</SelectItem>}
+            </Select>
             {(searchVisible || ruleQuery) && <Input
               autoFocus
               aria-label={translate("搜索规则")}

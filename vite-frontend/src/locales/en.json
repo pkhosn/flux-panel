@@ -781,5 +781,7 @@
   "我的转发": "My forwarding rules",
   "查看规则": "View rules",
   "用户规则": "User rules",
-  "返回用户管理": "Back to users"
+  "返回用户管理": "Back to users",
+  "入口筛选": "Filter by ingress",
+  "全部入口": "All ingress routes"
 }
