@@ -793,5 +793,10 @@
   "例如：日本、香港、专线；留空为未分组": "For example: Japan, Hong Kong, dedicated line; leave blank for ungrouped",
   "目标筛选": "Filter by destination",
   "全部目标": "All destinations",
-  "高级功能": "Advanced features"
+  "高级功能": "Advanced features",
+  "规则，选择目标隧道后确认切换。": " rules. Select a destination tunnel and confirm.",
+  "请选择要切换的隧道": "Select the destination tunnel",
+  "切换会关闭旧连接，并重新分配监听端口。": "Switching closes existing connections and reallocates listening ports.",
+  "确认切换": "Confirm switch",
+  "批量切换失败": "Batch switch failed"
 }

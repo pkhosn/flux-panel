@@ -162,14 +162,13 @@ interface DiagnosisResult {
 }
 
 export default function ForwardPage() {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const rawUserId = Number(searchParams.get('userId'));
   const queriedOwner = isAdminWorkspace() ? (Number.isSafeInteger(rawUserId) && rawUserId > 0 ? rawUserId : 0) : undefined;
   const inspectedUserId = isAdminWorkspace() && Number.isSafeInteger(rawUserId) && rawUserId > 0
     && rawUserId !== JwtUtil.getUserIdFromToken() ? rawUserId : undefined;
 
   const [loading, setLoading] = useState(true);
-  const [ruleOwners, setRuleOwners] = useState<{id: number; name: string}[]>([]);
   const [forwards, setForwards] = useState<Forward[]>([]);
   const [tunnels, setTunnels] = useState<Tunnel[]>([]);
   const [tlsInbounds, setTlsInbounds] = useState<{id: number; tunnelId: number; name: string; port: number; allowedSni: string; enabled: number; policy: string}[]>([]);
@@ -186,7 +185,6 @@ export default function ForwardPage() {
   const [searchVisible, setSearchVisible] = useState(false);
   const [activeGroupId, setActiveGroupId] = useState(-1);
   const [entryFilter, setEntryFilter] = useState("all");
-  const [targetFilter, setTargetFilter] = useState("all");
   const [nodeGroupFilter, setNodeGroupFilter] = useState("all");
   const [rulePage, setRulePage] = useState(1);
   const [rulePageSize, setRulePageSize] = useState(20);
@@ -196,6 +194,8 @@ export default function ForwardPage() {
   const [ruleHours, setRuleHours] = useState<ForwardHour[]>([]);
   const [batchGroupId, setBatchGroupId] = useState(0);
   const [batchTunnelId, setBatchTunnelId] = useState<number | null>(null);
+  const [switchModalOpen, setSwitchModalOpen] = useState(false);
+  const [switchLoading, setSwitchLoading] = useState(false);
 
   // 模态框状态
   const [modalOpen, setModalOpen] = useState(false);
@@ -281,10 +281,7 @@ export default function ForwardPage() {
           serviceRunning: forward.status === 1
         })) || [];
         setForwards(forwardsData);
-        if (isAdminWorkspace()) setRuleOwners(previous => Array.from(new Map([
-          ...previous.map(user => [user.id, user] as const),
-          ...forwardsData.map((row: Forward) => [row.userId!, { id: row.userId!, name: row.userName || `#${row.userId}` }] as const)
-        ]).values()));
+
 
       } else {
         toast.error(forwardsRes.msg || '获取转发列表失败');
@@ -404,14 +401,22 @@ export default function ForwardPage() {
   };
 
   const handleBatchSwitch = async () => {
+    if (switchLoading) return;
     const ids = selectedForwardIds.filter(id => tableRules.some(row => row.id === id));
     if (!ids.length || !batchTunnelId) return toast.error(translate("请选择规则和目标隧道"));
-    if (!window.confirm("切换所选规则的入口？旧连接会关闭，并重新分配监听端口。")) return;
-    const result = await batchForward({ ids, action: "switch", tunnelId: batchTunnelId });
-    if (result.code !== 0) return toast.error(result.msg || "批量切换失败");
-    toast.success(translate("入口切换完成"));
-    setSelectedForwardIds([]);
-    await loadData(false);
+    setSwitchLoading(true);
+    try {
+      const result = await batchForward({ ids, action: "switch", tunnelId: batchTunnelId });
+      if (result.code !== 0) return toast.error(result.msg || translate("批量切换失败"));
+      toast.success(translate("入口切换完成"));
+      setSwitchModalOpen(false);
+      setSelectedForwardIds([]);
+      await loadData(false);
+    } catch {
+      toast.error(translate("批量切换失败"));
+    } finally {
+      setSwitchLoading(false);
+    }
   };
 
   const showForwardStats = async (forward?: Forward) => {
@@ -1175,15 +1180,13 @@ export default function ForwardPage() {
   const ruleEntries = Array.from(new Map(forwards.map(row => [row.tunnelId, {
     id: row.tunnelId, name: row.tunnelName || `#${row.tunnelId}`
   }])).values()).sort((a, b) => a.name.localeCompare(b.name));
-  const ruleTargets = Array.from(new Set(forwards.flatMap(row => row.remoteAddr.split(",").map(address => address.trim()).filter(Boolean)))).sort();
-  const ruleUsers = ruleOwners;
   const nodeGroups = Array.from(new Set(tunnels.flatMap(tunnel => tunnel.entryGroups || []))).sort();
   const selectableTunnels = nodeGroupFilter === "all" ? tunnels : tunnels.filter(tunnel => tunnel.entryGroups?.includes(nodeGroupFilter));
   const tableRules = [...forwards].sort((a, b) => (a.inx ?? 0) - (b.inx ?? 0)).filter(forward => {
     const matchesGroup = activeGroupId === -1 ||
       (activeGroupId === 0 ? !forward.groupId : forward.groupId === activeGroupId);
     const haystack = `${forward.name} ${forward.tunnelName} ${forward.inIp} ${forward.inPort} ${forward.remoteAddr} ${forward.userName || ""}`.toLowerCase();
-    return matchesGroup && (entryFilter === "all" || forward.tunnelId === Number(entryFilter)) && (targetFilter === "all" || forward.remoteAddr.split(",").some(address => address.trim() === targetFilter)) && haystack.includes(ruleQuery.trim().toLowerCase());
+    return matchesGroup && (entryFilter === "all" || forward.tunnelId === Number(entryFilter)) && haystack.includes(ruleQuery.trim().toLowerCase());
   });
   const tableRuleIds = new Set(tableRules.map(row => row.id));
   const tableSelectedIds = selectedForwardIds.filter(id => tableRuleIds.has(id));
@@ -1207,15 +1210,7 @@ export default function ForwardPage() {
                 <Button className="rules-text-action" title={translate("刷新")} aria-label={translate("刷新")} size="sm" variant="flat" onPress={() => loadData(false, true)}><RuleIcon name="refresh" />{translate("刷新")}</Button>
                 <Button className="rules-text-action" title={translate("统计数据")} aria-label={translate("统计数据")} size="sm" variant="flat" onPress={() => showForwardStats()}><RuleIcon name="stats" />{translate("统计数据")}</Button>
               </div>
-              <div className="rules-inline-filters flex flex-wrap items-center gap-2">
-            {isAdmin && <Select aria-label={translate("用户筛选")} size="sm" variant="bordered" classNames={{ trigger: "min-h-8 h-8", value: "text-sm" }} className="rules-filter"
-              selectedKeys={[String(queriedOwner || 0)]}
-              items={[{ id: 0, name: translate("全部用户") }, ...ruleUsers, ...(queriedOwner && !ruleUsers.some(user => user.id === queriedOwner) ? [{ id: queriedOwner, name: `#${queriedOwner}` }] : [])]}
-              onSelectionChange={keys => { const value = Array.from(keys)[0]; if (value !== undefined) setSearchParams(Number(value) ? { userId: String(value) } : {}); }}>
-              {user => <SelectItem key={String(user.id)}>{user.name}</SelectItem>}
-            </Select>}
 
-              </div>
             </div>
             <div className="flex flex-wrap items-center gap-2 text-sm">
               <Chip size="sm" variant="flat">{translate("规则数：")}{forwards.length}</Chip>
@@ -1254,13 +1249,7 @@ export default function ForwardPage() {
               {group => <SelectItem key={String(group.id)}>{group.name}</SelectItem>}
             </Select>
             <Button className="rules-text-action" title={translate("移动分组")} aria-label={translate("移动分组")} size="sm" variant="flat" isDisabled={!tableSelectedIds.length || !!inspectedUserId} onPress={() => handleBatchMeta("group", batchGroupId)}><RuleIcon name="group" />{translate("移动分组")}</Button>
-            <Select aria-label={translate("批量目标隧道")} size="sm" className="w-48" placeholder={translate("目标隧道")} selectedKeys={batchTunnelId ? [String(batchTunnelId)] : []} onSelectionChange={keys => {
-              const value = Array.from(keys)[0];
-              setBatchTunnelId(value === undefined ? null : Number(value));
-            }}>
-              {tunnels.map(tunnel => <SelectItem key={String(tunnel.id)}>{tunnel.name}</SelectItem>)}
-            </Select>
-            <Button className="rules-text-action" title={translate("切换入口")} aria-label={translate("切换入口")} size="sm" variant="flat" isDisabled={!tableSelectedIds.length || !batchTunnelId} onPress={handleBatchSwitch}><RuleIcon name="switch" />{translate("切换入口")}</Button>
+            <Button className="rules-text-action" title={translate("切换入口")} aria-label={translate("切换入口")} size="sm" variant="flat" isDisabled={!tableSelectedIds.length} onPress={() => { setBatchTunnelId(null); setSwitchModalOpen(true); }}><RuleIcon name="switch" />{translate("切换入口")}</Button>
             </>}
             <Button className="rules-text-action" title={translate("删除选中")} aria-label={translate("删除选中")} size="sm" color="danger" variant="flat" isDisabled={!tableSelectedIds.length} onPress={handleBatchDelete}><RuleIcon name="delete" />{translate("删除选中")}</Button>
             {!!tableSelectedIds.length && <span className="text-sm text-default-500">{translate("已选择")}{tableSelectedIds.length}{translate("条")}</span>}
@@ -1291,14 +1280,7 @@ export default function ForwardPage() {
                         {entry => <SelectItem key={entry.id}>{entry.name}</SelectItem>}
                       </Select>
                     </div></th>
-                    <th className="p-3"><div className="flex items-center gap-2"><span>{translate("出口 / 目标")}</span>
-                      <Select aria-label={translate("目标筛选")} size="sm" variant="bordered" className="rules-column-filter"
-                        classNames={{ trigger: "min-h-8 h-8", value: "text-sm" }} selectedKeys={[targetFilter]}
-                        items={[{ id: "all", name: translate("全部目标") }, ...ruleTargets.map(address => ({ id: address, name: address }))]}
-                        onSelectionChange={keys => { const value = Array.from(keys)[0]; if (value !== undefined) { setTargetFilter(String(value)); setRulePage(1); } }}>
-                        {item => <SelectItem key={item.id} textValue={item.name}>{item.name}</SelectItem>}
-                      </Select>
-                    </div></th><th className="p-3">{translate("已用流量")}</th><th className="p-3">{translate("状态")}</th><th className="p-3">{translate("操作")}</th>
+                    <th className="p-3">{translate("出口 / 目标")}</th><th className="p-3">{translate("已用流量")}</th><th className="p-3">{translate("状态")}</th><th className="p-3">{translate("操作")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1927,6 +1909,28 @@ export default function ForwardPage() {
                 variant="light"
                 onPress={() => setExportModalOpen(false)}
               >{translate("关闭")}</Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
+
+        <Modal isOpen={switchModalOpen} onClose={() => { if (!switchLoading) setSwitchModalOpen(false); }} size="2xl"
+          scrollBehavior="outside" backdrop="blur" placement="center" isDismissable={!switchLoading} isKeyboardDismissDisabled={switchLoading} hideCloseButton={switchLoading}>
+          <ModalContent>
+            <ModalHeader className="flex flex-col gap-1">
+              <h2 className="text-xl font-bold">{translate("切换入口")}</h2>
+              <p className="text-small text-default-500">{translate("已选择")}{tableSelectedIds.length}{translate("条")}{translate("规则，选择目标隧道后确认切换。")}</p>
+            </ModalHeader>
+            <ModalBody className="pb-6">
+              <Select label={translate("目标隧道")} aria-label={translate("批量目标隧道")} placeholder={translate("请选择要切换的隧道")}
+                selectedKeys={batchTunnelId ? [String(batchTunnelId)] : []} variant="bordered" isRequired isDisabled={switchLoading}
+                onSelectionChange={keys => { const value = Array.from(keys)[0]; setBatchTunnelId(value === undefined ? null : Number(value)); }}>
+                {tunnels.map(tunnel => <SelectItem key={String(tunnel.id)} textValue={tunnel.name}>{tunnel.name}</SelectItem>)}
+              </Select>
+              <p className="text-small text-warning">{translate("切换会关闭旧连接，并重新分配监听端口。")}</p>
+            </ModalBody>
+            <ModalFooter>
+              <Button variant="light" isDisabled={switchLoading} onPress={() => setSwitchModalOpen(false)}>{translate("取消")}</Button>
+              <Button color="primary" isLoading={switchLoading} isDisabled={!batchTunnelId || !tableSelectedIds.length} onPress={handleBatchSwitch}>{translate("确认切换")}</Button>
             </ModalFooter>
           </ModalContent>
         </Modal>

@@ -39,3 +39,12 @@
 - [x] 新增与编辑规则表单末尾使用节点页面同款 Accordion，标题为「高级功能」，默认收起；TCP 的入站、SNI、回源 TLS、Proxy Protocol 设置集中在其中，收起时保留配置。
 
 本地复验：`NODE_OPTIONS=--max-old-space-size=768 npm --prefix vite-frontend run build`、`git diff --check`；浏览器临时脚本 `/tmp/flux-browser-check/column-filters.cjs` 验证筛选位置、组合筛选、多目标匹配、默认折叠、保留 TLS 保存与 390px 窄屏无页面溢出。浏览器 API 使用模拟数据，未操作生产数据。
+
+
+## 批量入口切换弹窗（2026-10-16）
+
+- 删除右上角全部用户筛选及其选项缓存；后台全局规则列表仍保留，用户管理进入指定用户规则的链接仍可使用。
+- 移除批量工具栏的目标隧道下拉框；选择规则后点击「切换入口」打开与批量导入同尺寸、同选择样式的弹窗，仅选择目标隧道并确认即可。
+- 弹窗说明旧连接关闭和端口重分配；未选择隧道禁用确认，提交时禁用选择和关闭，失败保留弹窗供重试，成功清空规则选择并刷新。
+
+本地验证：既有 npm build、`git diff --check`；临时 Playwright `/tmp/flux-browser-check/switch-modal.cjs` 以模拟 API 验证用户筛选已移除、取消不提交、空选择禁用、失败可重试、提交的 ids/action/tunnelId、成功清空选择与移动端布局；本轮同时按用户要求移除出口 / 目标列下拉框及目标筛选状态，仅保留入口筛选。发布包按 [前端发布流程](frontend-release.md) 更新。
