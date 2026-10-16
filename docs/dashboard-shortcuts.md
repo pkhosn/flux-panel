@@ -10,3 +10,7 @@
 - [x] 本地构建与管理员、普通用户浏览器验证通过。
 
 验证：`NODE_OPTIONS=--max-old-space-size=768 npm --prefix vite-frontend run build`、`git diff --check`。临时浏览器脚本 `/tmp/flux-browser-check/dashboard-links.cjs` 模拟两种角色，检查管理员 10 个入口、普通用户 3 个入口、旧模块移除、路由跳转、390px 无溢出以及浅色／深色品牌与导航栏计算背景色相同。未写入生产数据。
+
+## 后续调整
+
+按用户最新要求移除管理员与普通用户的全部快捷入口卡片，仪表盘保留统计、流量图和普通用户隧道额度。此前快捷入口描述为历史记录。

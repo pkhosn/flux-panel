@@ -14,7 +14,7 @@
 @media(max-width:600px){.panel-header-brand{width:auto;flex:0 1 240px}.panel-header-tools{margin-right:12px;gap:12px;margin-left:8px}.panel-header-brand{padding-right:6px}.panel-header-brand-link{font-size:14px;gap:4px}}
 @media(max-width:360px){.panel-header-brand{padding-left:8px;gap:2px}.panel-header-tools{margin-right:8px;gap:8px}.panel-header-brand-link{gap:2px}.panel-header-logo{width:22px;height:22px}}
 
-.panel-header-brand{transition:width .3s,flex-basis .3s}
+.panel-header-brand{transition:width .15s ease-out,flex-basis .15s ease-out}
 .panel-header-brand.is-compact{width:80px;flex-basis:80px;justify-content:center;padding:0 14px}
 .panel-header-brand.is-compact .panel-header-brand-link{flex:0 0 auto}
 .panel-header-brand.is-compact .panel-header-brand-link span,.panel-header-brand.is-compact .panel-header-collapse{display:none}

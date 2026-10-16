@@ -1,5 +1,5 @@
 import { translate } from '@/utils/locale';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from "@heroui/button";
 import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, useDisclosure } from "@heroui/modal";
@@ -36,6 +36,18 @@ export default function AdminLayout({
   const [isMobile, setIsMobile] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [sidebarHovered, setSidebarHovered] = useState(false);
+  const sidebarLeaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const enterSidebar = () => {
+    if (sidebarLeaveTimer.current) clearTimeout(sidebarLeaveTimer.current);
+    setSidebarHovered(true);
+  };
+  const leaveSidebar = () => {
+    if (sidebarLeaveTimer.current) clearTimeout(sidebarLeaveTimer.current);
+    sidebarLeaveTimer.current = setTimeout(() => setSidebarHovered(false), 120);
+  };
+  useEffect(() => () => {
+    if (sidebarLeaveTimer.current) clearTimeout(sidebarLeaveTimer.current);
+  }, []);
   const sidebarCompact = isSidebarCollapsed && !sidebarHovered;
   const [mobileMenuVisible, setMobileMenuVisible] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -279,7 +291,7 @@ export default function AdminLayout({
 
   return (
           <div className={`flex flex-col ${isMobile ? 'min-h-screen' : 'h-screen'} bg-gray-100 dark:bg-black`}>
-      <PanelHeader onToggleSidebar={isMobile ? toggleMobileMenu : toggleSidebar} sidebarExpanded={isMobile ? mobileMenuVisible : !sidebarCompact} sidebarCompact={!isMobile && sidebarCompact} onBrandEnter={() => setSidebarHovered(true)} onBrandLeave={() => setSidebarHovered(false)} onPassword={onOpen} />
+      <PanelHeader onToggleSidebar={isMobile ? toggleMobileMenu : toggleSidebar} sidebarExpanded={isMobile ? mobileMenuVisible : !sidebarCompact} sidebarCompact={!isMobile && sidebarCompact} onBrandEnter={enterSidebar} onBrandLeave={leaveSidebar} onPassword={onOpen} />
       <div className="flex flex-1 min-h-0">
       {/* 移动端遮罩层 */}
       {isMobile && mobileMenuVisible && (
@@ -290,7 +302,7 @@ export default function AdminLayout({
       )}
 
       {/* 左侧菜单栏 */}
-      <aside onMouseEnter={() => setSidebarHovered(true)} onMouseLeave={() => setSidebarHovered(false)} className={`
+      <aside onMouseEnter={enterSidebar} onMouseLeave={leaveSidebar} className={`
         ${isMobile ? 'fixed' : 'relative'}
         ${isMobile && !mobileMenuVisible ? '-translate-x-full' : 'translate-x-0'}
         ${isMobile ? 'w-64' : sidebarCompact ? 'w-20' : 'w-[240px]'}
@@ -298,13 +310,13 @@ export default function AdminLayout({
         shadow-lg
         border-r border-gray-200 dark:border-gray-600
         z-50
-        transition-all duration-300 ease-in-out
+        shrink-0 overflow-hidden transition-[width,transform] duration-150 ease-out
         flex flex-col
         ${isMobile ? 'h-[calc(100dvh-56px)]' : 'h-full'}
         ${isMobile ? 'top-14 left-0' : ''}
       `}>
                  {/* 菜单导航 */}
-         <nav className="flex-1 px-4 py-6 overflow-y-auto">
+         <nav className="flex-1 px-4 py-6 overflow-y-auto overflow-x-hidden">
            <ul className="space-y-1">
             {filteredMenuItems.map((item) => {
               const isActive = location.pathname === item.path;
@@ -315,7 +327,7 @@ export default function AdminLayout({
                      className={`
                        w-full flex items-center px-4 py-3 rounded-lg text-left
                        transition-colors duration-200 min-h-[44px]
-                       ${!isMobile && sidebarCompact ? 'justify-center' : 'gap-3'}
+                       ${!isMobile && sidebarCompact ? 'justify-center px-0' : 'gap-3'}
                        ${isActive
                          ? 'bg-primary-100 dark:bg-primary-600/20 text-primary-600 dark:text-primary-300'
                          : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-900'
@@ -326,7 +338,7 @@ export default function AdminLayout({
                      <div className="flex-shrink-0">
                        {item.icon}
                      </div>
-                     <span className={`font-medium text-sm ${!isMobile && sidebarCompact ? 'hidden' : ''}`}>{item.label}</span>
+                     <span className={`font-medium text-sm whitespace-nowrap ${!isMobile && sidebarCompact ? 'hidden' : ''}`}>{item.label}</span>
                    </button>
                 </li>
               );
@@ -335,7 +347,7 @@ export default function AdminLayout({
         </nav>
 
                 {/* 底部版权信息 */}
-        <div className="px-4 py-2 pb-4 mt-auto flex-shrink-0">
+        <div className={`px-4 py-2 pb-4 mt-auto flex-shrink-0 whitespace-nowrap ${!isMobile && sidebarCompact ? 'invisible' : ''}`}>
           <div className="text-center">
             <p className="text-xs text-gray-400 dark:text-gray-500">
               Powered by{' '}

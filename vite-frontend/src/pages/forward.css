@@ -1,18 +1,18 @@
-.rules-page{font-size:12px}
+.rules-page{font-size:14px}
 .rules-toolbar{border-radius:6px 6px 0 0;border-bottom:0}
 .rules-title-row{border-bottom:1px solid var(--rules-line,#edf0f3);margin:-16px -16px 0;padding:12px 16px;min-height:48px}
-.rules-page button[data-react-aria-pressable]{border-radius:4px;font-size:12px}
-.rules-toolbar button[data-react-aria-pressable],.rules-batch button[data-react-aria-pressable]{height:26px;min-height:26px}
+.rules-page button[data-react-aria-pressable]{border-radius:4px;font-size:14px}
+.rules-toolbar button[data-react-aria-pressable],.rules-batch button[data-react-aria-pressable]{height:32px;min-height:32px}
 .rules-page button[aria-label][data-react-aria-pressable]:not([aria-haspopup="listbox"]){width:28px;min-width:28px;padding:0;background:transparent;border:1px solid var(--rules-line,#e3e6eb);color:inherit}
 .rules-page button[aria-label][data-react-aria-pressable]:not([aria-haspopup="listbox"]):hover{background:var(--rules-hover,#f3f5f8)}
 .rules-batch{padding:0 16px 12px;border-left:1px solid var(--rules-line,#e3e6eb);border-right:1px solid var(--rules-line,#e3e6eb);background:hsl(var(--heroui-content1))}
 .rules-table{border-top:0;border-radius:0 0 6px 6px}
-.rules-table table{font-size:12px}
-.rules-table th{font-size:11px;font-weight:500;background:var(--rules-hover,#fafafa);white-space:nowrap;height:40px}
+.rules-table table{font-size:14px}
+.rules-table th{font-size:14px;font-weight:500;background:var(--rules-hover,#fafafa);white-space:nowrap;height:44px}
 .rules-table td{vertical-align:middle;height:64px}
 .rules-table td:first-child,.rules-table th:first-child{width:30px;padding-right:0}
 .rules-table input[type=checkbox]{accent-color:#3586f6;width:13px;height:13px;vertical-align:middle}
-.rules-row-actions button[aria-label][data-react-aria-pressable]:not([aria-haspopup="listbox"]){height:26px;min-height:26px;width:26px;min-width:26px}
+.rules-row-actions button[aria-label][data-react-aria-pressable]:not([aria-haspopup="listbox"]){height:32px;min-height:32px;width:26px;min-width:26px}
 .dark .rules-page{--rules-line:#303641;--rules-hover:#242a33}
 @media(max-width:640px){.rules-page{padding:12px 8px}.rules-toolbar>div{padding:12px}.rules-title-row{margin:-12px -12px 0;padding:10px 12px}.rules-batch{padding:0 12px 12px}}
 

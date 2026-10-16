@@ -1,6 +1,5 @@
 import { translate } from '@/utils/locale';
 import { Card, CardBody, CardHeader } from "@heroui/card";
-import { Link } from "react-router-dom";
 import { JwtUtil } from "@/utils/jwt";
 import { useState, useEffect } from "react";
 import toast from 'react-hot-toast';
@@ -50,79 +49,6 @@ interface StatisticsFlow {
   totalFlow: number;
   time: string;
 }
-
-const dashboardEntries = [
-  {
-    "path": "/forward",
-    "title": "转发管理",
-    "description": "管理转发规则、分组及入口配置",
-    "icon": "M4 7h16m-4-4 4 4-4 4M20 17H4l4-4m-4 4 4 4",
-    "adminOnly": false
-  },
-  {
-    "path": "/billing",
-    "title": "购买充值",
-    "description": "购买套餐、兑换额度和查询订单",
-    "icon": "M4 3h16v18l-4-2-4 2-4-2-4 2zM8 8h8m-8 4h6",
-    "adminOnly": false
-  },
-  {
-    "path": "/user",
-    "title": "用户管理",
-    "description": "管理账号、套餐分配和用户转发权限",
-    "icon": "M20 21v-2a7 7 0 0 0-14 0v2M17 7a5 5 0 1 1-10 0 5 5 0 0 1 10 0",
-    "adminOnly": true
-  },
-  {
-    "path": "/plan",
-    "title": "套餐管理",
-    "description": "配置套餐额度、有效期和销售价格",
-    "icon": "M3 7h7l2 2h9v12H3zM3 7V3h7l2 4m2 6v5m-3-2h6",
-    "adminOnly": true
-  },
-  {
-    "path": "/node",
-    "title": "节点监控",
-    "description": "查看节点运行状态并管理 Agent",
-    "icon": "M3 3h18v14H3zM8 21h8m-4-4v4",
-    "adminOnly": true
-  },
-  {
-    "path": "/tunnel",
-    "title": "隧道管理",
-    "description": "配置入口、出口和转发链路",
-    "icon": "M3 4h6v6H3zM15 14h6v6h-6zM6 10v7h9m3-3V7H9",
-    "adminOnly": true
-  },
-  {
-    "path": "/limit",
-    "title": "限速管理",
-    "description": "配置并管理转发速率限制",
-    "icon": "M4 19a9 9 0 1 1 16 0M12 13l5-5m-6 5h2v2h-2z",
-    "adminOnly": true
-  },
-  {
-    "path": "/redeem",
-    "title": "兑换码管理",
-    "description": "生成和管理套餐兑换码",
-    "icon": "M3 7h18v5a3 3 0 0 0 0 6v3H3v-3a3 3 0 0 0 0-6zM15 7v3m0 4v3",
-    "adminOnly": true
-  },
-  {
-    "path": "/config",
-    "title": "网站配置",
-    "description": "设置品牌、站点公告和支付接口",
-    "icon": "M12 3v2m0 14v2M3 12h2m14 0h2M6 6l2 2m8 8 2 2M6 18l2-2m8-8 2-2M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0",
-    "adminOnly": true
-  },
-  {
-    "path": "/profile",
-    "title": "个人中心",
-    "description": "查看账户资料和套餐使用情况",
-    "icon": "M4 21v-2a8 8 0 0 1 16 0v2M16 6a4 4 0 1 1-8 0 4 4 0 0 1 8 0",
-    "adminOnly": false
-  }
-];
 
 export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
@@ -735,20 +661,7 @@ export default function DashboardPage() {
         </Card>
          )}
 
-        <section aria-label={translate("快捷管理")} className="mt-6">
-          <h2 className="text-xl font-semibold text-foreground">{translate(isAdmin ? "管理后台" : "快捷入口")}</h2>
-          <p className="mt-2 mb-6 text-sm text-default-500">{translate("选择需要管理的内容")}</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 min-[1800px]:grid-cols-6 gap-5">
-            {dashboardEntries.filter(entry => isAdmin || !entry.adminOnly).map(entry => (
-              <Link key={entry.path} to={entry.path} className="group flex min-h-[194px] flex-col items-start rounded-[20px] border border-default-200 bg-content1 p-6 shadow-sm transition-colors hover:border-primary-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
-                <svg aria-hidden="true" width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="mb-5 text-primary"><path d={entry.icon} /></svg>
-                <h3 className="text-base font-semibold text-foreground">{translate(entry.title)}</h3>
-                <p className="mt-3 mb-5 text-xs leading-6 text-default-500">{translate(entry.description)}</p>
-                <span className="mt-auto text-xs text-primary">{translate("进入管理")} <span aria-hidden="true">→</span></span>
-              </Link>
-            ))}
-          </div>
-        </section>
+
       </div>
 
   );
