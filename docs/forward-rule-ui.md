@@ -11,3 +11,14 @@
 不虚构截图中的套餐额度和到期数据，当前统计沿用现有页面的规则数及流量来源。
 
 本地验证：`NODE_OPTIONS=--max-old-space-size=768 npm --prefix vite-frontend run build`、`git diff --check`。临时 Playwright 检查 `/tmp/flux-browser-check/rules-layout.cjs` 使用模拟规则数据验证行操作图标与标签、搜索、批量选中、新增弹窗及 390px 页面无横向溢出；截图保存在同目录 rules-desktop.png 和 rules-mobile.png。
+
+## 移除卡片视图
+
+- [x] 删除卡片渲染、用户／隧道分层、拖拽排序、视图切换和卡片多选模式。
+- [x] 删除对应状态、窗口 resize 监听、本地视图／顺序缓存读写及拖拽组件导入。
+- [x] 表格保留服务端 inx 排序、九项操作、分组筛选和批量操作；导出按所选隧道读取当前接口返回的规则。
+- [x] 本地构建、规则页面浏览器回归和导出检查通过。
+
+额外验证：`/tmp/flux-browser-check/table-export.cjs` 检查视图切换入口已删除，按隧道导出的 JSON 仍包含规则名称与目标地址。主 JS 构建产物从 7,524.74 kB 降至 7,356.80 kB（未压缩，约减少 168 kB）。
+
+顶部工具栏使用图标加文字，行内操作使用纯图标。

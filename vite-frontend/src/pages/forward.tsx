@@ -1,7 +1,7 @@
 import './forward.css';
 import { translate } from '@/utils/locale';
 import { useState, useEffect, useRef } from "react";
-import { Card, CardBody, CardHeader } from "@heroui/card";
+import { Card, CardBody } from "@heroui/card";
 import { Button } from "@heroui/button";
 import { Input } from "@heroui/input";
 import { Textarea } from "@heroui/input";
@@ -11,29 +11,7 @@ import { Chip } from "@heroui/chip";
 import { Spinner } from "@heroui/spinner";
 import { Switch } from "@heroui/switch";
 import { Alert } from "@heroui/alert";
-import { Accordion, AccordionItem } from "@heroui/accordion";
 import toast from 'react-hot-toast';
-import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  DragEndEvent,
-} from '@dnd-kit/core';
-import {
-  arrayMove,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  rectSortingStrategy,
-} from '@dnd-kit/sortable';
-import {
-  useSortable,
-} from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
-
-
 import {
   createForward,
   importForwardRules,
@@ -45,7 +23,6 @@ import {
   pauseForwardService,
   resumeForwardService,
   diagnoseForward,
-  updateForwardOrder,
   getNodeList,
   getTlsInbounds, createTlsInbound, updateTlsInbound, toggleTlsInbound, saveTlsPolicy, saveNodeTlsPolicy, deleteTlsInbound,
   getForwardGroups,
@@ -64,7 +41,6 @@ const ruleIcons: Record<string, string> = {
   search: 'm21 21-5-5M19 11a8 8 0 1 1-16 0 8 8 0 0 1 16 0',
   refresh: 'M20 7v5h-5M4 17v-5h5M6 7a7 7 0 0 1 12-2l2 3M4 16l2 3a7 7 0 0 0 12-2',
   stats: 'M4 3v17h17M8 16v-5m5 5V7m5 9v-7',
-  view: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z',
   group: 'M3 7h7l2 2h9v11H3zM3 7V4h7l2 3',
   tls: 'M6 10h12v11H6zM8 10V6a4 4 0 0 1 8 0v4m-4 5v2',
   add: 'M12 5v14M5 12h14', import: 'M12 3v12m-4-4 4 4 4-4M4 16v5h16v-5',
@@ -181,19 +157,6 @@ interface DiagnosisResult {
   }>;
 }
 
-// 添加分组接口
-interface UserGroup {
-  userId: number | null;
-  userName: string;
-  tunnelGroups: TunnelGroup[];
-}
-
-interface TunnelGroup {
-  tunnelId: number;
-  tunnelName: string;
-  forwards: Forward[];
-}
-
 export default function ForwardPage() {
   const [loading, setLoading] = useState(true);
   const [forwards, setForwards] = useState<Forward[]>([]);
@@ -208,7 +171,6 @@ export default function ForwardPage() {
   const [ruleGroups, setRuleGroups] = useState<ForwardGroup[]>([]);
   const [groupName, setGroupName] = useState("");
   const [groupModalOpen, setGroupModalOpen] = useState(false);
-  const [ruleView, setRuleView] = useState<"table" | "cards">("table");
   const [ruleQuery, setRuleQuery] = useState("");
   const [searchVisible, setSearchVisible] = useState(false);
   const [activeGroupId, setActiveGroupId] = useState(-1);
@@ -221,33 +183,6 @@ export default function ForwardPage() {
   const [batchGroupId, setBatchGroupId] = useState(0);
   const [batchTunnelId, setBatchTunnelId] = useState<number | null>(null);
 
-  // 检测是否为移动端
-  const [isMobile, setIsMobile] = useState(false);
-
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
-
-  // 显示模式状态 - 从localStorage读取，默认为平铺显示
-  const [viewMode, setViewMode] = useState<'grouped' | 'direct'>(() => {
-    try {
-      const savedMode = localStorage.getItem('forward-view-mode');
-      return (savedMode as 'grouped' | 'direct') || 'direct';
-    } catch {
-      return 'direct';
-    }
-  });
-
-  // 拖拽排序相关状态
-  const [forwardOrder, setForwardOrder] = useState<number[]>([]);
-
   // 模态框状态
   const [modalOpen, setModalOpen] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -259,7 +194,6 @@ export default function ForwardPage() {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [batchDeleteLoading, setBatchDeleteLoading] = useState(false);
   const [diagnosisLoading, setDiagnosisLoading] = useState(false);
-  const [selectionMode, setSelectionMode] = useState(false);
   const [selectedForwardIds, setSelectedForwardIds] = useState<number[]>([]);
   const [batchDeleteIds, setBatchDeleteIds] = useState<number[]>([]);
   const [forwardToDelete, setForwardToDelete] = useState<Forward | null>(null);
@@ -312,71 +246,6 @@ export default function ForwardPage() {
     loadData();
   }, []);
 
-  // 切换显示模式并保存到localStorage
-  const handleViewModeChange = () => {
-    if (selectionMode) {
-      setSelectionMode(false);
-      setSelectedForwardIds([]);
-    }
-
-    const newMode = viewMode === 'grouped' ? 'direct' : 'grouped';
-    setViewMode(newMode);
-    try {
-      localStorage.setItem('forward-view-mode', newMode);
-
-      // 切换到直接显示模式时，初始化拖拽排序顺序
-      if (newMode === 'direct') {
-        // 在平铺模式下，只对当前用户的转发进行排序
-        const currentUserId = JwtUtil.getUserIdFromToken();
-        let userForwards = forwards;
-        if (currentUserId !== null) {
-          userForwards = forwards.filter((f: Forward) => f.userId === currentUserId);
-        }
-
-        // 检查数据库中是否有排序信息
-        const hasDbOrdering = userForwards.some((f: Forward) => f.inx !== undefined && f.inx !== 0);
-
-        if (hasDbOrdering) {
-          // 使用数据库中的排序信息
-          const dbOrder = userForwards
-            .sort((a: Forward, b: Forward) => (a.inx ?? 0) - (b.inx ?? 0))
-            .map((f: Forward) => f.id);
-          setForwardOrder(dbOrder);
-
-          // 同步到localStorage
-          try {
-            localStorage.setItem('forward-order', JSON.stringify(dbOrder));
-          } catch (error) {
-            console.warn('无法保存排序到localStorage:', error);
-          }
-        } else {
-          // 使用本地存储的顺序
-          const savedOrder = localStorage.getItem('forward-order');
-          if (savedOrder) {
-            try {
-              const orderIds = JSON.parse(savedOrder);
-              const validOrder = orderIds.filter((id: number) =>
-                userForwards.some((f: Forward) => f.id === id)
-              );
-              userForwards.forEach((forward: Forward) => {
-                if (!validOrder.includes(forward.id)) {
-                  validOrder.push(forward.id);
-                }
-              });
-              setForwardOrder(validOrder);
-            } catch {
-              setForwardOrder(userForwards.map((f: Forward) => f.id));
-            }
-          } else {
-            setForwardOrder(userForwards.map((f: Forward) => f.id));
-          }
-        }
-      }
-    } catch (error) {
-      console.warn('无法保存显示模式到localStorage:', error);
-    }
-  };
-
   // 加载所有数据
   const loadData = async (lod = true) => {
     setLoading(lod);
@@ -395,56 +264,6 @@ export default function ForwardPage() {
         })) || [];
         setForwards(forwardsData);
 
-        // 初始化拖拽排序顺序
-        if (viewMode === 'direct') {
-          // 在平铺模式下，只对当前用户的转发进行排序
-          const currentUserId = JwtUtil.getUserIdFromToken();
-          let userForwards = forwardsData;
-          if (currentUserId !== null) {
-            userForwards = forwardsData.filter((f: Forward) => f.userId === currentUserId);
-          }
-
-          // 检查数据库中是否有排序信息
-          const hasDbOrdering = userForwards.some((f: Forward) => f.inx !== undefined && f.inx !== 0);
-
-          if (hasDbOrdering) {
-            // 使用数据库中的排序信息
-            const dbOrder = userForwards
-              .sort((a: Forward, b: Forward) => (a.inx ?? 0) - (b.inx ?? 0))
-              .map((f: Forward) => f.id);
-            setForwardOrder(dbOrder);
-
-            // 同步到localStorage
-            try {
-              localStorage.setItem('forward-order', JSON.stringify(dbOrder));
-            } catch (error) {
-              console.warn('无法保存排序到localStorage:', error);
-            }
-          } else {
-            // 使用本地存储的顺序
-            const savedOrder = localStorage.getItem('forward-order');
-            if (savedOrder) {
-              try {
-                const orderIds = JSON.parse(savedOrder);
-                // 验证保存的顺序是否仍然有效（只包含当前用户的转发）
-                const validOrder = orderIds.filter((id: number) =>
-                  userForwards.some((f: Forward) => f.id === id)
-                );
-                // 添加新的转发ID（如果存在）
-                userForwards.forEach((forward: Forward) => {
-                  if (!validOrder.includes(forward.id)) {
-                    validOrder.push(forward.id);
-                  }
-                });
-                setForwardOrder(validOrder);
-              } catch {
-                setForwardOrder(userForwards.map((f: Forward) => f.id));
-              }
-            } else {
-              setForwardOrder(userForwards.map((f: Forward) => f.id));
-            }
-          }
-        }
       } else {
         toast.error(forwardsRes.msg || '获取转发列表失败');
       }
@@ -464,50 +283,6 @@ export default function ForwardPage() {
     } finally {
       setLoading(false);
     }
-  };
-
-  // 按用户和隧道分组转发数据
-  const groupForwardsByUserAndTunnel = (): UserGroup[] => {
-    const userMap = new Map<string, UserGroup>();
-
-    // 获取排序后的转发列表
-    const sortedForwards = getSortedForwards();
-
-    sortedForwards.forEach(forward => {
-      const userKey = forward.userId ? forward.userId.toString() : 'unknown';
-      const userName = forward.userName || '未知用户';
-
-      if (!userMap.has(userKey)) {
-        userMap.set(userKey, {
-          userId: forward.userId || null,
-          userName,
-          tunnelGroups: []
-        });
-      }
-
-      const userGroup = userMap.get(userKey)!;
-      let tunnelGroup = userGroup.tunnelGroups.find(tg => tg.tunnelId === forward.tunnelId);
-
-      if (!tunnelGroup) {
-        tunnelGroup = {
-          tunnelId: forward.tunnelId,
-          tunnelName: forward.tunnelName,
-          forwards: []
-        };
-        userGroup.tunnelGroups.push(tunnelGroup);
-      }
-
-      tunnelGroup.forwards.push(forward);
-    });
-
-    // 排序：先按用户名，再按隧道名
-    const result = Array.from(userMap.values());
-    result.sort((a, b) => a.userName.localeCompare(b.userName));
-    result.forEach(userGroup => {
-      userGroup.tunnelGroups.sort((a, b) => a.tunnelName.localeCompare(b.tunnelName));
-    });
-
-    return result;
   };
 
   // 表单验证
@@ -731,25 +506,6 @@ export default function ForwardPage() {
     }
   };
 
-  const getVisibleForwards = (): Forward[] => {
-    if (viewMode === 'grouped') {
-      const grouped = groupForwardsByUserAndTunnel();
-      return grouped.flatMap(userGroup =>
-        userGroup.tunnelGroups.flatMap(tunnelGroup => tunnelGroup.forwards)
-      );
-    }
-    return getSortedForwards();
-  };
-
-  const toggleSelectionMode = () => {
-    if (selectionMode) {
-      setSelectionMode(false);
-      setSelectedForwardIds([]);
-      return;
-    }
-    setSelectionMode(true);
-  };
-
   const toggleForwardSelection = (forwardId: number) => {
     setSelectedForwardIds(prev =>
       prev.includes(forwardId)
@@ -758,19 +514,8 @@ export default function ForwardPage() {
     );
   };
 
-  const selectAllVisibleForwards = () => {
-    const visibleIds = getVisibleForwards().map(forward => forward.id);
-    setSelectedForwardIds(visibleIds);
-  };
-
-  const clearSelectedForwards = () => {
-    setSelectedForwardIds([]);
-  };
-
   const handleBatchDelete = () => {
-    const ids = ruleView === "table"
-      ? selectedForwardIds.filter(id => tableRules.some(row => row.id === id))
-      : selectedForwardIds.filter(id => visibleForwards.some(row => row.id === id));
+    const ids = selectedForwardIds.filter(id => tableRules.some(row => row.id === id));
     if (ids.length === 0) {
       toast.error(translate("请先选择要删除的转发"));
       return;
@@ -790,7 +535,6 @@ export default function ForwardPage() {
 
       setBatchDeleteModalOpen(false);
       setBatchDeleteIds([]);
-      setSelectionMode(false);
       setSelectedForwardIds([]);
       loadData(false);
     } finally {
@@ -1041,24 +785,6 @@ export default function ForwardPage() {
     return `${formattedFirstIp}:${port} (+${items.length - 1}个)`;
   };
 
-  // 格式化远程地址
-  const formatRemoteAddress = (addressString: string): string => {
-    if (!addressString) return '';
-
-    const addresses = addressString.split(',').map(addr => addr.trim()).filter(addr => addr);
-    if (addresses.length === 0) return '';
-    if (addresses.length === 1) return addresses[0];
-
-    return `${addresses[0]} (+${addresses.length - 1})`;
-  };
-
-  // 检查是否有多个地址
-  const hasMultipleAddresses = (addressString: string): boolean => {
-    if (!addressString) return false;
-    const addresses = addressString.split(',').map(addr => addr.trim()).filter(addr => addr);
-    return addresses.length > 1;
-  };
-
   // 显示地址列表弹窗
   const showAddressModal = (addressString: string, port: number | null, title: string) => {
     if (!addressString) return;
@@ -1159,21 +885,7 @@ export default function ForwardPage() {
     setExportLoading(true);
 
     try {
-      // 根据当前显示模式获取要导出的转发列表
-      let forwardsToExport: Forward[] = [];
-
-      if (viewMode === 'grouped') {
-        // 分组模式下，获取指定隧道的转发
-        const userGroups = groupForwardsByUserAndTunnel();
-        forwardsToExport = userGroups.flatMap(userGroup =>
-          userGroup.tunnelGroups
-            .filter(tunnelGroup => tunnelGroup.tunnelId === selectedTunnelForExport)
-            .flatMap(tunnelGroup => tunnelGroup.forwards)
-        );
-      } else {
-        // 直接显示模式下，过滤指定隧道的转发
-        forwardsToExport = getSortedForwards().filter(forward => forward.tunnelId === selectedTunnelForExport);
-      }
+      const forwardsToExport = forwards.filter(forward => forward.tunnelId === selectedTunnelForExport);
 
       if (forwardsToExport.length === 0) {
         toast.error(translate("所选隧道没有转发数据"));
@@ -1405,352 +1117,11 @@ export default function ForwardPage() {
     }
   };
 
-  // 获取策略显示
-  const getStrategyDisplay = (strategy: string) => {
-    switch (strategy) {
-      case 'fifo':
-        return { color: 'primary', text: translate("主备") };
-      case 'round':
-        return { color: 'success', text: translate("轮询") };
-      case 'least_connections':
-        return { color: 'secondary', text: translate("最少连接") };
-      case 'hash':
-        return { color: 'default', text: translate("哈希") };
-      case 'rand':
-        return { color: 'warning', text: translate("随机") };
-      default:
-        return { color: 'default', text: translate("未知") };
-    }
-  };
-
   // 获取地址数量
   const getAddressCount = (addressString: string): number => {
     if (!addressString) return 0;
     const addresses = addressString.split('\n').map(addr => addr.trim()).filter(addr => addr);
     return addresses.length;
-  };
-
-  // 处理拖拽结束
-  const handleDragEnd = async (event: DragEndEvent) => {
-    const { active, over } = event;
-
-    if (!active || !over || active.id === over.id) return;
-
-    // 确保 forwardOrder 存在且有效
-    if (!forwardOrder || forwardOrder.length === 0) return;
-
-    const activeId = Number(active.id);
-    const overId = Number(over.id);
-
-    // 检查 ID 是否有效
-    if (isNaN(activeId) || isNaN(overId)) return;
-
-    const oldIndex = forwardOrder.indexOf(activeId);
-    const newIndex = forwardOrder.indexOf(overId);
-
-    if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
-      const newOrder = arrayMove(forwardOrder, oldIndex, newIndex);
-      setForwardOrder(newOrder);
-
-      // 保存到localStorage
-      try {
-        localStorage.setItem('forward-order', JSON.stringify(newOrder));
-      } catch (error) {
-        console.warn('无法保存排序到localStorage:', error);
-      }
-
-      // 持久化到数据库
-      try {
-        const forwardsToUpdate = newOrder.map((id, index) => ({
-          id,
-          inx: index
-        }));
-
-        const response = await updateForwardOrder({ forwards: forwardsToUpdate });
-        if (response.code === 0) {
-          // 更新本地数据中的 inx 字段
-          setForwards(prev => prev.map(forward => {
-            const updatedForward = forwardsToUpdate.find(f => f.id === forward.id);
-            if (updatedForward) {
-              return { ...forward, inx: updatedForward.inx };
-            }
-            return forward;
-          }));
-        } else {
-          toast.error('保存排序失败：' + (response.msg || '未知错误'));
-        }
-      } catch (error) {
-        console.error('保存排序到数据库失败:', error);
-        toast.error(translate("保存排序失败，请重试"));
-      }
-    }
-  };
-
-  // 传感器配置 - 使用默认配置避免错误
-  const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  );
-
-  // 根据排序顺序获取转发列表
-  const getSortedForwards = (includeAllUsers = false): Forward[] => {
-    // 确保 forwards 数组存在且有效
-    if (!forwards || forwards.length === 0) {
-      return [];
-    }
-
-    // 在平铺模式下，只显示当前用户的转发
-    let filteredForwards = forwards;
-    if (viewMode === 'direct' && !includeAllUsers) {
-      const currentUserId = JwtUtil.getUserIdFromToken();
-      if (currentUserId !== null) {
-        filteredForwards = forwards.filter(forward => forward.userId === currentUserId);
-      }
-    }
-
-    // 确保过滤后的转发列表有效
-    if (!filteredForwards || filteredForwards.length === 0) {
-      return [];
-    }
-
-    // 优先使用数据库中的 inx 字段进行排序
-    const sortedForwards = [...filteredForwards].sort((a, b) => {
-      const aInx = a.inx ?? 0;
-      const bInx = b.inx ?? 0;
-      return aInx - bInx;
-    });
-
-    // 如果数据库中没有排序信息，则使用本地存储的顺序
-    if (forwardOrder && forwardOrder.length > 0 && sortedForwards.every(f => f.inx === undefined || f.inx === 0)) {
-      const forwardMap = new Map(filteredForwards.map(f => [f.id, f]));
-      const localSortedForwards: Forward[] = [];
-
-      forwardOrder.forEach(id => {
-        const forward = forwardMap.get(id);
-        if (forward) {
-          localSortedForwards.push(forward);
-        }
-      });
-
-      // 添加不在排序列表中的转发（新添加的）
-      filteredForwards.forEach(forward => {
-        if (!forwardOrder.includes(forward.id)) {
-          localSortedForwards.push(forward);
-        }
-      });
-
-      return localSortedForwards;
-    }
-
-    return sortedForwards;
-  };
-
-  // 可拖拽的转发卡片组件
-  const SortableForwardCard = ({ forward }: { forward: Forward }) => {
-    // 确保 forward 对象有效
-    if (!forward || !forward.id) {
-      return null;
-    }
-
-    const {
-      attributes,
-      listeners,
-      setNodeRef,
-      transform,
-      transition,
-      isDragging,
-    } = useSortable({ id: forward.id });
-
-    const style = {
-      transform: transform ? CSS.Transform.toString(transform) : undefined,
-      transition: transition || undefined,
-      opacity: isDragging ? 0.5 : 1,
-    };
-
-    return (
-      <div ref={setNodeRef} style={style} {...attributes}>
-        {renderForwardCard(forward, listeners)}
-      </div>
-    );
-  };
-
-  // 渲染转发卡片
-  const renderForwardCard = (forward: Forward, listeners?: any) => {
-    const statusDisplay = getStatusDisplay(forward.status);
-    const strategyDisplay = getStrategyDisplay(forward.strategy);
-    const isSelected = selectedForwardIds.includes(forward.id);
-
-    return (
-      <Card
-        key={forward.id}
-        className={`group shadow-sm border hover:shadow-md transition-shadow duration-200 ${
-          selectionMode && isSelected ? 'border-primary ring-2 ring-primary/30' : 'border-divider'
-        }`}
-      >
-        <CardHeader className="pb-2">
-          <div className="flex justify-between items-start w-full">
-            <div className="flex-1 min-w-0 flex items-start gap-2">
-              {selectionMode && (
-                <input
-                  type="checkbox"
-                  className="mt-1 h-4 w-4 cursor-pointer"
-                  checked={isSelected}
-                  onChange={() => toggleForwardSelection(forward.id)}
-                />
-              )}
-              <div className="min-w-0">
-              <h3 className="font-semibold text-foreground truncate text-sm">{forward.name}</h3>
-              <p className="text-xs text-default-500 truncate">{forward.tunnelName}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-1.5 ml-2">
-              {viewMode === 'direct' && !selectionMode && listeners && (
-                <div
-                  className={`cursor-grab active:cursor-grabbing p-2 text-default-400 hover:text-default-600 transition-colors touch-manipulation ${
-                    isMobile
-                      ? 'opacity-100' // 移动端始终显示
-                      : 'opacity-0 group-hover:opacity-100 sm:opacity-0 sm:group-hover:opacity-100'
-                  }`}
-                  {...listeners}
-                  title={isMobile ? translate("长按拖拽排序") : translate("拖拽排序")}
-                  style={{ touchAction: 'none' }}
-                >
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M7 2a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 2zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 8zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 14zm6-8a2 2 0 1 1-.001-4.001A2 2 0 0 1 13 6zm0 2a2 2 0 1 1 .001 4.001A2 2 0 0 1 13 8zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 13 14z" />
-                  </svg>
-                </div>
-              )}
-              <Switch
-                size="sm"
-                isSelected={forward.serviceRunning}
-                onValueChange={() => handleServiceToggle(forward)}
-                isDisabled={selectionMode || (forward.status !== 1 && forward.status !== 0)}
-              />
-              <Chip
-                color={statusDisplay.color as any}
-                variant="flat"
-                size="sm"
-                className="text-xs"
-              >
-                {statusDisplay.text}
-              </Chip>
-            </div>
-          </div>
-        </CardHeader>
-
-        <CardBody className="pt-0 pb-3">
-          <div className="space-y-2">
-            {/* 地址信息 */}
-            <div className="space-y-1">
-              <div
-                className={`cursor-pointer px-2 py-1 bg-default-50 dark:bg-default-100/50 rounded border border-default-200 dark:border-default-300 transition-colors duration-200 ${
-                  hasMultipleAddresses(forward.inIp) ? 'hover:bg-default-100 dark:hover:bg-default-200/50' : ''
-                }`}
-                onClick={() => showAddressModal(forward.inIp, forward.inPort, '入口端口')}
-                title={formatInAddress(forward.inIp, forward.inPort)}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                    <span className="text-xs font-medium text-default-600 flex-shrink-0">{translate("入口:")}</span>
-                    <code className="text-xs font-mono text-foreground truncate min-w-0">
-                      {formatInAddress(forward.inIp, forward.inPort)}
-                    </code>
-                  </div>
-                  {hasMultipleAddresses(forward.inIp) && (
-                    <svg className="w-3 h-3 text-default-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                    </svg>
-                  )}
-                </div>
-              </div>
-
-              <div
-                className={`cursor-pointer px-2 py-1 bg-default-50 dark:bg-default-100/50 rounded border border-default-200 dark:border-default-300 transition-colors duration-200 ${
-                  hasMultipleAddresses(forward.remoteAddr) ? 'hover:bg-default-100 dark:hover:bg-default-200/50' : ''
-                }`}
-                onClick={() => showAddressModal(forward.remoteAddr, null, '目标地址')}
-                title={formatRemoteAddress(forward.remoteAddr)}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                    <span className="text-xs font-medium text-default-600 flex-shrink-0">{translate("目标:")}</span>
-                    <code className="text-xs font-mono text-foreground truncate min-w-0">
-                      {formatRemoteAddress(forward.remoteAddr)}
-                    </code>
-                  </div>
-                  {hasMultipleAddresses(forward.remoteAddr) && (
-                    <svg className="w-3 h-3 text-default-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                    </svg>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* 统计信息 */}
-            <div className="flex items-center justify-between pt-2 border-t border-divider">
-              <Chip color={strategyDisplay.color as any} variant="flat" size="sm" className="text-xs">
-                {strategyDisplay.text}
-              </Chip>
-              <div className="flex items-center gap-1">
-                <Chip variant="flat" size="sm" className="text-xs" color="primary">
-                  ↑{formatFlow(forward.inFlow || 0)}
-                </Chip>
-
-              </div>
-              <Chip variant="flat" size="sm" className="text-xs" color="success">
-                  ↓{formatFlow(forward.outFlow || 0)}
-                </Chip>
-            </div>
-          </div>
-
-          <div className="flex gap-1.5 mt-3">
-            <Button
-              size="sm"
-              variant="flat"
-              color="primary"
-              onPress={() => handleEdit(forward)}
-              isDisabled={selectionMode}
-              className="flex-1 min-h-8"
-              startContent={
-                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
-                </svg>
-              }
-            >{translate("编辑")}</Button>
-            <Button
-              size="sm"
-              variant="flat"
-              color="warning"
-              onPress={() => handleDiagnose(forward)}
-              isDisabled={selectionMode}
-              className="flex-1 min-h-8"
-              startContent={
-                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                </svg>
-              }
-            >{translate("诊断")}</Button>
-            <Button
-              size="sm"
-              variant="flat"
-              color="danger"
-              onPress={() => handleDelete(forward)}
-              isDisabled={selectionMode}
-              className="flex-1 min-h-8"
-              startContent={
-                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" clipRule="evenodd" />
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 012 0v4a1 1 0 11-2 0V7zM12 7a1 1 0 012 0v4a1 1 0 11-2 0V7z" clipRule="evenodd" />
-                </svg>
-              }
-            >{translate("删除")}</Button>
-          </div>
-        </CardBody>
-      </Card>
-    );
   };
 
   if (loading) {
@@ -1766,20 +1137,11 @@ export default function ForwardPage() {
     );
   }
 
-  const userGroups = groupForwardsByUserAndTunnel();
-  const visibleForwards = viewMode === 'grouped'
-    ? userGroups.flatMap(userGroup =>
-      userGroup.tunnelGroups.flatMap(tunnelGroup => tunnelGroup.forwards)
-    )
-    : getSortedForwards();
-  const visibleForwardIds = visibleForwards.map(forward => forward.id);
-  const allVisibleSelected = visibleForwardIds.length > 0
-    && visibleForwardIds.every(id => selectedForwardIds.includes(id));
   const ownUserId = JwtUtil.getUserIdFromToken();
   const isAdmin = JwtUtil.getRoleIdFromToken() === 0;
   const ownRuleGroups = ruleGroups.filter(group => group.userId === ownUserId);
   const filterRuleGroups = isAdmin ? ruleGroups : ownRuleGroups;
-  const tableRules = getSortedForwards(true).filter(forward => {
+  const tableRules = [...forwards].sort((a, b) => (a.inx ?? 0) - (b.inx ?? 0)).filter(forward => {
     const matchesGroup = activeGroupId === -1 ||
       (activeGroupId === 0 ? !forward.groupId : forward.groupId === activeGroupId);
     const haystack = `${forward.name} ${forward.tunnelName} ${forward.inIp} ${forward.inPort} ${forward.remoteAddr} ${forward.userName || ""}`.toLowerCase();
@@ -1803,9 +1165,6 @@ export default function ForwardPage() {
               <h1 className="text-sm font-semibold">{translate("转发规则")}</h1>
               <div className="flex flex-wrap gap-2">
                 <Button className="rules-text-action" size="sm" variant="bordered" title={translate("搜索规则")} aria-label={translate("搜索规则")} onPress={() => setSearchVisible(value => !value)}><RuleIcon name="search" />{translate("搜索规则")}</Button>
-                <Button isIconOnly title={ruleView === "table" ? translate("卡片视图") : translate("表格视图")} aria-label={translate("切换视图")} size="sm" variant="flat" onPress={() => { setSelectedForwardIds([]); setRuleView(ruleView === "table" ? "cards" : "table"); }}>
-                  <RuleIcon name="view" />
-                </Button>
                 <Button className="rules-text-action" title={translate("刷新")} aria-label={translate("刷新")} size="sm" variant="flat" onPress={() => loadData(false)}><RuleIcon name="refresh" />{translate("刷新")}</Button>
                 <Button className="rules-text-action" title={translate("统计数据")} aria-label={translate("统计数据")} size="sm" variant="flat" onPress={() => showForwardStats()}><RuleIcon name="stats" />{translate("统计数据")}</Button>
               </div>
@@ -1832,7 +1191,6 @@ export default function ForwardPage() {
             />}
           </CardBody>
         </Card>
-        {ruleView === "table" && (
           <div className="rules-batch flex flex-wrap items-center gap-2">
             <Button className="rules-text-action" title={translate("添加规则")} aria-label={translate("添加规则")} size="sm" color="primary" onPress={handleAdd}><RuleIcon name="add" />{translate("添加规则")}</Button>
             <Button className="rules-text-action" title={translate("批量导入")} aria-label={translate("批量导入")} size="sm" variant="flat" onPress={handleImport}><RuleIcon name="import" />{translate("批量导入")}</Button>
@@ -1859,107 +1217,6 @@ export default function ForwardPage() {
             <Button className="rules-text-action" title={translate("删除选中")} aria-label={translate("删除选中")} size="sm" color="danger" variant="flat" isDisabled={!tableSelectedIds.length} onPress={handleBatchDelete}><RuleIcon name="delete" />{translate("删除选中")}</Button>
             {!!tableSelectedIds.length && <span className="text-sm text-default-500">{translate("已选择")}{tableSelectedIds.length}{translate("条")}</span>}
           </div>
-        )}
-        {ruleView === "cards" && <div className="flex items-center justify-between mb-6">
-          <div className="flex-1">
-          </div>
-          <div className="flex items-center gap-3">
-            {ruleView === "cards" && (
-            <Button
-              size="sm"
-              variant="flat"
-              color="default"
-              onPress={handleViewModeChange}
-              isIconOnly
-              className="text-sm"
-              title={viewMode === 'grouped' ? translate("切换到直接显示") : translate("切换到分类显示")}
-            >
-              {viewMode === 'grouped' ? (
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1v-2zM3 16a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1v-2z" clipRule="evenodd" />
-                </svg>
-              ) : (
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z" />
-                </svg>
-              )}
-            </Button>
-            )}
-
-            <Button
-              size="sm"
-              variant="flat"
-              color={selectionMode ? 'secondary' : 'default'}
-              onPress={toggleSelectionMode}
-            >
-              {selectionMode ? translate("退出多选") : translate("多选")}
-            </Button>
-
-            {selectionMode && (
-              <>
-                <Button
-                  size="sm"
-                  variant="flat"
-                  color="default"
-                  onPress={allVisibleSelected ? clearSelectedForwards : selectAllVisibleForwards}
-                  isDisabled={visibleForwardIds.length === 0}
-                >
-                  {allVisibleSelected ? translate("取消全选") : translate("全选")}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="flat"
-                  color="default"
-                  onPress={clearSelectedForwards}
-                  isDisabled={selectedForwardIds.length === 0}
-                >{translate("清空选择")}</Button>
-                <Button
-                  size="sm"
-                  variant="flat"
-                  color="danger"
-                  onPress={handleBatchDelete}
-                  isDisabled={selectedForwardIds.length === 0}
-                >{translate("批量删除（")}{selectedForwardIds.length}）
-                </Button>
-              </>
-            )}
-
-            {/* 导入按钮 */}
-            <Button
-              size="sm"
-              variant="flat"
-              color="warning"
-              onPress={handleImport}
-              isDisabled={selectionMode}
-            >{translate("导入")}</Button>
-
-            {/* 导出按钮 */}
-            <Button
-              size="sm"
-              variant="flat"
-              color="success"
-              onPress={handleExport}
-              isLoading={exportLoading}
-              isDisabled={selectionMode}
-
-            >{translate("导出")}</Button>
-
-            <Button
-              size="sm"
-              variant="flat"
-              color="primary"
-              onPress={handleAdd}
-              isDisabled={selectionMode}
-
-            >{translate("新增")}</Button>
-
-
-          </div>
-        </div>}
-
-
-        {/* 根据显示模式渲染不同内容 */}
-        {ruleView === "table" ? (
           <Card className="rules-table border border-divider shadow-none">
             <CardBody className="overflow-x-auto p-0">
               <table className="w-full min-w-[940px] text-sm">
@@ -2015,136 +1272,6 @@ export default function ForwardPage() {
               </div>
             </CardBody>
           </Card>
-        ) : viewMode === 'grouped' ? (
-          /* 按用户和隧道分组的转发列表 */
-          userGroups.length > 0 ? (
-            <div className="space-y-6">
-              {userGroups.map((userGroup) => (
-                <Card key={userGroup.userId || 'unknown'} className="shadow-sm border border-divider w-full overflow-hidden">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between w-full min-w-0">
-                      <div className="flex items-center gap-3 min-w-0 flex-1">
-                        <div className="w-10 h-10 bg-primary-100 dark:bg-primary-900/30 rounded-full flex items-center justify-center flex-shrink-0">
-                          <svg className="w-5 h-5 text-primary" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
-                          </svg>
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <h2 className="text-base font-medium text-foreground truncate max-w-[150px] sm:max-w-[250px] md:max-w-[350px] lg:max-w-[450px]">{userGroup.userName}</h2>
-                          <p className="text-xs text-default-500 truncate max-w-[150px] sm:max-w-[250px] md:max-w-[350px] lg:max-w-[450px]">
-                            {userGroup.tunnelGroups.length}{translate("个隧道，")}{userGroup.tunnelGroups.reduce((total, tg) => total + tg.forwards.length, 0)}{translate("个转发")}</p>
-                        </div>
-                      </div>
-                      <Chip color="primary" variant="flat" size="sm" className="text-xs flex-shrink-0 ml-2">{translate("用户")}</Chip>
-                    </div>
-                  </CardHeader>
-
-                  <CardBody className="pt-0">
-                    <Accordion variant="splitted" className="px-0">
-                      {userGroup.tunnelGroups.map((tunnelGroup) => (
-                        <AccordionItem
-                          key={tunnelGroup.tunnelId}
-                          aria-label={tunnelGroup.tunnelName}
-                          title={
-                            <div className="flex items-center justify-between w-full min-w-0 pr-4">
-                              <div className="flex items-center gap-3 min-w-0 flex-1">
-                                <div className="w-8 h-8 bg-success-100 dark:bg-success-900/30 rounded-lg flex items-center justify-center flex-shrink-0">
-                                  <svg className="w-4 h-4 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                                  </svg>
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                  <h3 className="text-sm font-medium text-foreground truncate max-w-[120px] sm:max-w-[200px] md:max-w-[300px] lg:max-w-[400px]">{tunnelGroup.tunnelName}</h3>
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2 flex-shrink-0 ml-2">
-                                <Chip variant="flat" size="sm" className="text-xs">
-                                  {tunnelGroup.forwards.filter(f => f.serviceRunning).length}/{tunnelGroup.forwards.length}
-                                </Chip>
-                              </div>
-                            </div>
-                          }
-                          className="shadow-none border border-divider"
-                        >
-                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 p-4">
-                            {tunnelGroup.forwards.map((forward) => renderForwardCard(forward, undefined))}
-                          </div>
-                        </AccordionItem>
-                      ))}
-                    </Accordion>
-                  </CardBody>
-                </Card>
-              ))}
-            </div>
-          ) : (
-            /* 空状态 */
-            <Card className="shadow-sm border border-gray-200 dark:border-gray-700">
-              <CardBody className="text-center py-16">
-                <div className="flex flex-col items-center gap-4">
-                  <div className="w-16 h-16 bg-default-100 rounded-full flex items-center justify-center">
-                    <svg className="w-8 h-8 text-default-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 9l4-4 4 4m0 6l-4 4-4-4" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-foreground">{translate("暂无转发配置")}</h3>
-                    <p className="text-default-500 text-sm mt-1">{translate("还没有创建任何转发配置，点击上方按钮开始创建")}</p>
-                  </div>
-                </div>
-              </CardBody>
-            </Card>
-          )
-        ) : (
-          /* 直接显示模式 */
-          forwards.length > 0 ? (
-            selectionMode ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
-                {getSortedForwards().map((forward) => (
-                  forward && forward.id ? (
-                    <div key={forward.id}>{renderForwardCard(forward, undefined)}</div>
-                  ) : null
-                ))}
-              </div>
-            ) : (
-              <DndContext
-                sensors={sensors}
-                collisionDetection={closestCenter}
-                onDragEnd={handleDragEnd}
-                onDragStart={() => {}} // 添加空的 onDragStart 处理器
-              >
-                <SortableContext
-                  items={getSortedForwards().map(f => f.id || 0).filter(id => id > 0)}
-                  strategy={rectSortingStrategy}
-                >
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
-                    {getSortedForwards().map((forward) => (
-                      forward && forward.id ? (
-                        <SortableForwardCard key={forward.id} forward={forward} />
-                      ) : null
-                    ))}
-                  </div>
-                </SortableContext>
-              </DndContext>
-            )
-          ) : (
-            /* 空状态 */
-            <Card className="shadow-sm border border-gray-200 dark:border-gray-700">
-              <CardBody className="text-center py-16">
-                <div className="flex flex-col items-center gap-4">
-                  <div className="w-16 h-16 bg-default-100 rounded-full flex items-center justify-center">
-                    <svg className="w-8 h-8 text-default-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 9l4-4 4 4m0 6l-4 4-4-4" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-foreground">{translate("暂无转发配置")}</h3>
-                    <p className="text-default-500 text-sm mt-1">{translate("还没有创建任何转发配置，点击上方按钮开始创建")}</p>
-                  </div>
-                </div>
-              </CardBody>
-            </Card>
-          )
-        )}
 
         <Modal isOpen={detailForward !== null} onOpenChange={open => { if (!open) setDetailForward(null); }} size="lg">
           <ModalContent>
