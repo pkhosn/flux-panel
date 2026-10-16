@@ -66,7 +66,7 @@ const useH5Mode = () => {
 const ProtectedRoute = ({ children, useSimpleLayout = false, skipLayout = false }: { children: React.ReactNode, useSimpleLayout?: boolean, skipLayout?: boolean }) => {
   const authenticated = isLoggedIn();
   const location = useLocation();
-  const managementOnly = ["/user", "/node", "/tunnel", "/limit", "/config", "/plan", "/redeem"].includes(location.pathname);
+  const managementOnly = ["/user", "/limit", "/config", "/plan", "/redeem"].includes(location.pathname);
   const unavailable = managementOnly && !isAdminWorkspace();
   const isH5 = useH5Mode();
   const navigate = useNavigate();

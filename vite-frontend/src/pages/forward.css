@@ -17,3 +17,6 @@
 @media(max-width:640px){.rules-page{padding:12px 8px}.rules-toolbar>div{padding:12px}.rules-title-row{margin:-12px -12px 0;padding:10px 12px}.rules-batch{padding:0 12px 12px}}
 
 .rules-page button.rules-text-action[aria-label][data-react-aria-pressable]{width:auto;min-width:0;padding:0 9px;gap:5px;white-space:nowrap}
+
+.rules-inline-filters{margin-left:auto;min-width:0}.rules-filter{width:160px;flex:none}
+@media(max-width:640px){.rules-inline-filters{margin-left:0;width:100%}.rules-filter{width:calc(50% - 4px);min-width:120px}}

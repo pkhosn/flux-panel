@@ -14,3 +14,9 @@
 本地验证：前端 `NODE_OPTIONS=--max-old-space-size=768 npm --prefix vite-frontend run build`；本机 Maven Docker 内既有 `mvn -q clean test`，LOG_DIR=/tmp/flux-test-logs、JWT_SECRET=local-test-secret、DB_PATH=/tmp/flux-groups-test.db。13 项测试通过，包括全站管理员权限／普通用户拒绝、统计范围、旧节点迁移可重复执行、只返回入口组。首次全站统计测试发现 Long 条件表达式拆箱空值错误，修复后全量通过。
 
 临时浏览器检查 `/tmp/flux-browser-check/global-groups.cjs` 使用模拟 API 验证全站列表、用户切换与恢复、规则弹窗入口组过滤、节点组过滤及保存；React Aria 弹层角色定位超时后改用实际 option 内容定位，最终通过。`git diff --check` 通过。没有调整生产数据库或代理链路。
+
+## 筛选布局与前台路由修正
+
+用户筛选和入口筛选移入标题工具行，160px 紧凑控件并排，窄屏换行。移除前台对 /node、/tunnel 的错误路由拦截；原有后端节点权限及自建隧道归属校验保留。手机底部补充隧道／节点，购买或订单入口保留。
+
+本地验证：既有 npm build、git diff --check 通过；临时 filter-routes.cjs 验证桌面控件纵坐标同排、管理员前台路由、390px 无溢出；user-routes.cjs 使用普通用户角色验证节点和隧道不再重定向。使用模拟 API，未改变服务端权限。

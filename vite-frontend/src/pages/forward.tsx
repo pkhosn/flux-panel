@@ -1204,6 +1204,29 @@ export default function ForwardPage() {
                 <Button className="rules-text-action" title={translate("刷新")} aria-label={translate("刷新")} size="sm" variant="flat" onPress={() => loadData(false, true)}><RuleIcon name="refresh" />{translate("刷新")}</Button>
                 <Button className="rules-text-action" title={translate("统计数据")} aria-label={translate("统计数据")} size="sm" variant="flat" onPress={() => showForwardStats()}><RuleIcon name="stats" />{translate("统计数据")}</Button>
               </div>
+              <div className="rules-inline-filters flex flex-wrap items-center gap-2">
+            {isAdmin && <Select aria-label={translate("用户筛选")} size="sm" variant="bordered" classNames={{ trigger: "min-h-8 h-8", value: "text-sm" }} className="rules-filter"
+              selectedKeys={[String(queriedOwner || 0)]}
+              items={[{ id: 0, name: translate("全部用户") }, ...ruleUsers, ...(queriedOwner && !ruleUsers.some(user => user.id === queriedOwner) ? [{ id: queriedOwner, name: `#${queriedOwner}` }] : [])]}
+              onSelectionChange={keys => { const value = Array.from(keys)[0]; if (value !== undefined) setSearchParams(Number(value) ? { userId: String(value) } : {}); }}>
+              {user => <SelectItem key={String(user.id)}>{user.name}</SelectItem>}
+            </Select>}
+            <Select
+              aria-label={translate("入口筛选")}
+              size="sm"
+              variant="bordered"
+              classNames={{ trigger: "min-h-8 h-8", value: "text-sm" }}
+              className="rules-filter"
+              selectedKeys={[entryFilter]}
+              items={[{ id: 'all', name: translate("全部入口") }, ...ruleEntries.map(entry => ({ id: String(entry.id), name: entry.name }))]}
+              onSelectionChange={keys => {
+                const value = Array.from(keys)[0];
+                if (value !== undefined) { setEntryFilter(String(value)); setRulePage(1); }
+              }}
+            >
+              {entry => <SelectItem key={entry.id}>{entry.name}</SelectItem>}
+            </Select>
+              </div>
             </div>
             <div className="flex flex-wrap items-center gap-2 text-sm">
               <Chip size="sm" variant="flat">{translate("规则数：")}{forwards.length}</Chip>
@@ -1218,27 +1241,6 @@ export default function ForwardPage() {
                 </Button>
               ))}
             </div>
-            {isAdmin && <Select aria-label={translate("用户筛选")} label={translate("用户筛选")} size="sm" variant="bordered" className="w-full sm:max-w-xs"
-              selectedKeys={[String(queriedOwner || 0)]}
-              items={[{ id: 0, name: translate("全部用户") }, ...ruleUsers, ...(queriedOwner && !ruleUsers.some(user => user.id === queriedOwner) ? [{ id: queriedOwner, name: `#${queriedOwner}` }] : [])]}
-              onSelectionChange={keys => { const value = Array.from(keys)[0]; if (value !== undefined) setSearchParams(Number(value) ? { userId: String(value) } : {}); }}>
-              {user => <SelectItem key={String(user.id)}>{user.name}</SelectItem>}
-            </Select>}
-            <Select
-              aria-label={translate("入口筛选")}
-              label={translate("入口筛选")}
-              size="sm"
-              variant="bordered"
-              className="w-full sm:max-w-xs"
-              selectedKeys={[entryFilter]}
-              items={[{ id: 'all', name: translate("全部入口") }, ...ruleEntries.map(entry => ({ id: String(entry.id), name: entry.name }))]}
-              onSelectionChange={keys => {
-                const value = Array.from(keys)[0];
-                if (value !== undefined) { setEntryFilter(String(value)); setRulePage(1); }
-              }}
-            >
-              {entry => <SelectItem key={entry.id}>{entry.name}</SelectItem>}
-            </Select>
             {(searchVisible || ruleQuery) && <Input
               autoFocus
               aria-label={translate("搜索规则")}
