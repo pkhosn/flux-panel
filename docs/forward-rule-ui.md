@@ -30,3 +30,12 @@
 新增入口筛选，依据规则关联的 tunnelId 区分入口线路；下拉项由当前可见规则生成，不同 ID 同名隧道不合并。可与搜索及规则分组叠加，切换时重置页码，批量操作仅作用于筛选范围。后台全站规则与节点分组属于待沟通设计，本轮不改变。
 
 入口筛选本地验证：既有 npm build 和 git diff --check 通过；临时 `/tmp/flux-browser-check/entry-filter.cjs` 模拟两个入口，验证筛选后仅对应规则、叠加搜索及全部入口复原。
+
+
+## 列标题筛选与高级功能（2026-10-16）
+
+- [x] 入口筛选移至入口列标题旁；顶部保留管理员用户筛选。
+- [x] 出口 / 目标列标题旁新增目标地址筛选，选项从当前接口返回规则中去重生成，多目标规则任意地址匹配即可显示。筛选可叠加入口、搜索、分组，修改时重置页码。
+- [x] 新增与编辑规则表单末尾使用节点页面同款 Accordion，标题为「高级功能」，默认收起；TCP 的入站、SNI、回源 TLS、Proxy Protocol 设置集中在其中，收起时保留配置。
+
+本地复验：`NODE_OPTIONS=--max-old-space-size=768 npm --prefix vite-frontend run build`、`git diff --check`；浏览器临时脚本 `/tmp/flux-browser-check/column-filters.cjs` 验证筛选位置、组合筛选、多目标匹配、默认折叠、保留 TLS 保存与 390px 窄屏无页面溢出。浏览器 API 使用模拟数据，未操作生产数据。

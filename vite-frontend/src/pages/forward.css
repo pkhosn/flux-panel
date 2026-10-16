@@ -20,3 +20,5 @@
 
 .rules-inline-filters{margin-left:auto;min-width:0}.rules-filter{width:160px;flex:none}
 @media(max-width:640px){.rules-inline-filters{margin-left:0;width:100%}.rules-filter{width:calc(50% - 4px);min-width:120px}}
+
+.rules-column-filter{width:156px;flex:none;min-width:0;text-align:left}

@@ -790,5 +790,8 @@
   "入口节点分组": "Ingress node group",
   "用户筛选": "Filter users",
   "全部用户": "All users",
-  "例如：日本、香港、专线；留空为未分组": "For example: Japan, Hong Kong, dedicated line; leave blank for ungrouped"
+  "例如：日本、香港、专线；留空为未分组": "For example: Japan, Hong Kong, dedicated line; leave blank for ungrouped",
+  "目标筛选": "Filter by destination",
+  "全部目标": "All destinations",
+  "高级功能": "Advanced features"
 }

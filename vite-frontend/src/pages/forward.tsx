@@ -3,6 +3,7 @@ import { isAdminWorkspace } from '@/utils/workspace';
 import './forward.css';
 import { translate } from '@/utils/locale';
 import { useState, useEffect, useRef } from "react";
+import { Accordion, AccordionItem } from "@heroui/accordion";
 import { Card, CardBody } from "@heroui/card";
 import { Button } from "@heroui/button";
 import { Input } from "@heroui/input";
@@ -185,6 +186,7 @@ export default function ForwardPage() {
   const [searchVisible, setSearchVisible] = useState(false);
   const [activeGroupId, setActiveGroupId] = useState(-1);
   const [entryFilter, setEntryFilter] = useState("all");
+  const [targetFilter, setTargetFilter] = useState("all");
   const [nodeGroupFilter, setNodeGroupFilter] = useState("all");
   const [rulePage, setRulePage] = useState(1);
   const [rulePageSize, setRulePageSize] = useState(20);
@@ -1173,6 +1175,7 @@ export default function ForwardPage() {
   const ruleEntries = Array.from(new Map(forwards.map(row => [row.tunnelId, {
     id: row.tunnelId, name: row.tunnelName || `#${row.tunnelId}`
   }])).values()).sort((a, b) => a.name.localeCompare(b.name));
+  const ruleTargets = Array.from(new Set(forwards.flatMap(row => row.remoteAddr.split(",").map(address => address.trim()).filter(Boolean)))).sort();
   const ruleUsers = ruleOwners;
   const nodeGroups = Array.from(new Set(tunnels.flatMap(tunnel => tunnel.entryGroups || []))).sort();
   const selectableTunnels = nodeGroupFilter === "all" ? tunnels : tunnels.filter(tunnel => tunnel.entryGroups?.includes(nodeGroupFilter));
@@ -1180,7 +1183,7 @@ export default function ForwardPage() {
     const matchesGroup = activeGroupId === -1 ||
       (activeGroupId === 0 ? !forward.groupId : forward.groupId === activeGroupId);
     const haystack = `${forward.name} ${forward.tunnelName} ${forward.inIp} ${forward.inPort} ${forward.remoteAddr} ${forward.userName || ""}`.toLowerCase();
-    return matchesGroup && (entryFilter === "all" || forward.tunnelId === Number(entryFilter)) && haystack.includes(ruleQuery.trim().toLowerCase());
+    return matchesGroup && (entryFilter === "all" || forward.tunnelId === Number(entryFilter)) && (targetFilter === "all" || forward.remoteAddr.split(",").some(address => address.trim() === targetFilter)) && haystack.includes(ruleQuery.trim().toLowerCase());
   });
   const tableRuleIds = new Set(tableRules.map(row => row.id));
   const tableSelectedIds = selectedForwardIds.filter(id => tableRuleIds.has(id));
@@ -1211,21 +1214,7 @@ export default function ForwardPage() {
               onSelectionChange={keys => { const value = Array.from(keys)[0]; if (value !== undefined) setSearchParams(Number(value) ? { userId: String(value) } : {}); }}>
               {user => <SelectItem key={String(user.id)}>{user.name}</SelectItem>}
             </Select>}
-            <Select
-              aria-label={translate("入口筛选")}
-              size="sm"
-              variant="bordered"
-              classNames={{ trigger: "min-h-8 h-8", value: "text-sm" }}
-              className="rules-filter"
-              selectedKeys={[entryFilter]}
-              items={[{ id: 'all', name: translate("全部入口") }, ...ruleEntries.map(entry => ({ id: String(entry.id), name: entry.name }))]}
-              onSelectionChange={keys => {
-                const value = Array.from(keys)[0];
-                if (value !== undefined) { setEntryFilter(String(value)); setRulePage(1); }
-              }}
-            >
-              {entry => <SelectItem key={entry.id}>{entry.name}</SelectItem>}
-            </Select>
+
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -1285,8 +1274,31 @@ export default function ForwardPage() {
                       const pageIds = pagedRules.map(row => row.id);
                       setSelectedForwardIds(prev => event.target.checked ? [...new Set([...prev, ...pageIds])] : prev.filter(id => !pageIds.includes(id)));
                     }} /></th>
-                    <th className="p-3">{translate("规则名")}</th><th className="p-3">{translate("入口")}</th>
-                    <th className="p-3">{translate("出口 / 目标")}</th><th className="p-3">{translate("已用流量")}</th><th className="p-3">{translate("状态")}</th><th className="p-3">{translate("操作")}</th>
+                    <th className="p-3">{translate("规则名")}</th><th className="p-3"><div className="flex items-center gap-2"><span>{translate("入口")}</span>
+                      <Select
+                        aria-label={translate("入口筛选")}
+                        size="sm"
+                        variant="bordered"
+                        classNames={{ trigger: "min-h-8 h-8", value: "text-sm" }}
+                        className="rules-column-filter"
+                        selectedKeys={[entryFilter]}
+                        items={[{ id: 'all', name: translate("全部入口") }, ...ruleEntries.map(entry => ({ id: String(entry.id), name: entry.name }))]}
+                        onSelectionChange={keys => {
+                          const value = Array.from(keys)[0];
+                          if (value !== undefined) { setEntryFilter(String(value)); setRulePage(1); }
+                        }}
+                      >
+                        {entry => <SelectItem key={entry.id}>{entry.name}</SelectItem>}
+                      </Select>
+                    </div></th>
+                    <th className="p-3"><div className="flex items-center gap-2"><span>{translate("出口 / 目标")}</span>
+                      <Select aria-label={translate("目标筛选")} size="sm" variant="bordered" className="rules-column-filter"
+                        classNames={{ trigger: "min-h-8 h-8", value: "text-sm" }} selectedKeys={[targetFilter]}
+                        items={[{ id: "all", name: translate("全部目标") }, ...ruleTargets.map(address => ({ id: address, name: address }))]}
+                        onSelectionChange={keys => { const value = Array.from(keys)[0]; if (value !== undefined) { setTargetFilter(String(value)); setRulePage(1); } }}>
+                        {item => <SelectItem key={item.id} textValue={item.name}>{item.name}</SelectItem>}
+                      </Select>
+                    </div></th><th className="p-3">{translate("已用流量")}</th><th className="p-3">{translate("状态")}</th><th className="p-3">{translate("操作")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1514,59 +1526,7 @@ export default function ForwardPage() {
                       <SelectItem key="udp">UDP</SelectItem>
                       <SelectItem key="tcp_udp">{translate("TCP+UDP（兼容模式）")}</SelectItem>
                     </Select>
-                    {form.protocol === "tcp" && (
-                      <div className="space-y-3 rounded-lg border border-default-200 p-3">
-                        <Select label={translate("入站方式")} items={[{ id: 0, name: "独立端口", port: 0 }, ...tlsInbounds.filter(item => item.tunnelId === Number(form.tunnelId))]} selectedKeys={[String(form.tlsInboundId)]}
-                          onSelectionChange={keys => { const id = Number(Array.from(keys)[0]);
-                            if (Number.isFinite(id)) setForm(prev => ({ ...prev, tlsInboundId: id, sniNames: "",
-                              ...(id ? { originTls: 0, proxyAccept: 0 } : {}) })); }}>
-                          {item => <SelectItem key={String(item.id)}>{item.id ? `${item.name} :${item.port}` : item.name}</SelectItem>}
-                        </Select>
-                        {!!form.tlsInboundId && <Textarea label={translate("SNI 域名（每行一个）")}
-                          value={form.sniNames.split(",").join("\n")}
-                          onValueChange={value => setForm(prev => ({ ...prev, sniNames: value.replace(/[\r\n]+/g, ",") }))}
-                          description={translate("客户端 TLS 域名必须匹配；目标需提供对应域名的证书。未知域名拒绝连接。")} />}
-                        <Select isDisabled={!!form.tlsInboundId} label={translate("回源 TLS")} selectedKeys={[String(form.originTls)]}
-                          onSelectionChange={keys => { const value = Array.from(keys)[0];
-                            if (value !== undefined) setForm(prev => ({ ...prev, originTls: Number(value) })); }}>
-                          <SelectItem key="0">{translate("关闭")}</SelectItem>
-                          <SelectItem key="1">{translate("开启（验证目标证书）")}</SelectItem>
-                        </Select>
-                        {form.originTls === 1 && <>
-                          <Input label={translate("TLS 校验名称 / SNI")} placeholder={translate("留空使用目标主机名")}
-                            value={form.originServerName} onValueChange={value => setForm(prev => ({ ...prev, originServerName: value }))} />
-                          <Textarea label={translate("自定义根证书（PEM）")} placeholder={translate("留空使用系统根证书")}
-                            value={form.originRootCa} onValueChange={value => setForm(prev => ({ ...prev, originRootCa: value }))} />
-                          <Input label={translate("ALPN（可选，逗号分隔）")} placeholder="h2,http/1.1"
-                            value={form.originAlpn} onValueChange={value => setForm(prev => ({ ...prev, originAlpn: value }))} />
-                          <p className="text-xs text-default-500">{translate("仅加密至目标的连接；目标服务必须支持 TLS。发送 Proxy 头时，头部也在 TLS 内传输。")}</p>
-                        </>}
-                        <p className="text-sm font-medium">Proxy Protocol</p>
-                        <p className="text-xs text-default-500">{translate("入口节点需升级到支持版本。接收模式只信任下方填写的来源网段。")}</p>
-                        <Select isDisabled={!!form.tlsInboundId} label={translate("接收")} selectedKeys={[String(form.proxyAccept)]}
-                          onSelectionChange={keys => {
-                            const value = Array.from(keys)[0];
-                            if (value !== undefined) setForm(prev => ({ ...prev, proxyAccept: Number(value) }));
-                          }}>
-                          <SelectItem key="0">{translate("关闭")}</SelectItem>
-                          <SelectItem key="1">{translate("自动识别 v1/v2")}</SelectItem>
-                        </Select>
-                        {form.proxyAccept > 0 && <Textarea label={translate("可信来源 CIDR")}
-                          placeholder={"192.0.2.0/24\n2001:db8::/32"}
-                          value={form.proxyTrustedCidrs.split(",").join("\n")}
-                          onChange={event => setForm(prev => ({ ...prev, proxyTrustedCidrs: event.target.value.replace(/[\r\n]+/g, ",") }))}
-                          description={translate("每行一个 IP 网段。请填写实际发送 Proxy 头的上游地址。")} />}
-                        <Select label={translate("发送")} selectedKeys={[String(form.proxySend)]}
-                          onSelectionChange={keys => {
-                            const value = Array.from(keys)[0];
-                            if (value !== undefined) setForm(prev => ({ ...prev, proxySend: Number(value) }));
-                          }}>
-                          <SelectItem key="0">{translate("关闭")}</SelectItem>
-                          <SelectItem key="1">v1</SelectItem>
-                          <SelectItem key="2">v2</SelectItem>
-                        </Select>
-                      </div>
-                    )}
+
                     <Input
                       label={translate("转发名称")}
                       placeholder={translate("请输入转发名称")}
@@ -1679,6 +1639,63 @@ export default function ForwardPage() {
                         <SelectItem key="least_connections">{translate("最少连接 - 优先空闲目标")}</SelectItem>
                         <SelectItem key="hash" >{translate("哈希模式 - IP哈希")}</SelectItem>
                       </Select>
+                    )}
+                    {form.protocol === "tcp" && (
+                      <Accordion variant="bordered">
+                        <AccordionItem key="advanced" aria-label={translate("高级功能")} title={translate("高级功能")}>
+                          <div className="space-y-3 pb-2">
+                            <Select label={translate("入站方式")} items={[{ id: 0, name: "独立端口", port: 0 }, ...tlsInbounds.filter(item => item.tunnelId === Number(form.tunnelId))]} selectedKeys={[String(form.tlsInboundId)]}
+                              onSelectionChange={keys => { const id = Number(Array.from(keys)[0]);
+                                if (Number.isFinite(id)) setForm(prev => ({ ...prev, tlsInboundId: id, sniNames: "",
+                                  ...(id ? { originTls: 0, proxyAccept: 0 } : {}) })); }}>
+                              {item => <SelectItem key={String(item.id)}>{item.id ? `${item.name} :${item.port}` : item.name}</SelectItem>}
+                            </Select>
+                            {!!form.tlsInboundId && <Textarea label={translate("SNI 域名（每行一个）")}
+                              value={form.sniNames.split(",").join("\n")}
+                              onValueChange={value => setForm(prev => ({ ...prev, sniNames: value.replace(/[\r\n]+/g, ",") }))}
+                              description={translate("客户端 TLS 域名必须匹配；目标需提供对应域名的证书。未知域名拒绝连接。")} />}
+                            <Select isDisabled={!!form.tlsInboundId} label={translate("回源 TLS")} selectedKeys={[String(form.originTls)]}
+                              onSelectionChange={keys => { const value = Array.from(keys)[0];
+                                if (value !== undefined) setForm(prev => ({ ...prev, originTls: Number(value) })); }}>
+                              <SelectItem key="0">{translate("关闭")}</SelectItem>
+                              <SelectItem key="1">{translate("开启（验证目标证书）")}</SelectItem>
+                            </Select>
+                            {form.originTls === 1 && <>
+                              <Input label={translate("TLS 校验名称 / SNI")} placeholder={translate("留空使用目标主机名")}
+                                value={form.originServerName} onValueChange={value => setForm(prev => ({ ...prev, originServerName: value }))} />
+                              <Textarea label={translate("自定义根证书（PEM）")} placeholder={translate("留空使用系统根证书")}
+                                value={form.originRootCa} onValueChange={value => setForm(prev => ({ ...prev, originRootCa: value }))} />
+                              <Input label={translate("ALPN（可选，逗号分隔）")} placeholder="h2,http/1.1"
+                                value={form.originAlpn} onValueChange={value => setForm(prev => ({ ...prev, originAlpn: value }))} />
+                              <p className="text-xs text-default-500">{translate("仅加密至目标的连接；目标服务必须支持 TLS。发送 Proxy 头时，头部也在 TLS 内传输。")}</p>
+                            </>}
+                            <p className="text-sm font-medium">Proxy Protocol</p>
+                            <p className="text-xs text-default-500">{translate("入口节点需升级到支持版本。接收模式只信任下方填写的来源网段。")}</p>
+                            <Select isDisabled={!!form.tlsInboundId} label={translate("接收")} selectedKeys={[String(form.proxyAccept)]}
+                              onSelectionChange={keys => {
+                                const value = Array.from(keys)[0];
+                                if (value !== undefined) setForm(prev => ({ ...prev, proxyAccept: Number(value) }));
+                              }}>
+                              <SelectItem key="0">{translate("关闭")}</SelectItem>
+                              <SelectItem key="1">{translate("自动识别 v1/v2")}</SelectItem>
+                            </Select>
+                            {form.proxyAccept > 0 && <Textarea label={translate("可信来源 CIDR")}
+                              placeholder={"192.0.2.0/24\n2001:db8::/32"}
+                              value={form.proxyTrustedCidrs.split(",").join("\n")}
+                              onChange={event => setForm(prev => ({ ...prev, proxyTrustedCidrs: event.target.value.replace(/[\r\n]+/g, ",") }))}
+                              description={translate("每行一个 IP 网段。请填写实际发送 Proxy 头的上游地址。")} />}
+                            <Select label={translate("发送")} selectedKeys={[String(form.proxySend)]}
+                              onSelectionChange={keys => {
+                                const value = Array.from(keys)[0];
+                                if (value !== undefined) setForm(prev => ({ ...prev, proxySend: Number(value) }));
+                              }}>
+                              <SelectItem key="0">{translate("关闭")}</SelectItem>
+                              <SelectItem key="1">v1</SelectItem>
+                              <SelectItem key="2">v2</SelectItem>
+                            </Select>
+                          </div>
+                        </AccordionItem>
+                      </Accordion>
                     )}
                   </div>
                 </ModalBody>
