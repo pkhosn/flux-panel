@@ -758,5 +758,7 @@
   "确认重置": "Confirm reset",
   "确认重置隧道流量": "Confirm reset tunnel traffic",
   "该操作只会重置隧道权限流量不会重置账号流量，重置后该隧道权限的上下行流量将归零，此操作不可撤销。": "This operation will only reset the tunnel permission traffic but not the account traffic. After the reset, the upstream and downstream traffic of the tunnel permission will be reset to zero. This operation cannot be undone.",
-  "出口/目标": "Egress / Target"
+  "出口/目标": "Egress / Target",
+  "页": "page",
+  "切换视图": "Switch view"
 }

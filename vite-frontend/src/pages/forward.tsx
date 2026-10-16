@@ -1,3 +1,4 @@
+import './forward.css';
 import { translate } from '@/utils/locale';
 import { useState, useEffect, useRef } from "react";
 import { Card, CardBody, CardHeader } from "@heroui/card";
@@ -58,6 +59,28 @@ import {
 import { JwtUtil } from "@/utils/jwt";
 import { copyText } from "@/utils/clipboard";
 import { parseRuleTransfer } from "@/utils/rule-transfer";
+
+const ruleIcons: Record<string, string> = {
+  search: 'm21 21-5-5M19 11a8 8 0 1 1-16 0 8 8 0 0 1 16 0',
+  refresh: 'M20 7v5h-5M4 17v-5h5M6 7a7 7 0 0 1 12-2l2 3M4 16l2 3a7 7 0 0 0 12-2',
+  stats: 'M4 3v17h17M8 16v-5m5 5V7m5 9v-7',
+  view: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z',
+  group: 'M3 7h7l2 2h9v11H3zM3 7V4h7l2 3',
+  tls: 'M6 10h12v11H6zM8 10V6a4 4 0 0 1 8 0v4m-4 5v2',
+  add: 'M12 5v14M5 12h14', import: 'M12 3v12m-4-4 4 4 4-4M4 16v5h16v-5',
+  export: 'M12 16V4m-4 4 4-4 4 4M4 16v5h16v-5',
+  clear: 'M12 3s-7 8-7 12a7 7 0 0 0 14 0c0-4-7-12-7-12',
+  play: 'm8 4 12 8-12 8z', pause: 'M8 5v14M16 5v14',
+  delete: 'M3 6h18M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7m4-7v7',
+  detail: 'M12 11v6m0-10v.1M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0',
+  edit: 'm15 4 5 5M4 20l5-1L21 7l-5-5L4 14z',
+  copy: 'M9 9h12v12H9zM15 5V2H2v13h3', rename: 'M4 20h16M5 15l1-5L17 1l5 5-11 10z',
+  diagnose: 'M9 9a3 3 0 1 1 4 3c-1 0-1 1-1 2m0 3v.1M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0',
+  prev: 'm15 6-6 6 6 6', next: 'm9 6 6 6-6 6', switch: 'M3 7h18l-4-4M21 17H3l4 4'
+};
+function RuleIcon({ name }: { name: string }) {
+  return <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d={ruleIcons[name]} /></svg>;
+}
 
 interface Forward {
   id: number;
@@ -187,6 +210,7 @@ export default function ForwardPage() {
   const [groupModalOpen, setGroupModalOpen] = useState(false);
   const [ruleView, setRuleView] = useState<"table" | "cards">("table");
   const [ruleQuery, setRuleQuery] = useState("");
+  const [searchVisible, setSearchVisible] = useState(false);
   const [activeGroupId, setActiveGroupId] = useState(-1);
   const [rulePage, setRulePage] = useState(1);
   const [rulePageSize, setRulePageSize] = useState(20);
@@ -1771,25 +1795,26 @@ export default function ForwardPage() {
 
   return (
 
-      <div className="px-3 lg:px-6 py-8">
+      <div className="rules-page px-3 lg:px-6 py-4">
         {/* 页面头部 */}
-        <Card className="mb-4 border border-divider shadow-sm">
-          <CardBody className="gap-4 p-4 lg:p-6">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <h1 className="text-lg font-semibold">{translate("转发规则")}</h1>
+        <Card className="rules-toolbar border border-divider shadow-none">
+          <CardBody className="gap-3 p-4">
+            <div className="rules-title-row flex flex-wrap items-center gap-3">
+              <h1 className="text-sm font-semibold">{translate("转发规则")}</h1>
               <div className="flex flex-wrap gap-2">
-                <Button size="sm" variant="flat" onPress={() => { setSelectedForwardIds([]); setRuleView(ruleView === "table" ? "cards" : "table"); }}>
-                  {ruleView === "table" ? translate("卡片视图") : translate("表格视图")}
+                <Button isIconOnly size="sm" variant="bordered" title={translate("搜索规则")} aria-label={translate("搜索规则")} onPress={() => setSearchVisible(value => !value)}><RuleIcon name="search" /></Button>
+                <Button isIconOnly title={ruleView === "table" ? translate("卡片视图") : translate("表格视图")} aria-label={translate("切换视图")} size="sm" variant="flat" onPress={() => { setSelectedForwardIds([]); setRuleView(ruleView === "table" ? "cards" : "table"); }}>
+                  <RuleIcon name="view" />
                 </Button>
-                <Button size="sm" variant="flat" onPress={() => loadData(false)}>{translate("刷新")}</Button>
-                <Button size="sm" variant="flat" onPress={() => showForwardStats()}>{translate("统计数据")}</Button>
+                <Button isIconOnly title={translate("刷新")} aria-label={translate("刷新")} size="sm" variant="flat" onPress={() => loadData(false)}><RuleIcon name="refresh" /></Button>
+                <Button isIconOnly title={translate("统计数据")} aria-label={translate("统计数据")} size="sm" variant="flat" onPress={() => showForwardStats()}><RuleIcon name="stats" /></Button>
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2 text-sm">
               <Chip size="sm" variant="flat">{translate("规则数：")}{forwards.length}</Chip>
               <Chip size="sm" variant="flat">{translate("已用流量：")}{formatFlow(forwards.reduce((sum, row) => sum + (row.inFlow || 0) + (row.outFlow || 0), 0))}</Chip>
-              <Button size="sm" variant="bordered" onPress={() => setGroupModalOpen(true)}>{translate("管理分组")}</Button>
-              {isAdmin && <Button size="sm" variant="bordered" onPress={async () => { setTlsModalOpen(true); const result = await getNodeList(); if (result.code === 0) setTlsNodes(result.data || []); }}>{translate("共享 TLS 入口")}</Button>}
+              <Button isIconOnly title={translate("管理分组")} aria-label={translate("管理分组")} size="sm" variant="bordered" onPress={() => setGroupModalOpen(true)}><RuleIcon name="group" /></Button>
+              {isAdmin && <Button isIconOnly title={translate("共享 TLS 入口")} aria-label={translate("共享 TLS 入口")} size="sm" variant="bordered" onPress={async () => { setTlsModalOpen(true); const result = await getNodeList(); if (result.code === 0) setTlsNodes(result.data || []); }}><RuleIcon name="tls" /></Button>}
               <Button size="sm" variant={activeGroupId === -1 ? "solid" : "flat"} onPress={() => { setActiveGroupId(-1); setRulePage(1); }}>{translate("全部")}</Button>
               <Button size="sm" variant={activeGroupId === 0 ? "solid" : "flat"} onPress={() => { setActiveGroupId(0); setRulePage(1); }}>{translate("未分组")}</Button>
               {filterRuleGroups.map(group => (
@@ -1798,37 +1823,40 @@ export default function ForwardPage() {
                 </Button>
               ))}
             </div>
-            <Input
+            {(searchVisible || ruleQuery) && <Input
+              autoFocus
               aria-label={translate("搜索规则")}
               placeholder={translate("搜索规则名、隧道、入口、目标或用户")}
               value={ruleQuery}
               onChange={event => { setRuleQuery(event.target.value); setRulePage(1); }}
-            />
+            />}
           </CardBody>
         </Card>
         {ruleView === "table" && (
-          <div className="mb-4 flex flex-wrap items-center gap-2">
-            <Button size="sm" color="primary" onPress={handleAdd}>{translate("添加规则")}</Button>
-            <Button size="sm" variant="flat" onPress={handleImport}>{translate("批量导入")}</Button>
-            <Button size="sm" variant="flat" onPress={handleExport}>{translate("批量导出")}</Button>
-            <Button size="sm" variant="flat" isDisabled={!tableSelectedIds.length} onPress={() => handleBatchMeta("clear")}>{translate("清空选中流量")}</Button>
-            <Button size="sm" variant="flat" isDisabled={!tableSelectedIds.length} onPress={() => handleBatchMeta("enable")}>{translate("恢复选中")}</Button>
-            <Button size="sm" variant="flat" isDisabled={!tableSelectedIds.length} onPress={() => handleBatchMeta("disable")}>{translate("暂停选中")}</Button>
+          <div className="rules-batch flex flex-wrap items-center gap-2">
+            <Button isIconOnly title={translate("添加规则")} aria-label={translate("添加规则")} size="sm" color="primary" onPress={handleAdd}><RuleIcon name="add" /></Button>
+            <Button isIconOnly title={translate("批量导入")} aria-label={translate("批量导入")} size="sm" variant="flat" onPress={handleImport}><RuleIcon name="import" /></Button>
+            <Button isIconOnly title={translate("批量导出")} aria-label={translate("批量导出")} size="sm" variant="flat" onPress={handleExport}><RuleIcon name="export" /></Button>
+            <Button isIconOnly title={translate("清空选中流量")} aria-label={translate("清空选中流量")} size="sm" variant="flat" isDisabled={!tableSelectedIds.length} onPress={() => handleBatchMeta("clear")}><RuleIcon name="clear" /></Button>
+            <Button isIconOnly title={translate("恢复选中")} aria-label={translate("恢复选中")} size="sm" variant="flat" isDisabled={!tableSelectedIds.length} onPress={() => handleBatchMeta("enable")}><RuleIcon name="play" /></Button>
+            <Button isIconOnly title={translate("暂停选中")} aria-label={translate("暂停选中")} size="sm" variant="flat" isDisabled={!tableSelectedIds.length} onPress={() => handleBatchMeta("disable")}><RuleIcon name="pause" /></Button>
+            {!!tableSelectedIds.length && <>
             <Select aria-label={translate("批量移动到分组")} size="sm" className="w-48" items={[{id: 0, name: translate("未分组")}, ...movableGroups]} selectedKeys={[String(batchGroupId)]} onSelectionChange={keys => {
               const value = Array.from(keys)[0];
               if (value !== undefined) setBatchGroupId(Number(value));
             }}>
               {group => <SelectItem key={String(group.id)}>{group.name}</SelectItem>}
             </Select>
-            <Button size="sm" variant="flat" isDisabled={!tableSelectedIds.length} onPress={() => handleBatchMeta("group", batchGroupId)}>{translate("移动分组")}</Button>
+            <Button isIconOnly title={translate("移动分组")} aria-label={translate("移动分组")} size="sm" variant="flat" isDisabled={!tableSelectedIds.length} onPress={() => handleBatchMeta("group", batchGroupId)}><RuleIcon name="group" /></Button>
             <Select aria-label={translate("批量目标隧道")} size="sm" className="w-48" placeholder={translate("目标隧道")} selectedKeys={batchTunnelId ? [String(batchTunnelId)] : []} onSelectionChange={keys => {
               const value = Array.from(keys)[0];
               setBatchTunnelId(value === undefined ? null : Number(value));
             }}>
               {tunnels.map(tunnel => <SelectItem key={String(tunnel.id)}>{tunnel.name}</SelectItem>)}
             </Select>
-            <Button size="sm" variant="flat" isDisabled={!tableSelectedIds.length || !batchTunnelId} onPress={handleBatchSwitch}>{translate("切换入口")}</Button>
-            <Button size="sm" color="danger" variant="flat" isDisabled={!tableSelectedIds.length} onPress={handleBatchDelete}>{translate("删除选中")}</Button>
+            <Button isIconOnly title={translate("切换入口")} aria-label={translate("切换入口")} size="sm" variant="flat" isDisabled={!tableSelectedIds.length || !batchTunnelId} onPress={handleBatchSwitch}><RuleIcon name="switch" /></Button>
+            </>}
+            <Button isIconOnly title={translate("删除选中")} aria-label={translate("删除选中")} size="sm" color="danger" variant="flat" isDisabled={!tableSelectedIds.length} onPress={handleBatchDelete}><RuleIcon name="delete" /></Button>
             {!!tableSelectedIds.length && <span className="text-sm text-default-500">{translate("已选择")}{tableSelectedIds.length}{translate("条")}</span>}
           </div>
         )}
@@ -1932,7 +1960,7 @@ export default function ForwardPage() {
 
         {/* 根据显示模式渲染不同内容 */}
         {ruleView === "table" ? (
-          <Card className="border border-divider shadow-sm">
+          <Card className="rules-table border border-divider shadow-none">
             <CardBody className="overflow-x-auto p-0">
               <table className="w-full min-w-[940px] text-sm">
                 <thead className="bg-default-50 text-default-600">
@@ -1941,7 +1969,7 @@ export default function ForwardPage() {
                       const pageIds = pagedRules.map(row => row.id);
                       setSelectedForwardIds(prev => event.target.checked ? [...new Set([...prev, ...pageIds])] : prev.filter(id => !pageIds.includes(id)));
                     }} /></th>
-                    <th className="p-3">{translate("规则名")}</th><th className="p-3">{translate("协议")}</th><th className="p-3">{translate("入口")}</th>
+                    <th className="p-3">{translate("规则名")}</th><th className="p-3">{translate("入口")}</th>
                     <th className="p-3">{translate("出口 / 目标")}</th><th className="p-3">{translate("已用流量")}</th><th className="p-3">{translate("状态")}</th><th className="p-3">{translate("操作")}</th>
                   </tr>
                 </thead>
@@ -1949,22 +1977,22 @@ export default function ForwardPage() {
                   {pagedRules.map(row => (
                     <tr key={row.id} className="border-t border-divider align-top">
                       <td className="p-3"><input type="checkbox" aria-label={`选择${row.name}`} checked={selectedForwardIds.includes(row.id)} onChange={() => toggleForwardSelection(row.id)} /></td>
-                      <td className="p-3 font-medium">{row.name} <span className="text-default-400">#{row.id}</span><div className="text-xs text-default-500">{row.userName}</div></td>
-                      <td className="p-3">{row.protocol === "tcp" ? "TCP" : row.protocol === "udp" ? "UDP" : "TCP+UDP"}</td>
+                      <td className="p-3 font-medium">{row.name} <span className="text-default-400">(#{row.id})</span><span className="ml-2 text-[10px] text-default-400">{row.protocol === "tcp" ? "TCP" : row.protocol === "udp" ? "UDP" : "TCP+UDP"}</span><div className="text-xs text-default-500">{row.userName}</div></td>
+
                       <td className="p-3"><div>{row.tunnelName}</div><button className="text-primary text-left break-all" onClick={() => showAddressModal(row.inIp, row.inPort, "入口地址")}>{formatInAddress(row.inIp, row.inPort)}</button></td>
                       <td className="p-3 break-all">{row.remoteAddr.split(",").join(" / ")}</td>
                       <td className="p-3">{formatFlow(row.trafficBytes ?? ((row.inFlow || 0) + (row.outFlow || 0)))}</td>
                       <td className="p-3"><Chip size="sm" color={getStatusDisplay(row.status).color as any} variant="flat">{getStatusDisplay(row.status).text}</Chip></td>
-                      <td className="p-3"><div className="flex flex-wrap gap-1">
-                        <Button size="sm" variant="light" onPress={() => setDetailForward(row)}>{translate("详情")}</Button>
-                        <Button size="sm" variant="light" onPress={() => handleServiceToggle(row)}>{row.serviceRunning ? translate("暂停") : translate("恢复")}</Button>
-                        <Button size="sm" variant="light" onPress={() => handleEdit(row)}>{translate("编辑")}</Button>
-                        <Button size="sm" variant="light" onPress={() => handleCopy(row)}>{translate("复制")}</Button>
-                        <Button size="sm" variant="light" onPress={() => handleRename(row)}>{translate("重命名")}</Button>
-                        <Button size="sm" variant="light" onPress={() => handleDiagnose(row)}>{translate("诊断")}</Button>
-                        <Button size="sm" variant="light" onPress={() => showForwardStats(row)}>{translate("统计")}</Button>
-                        <Button size="sm" variant="light" onPress={() => clearOneForwardTraffic(row)}>{translate("清空流量")}</Button>
-                        <Button size="sm" color="danger" variant="light" onPress={() => handleDelete(row)}>{translate("删除")}</Button>
+                      <td className="p-3"><div className="rules-row-actions flex flex-nowrap gap-1">
+                        <Button isIconOnly title={translate("详情")} aria-label={translate("详情")} size="sm" variant="light" onPress={() => setDetailForward(row)}><RuleIcon name="detail" /></Button>
+                        <Button isIconOnly size="sm" variant="light" title={row.serviceRunning ? translate("暂停") : translate("恢复")} aria-label={row.serviceRunning ? translate("暂停") : translate("恢复")} onPress={() => handleServiceToggle(row)}><RuleIcon name={row.serviceRunning ? "pause" : "play"} /></Button>
+                        <Button isIconOnly title={translate("编辑")} aria-label={translate("编辑")} size="sm" variant="light" onPress={() => handleEdit(row)}><RuleIcon name="edit" /></Button>
+                        <Button isIconOnly title={translate("复制")} aria-label={translate("复制")} size="sm" variant="light" onPress={() => handleCopy(row)}><RuleIcon name="copy" /></Button>
+                        <Button isIconOnly title={translate("重命名")} aria-label={translate("重命名")} size="sm" variant="light" onPress={() => handleRename(row)}><RuleIcon name="rename" /></Button>
+                        <Button isIconOnly title={translate("诊断")} aria-label={translate("诊断")} size="sm" variant="light" onPress={() => handleDiagnose(row)}><RuleIcon name="diagnose" /></Button>
+                        <Button isIconOnly title={translate("统计")} aria-label={translate("统计")} size="sm" variant="light" onPress={() => showForwardStats(row)}><RuleIcon name="stats" /></Button>
+                        <Button isIconOnly title={translate("清空流量")} aria-label={translate("清空流量")} size="sm" variant="light" onPress={() => clearOneForwardTraffic(row)}><RuleIcon name="clear" /></Button>
+                        <Button isIconOnly title={translate("删除")} aria-label={translate("删除")} size="sm" color="danger" variant="light" onPress={() => handleDelete(row)}><RuleIcon name="delete" /></Button>
                       </div></td>
                     </tr>
                   ))}
@@ -1978,11 +2006,11 @@ export default function ForwardPage() {
                     const value = Number(Array.from(keys)[0]);
                     if (value) { setRulePageSize(value); setRulePage(1); }
                   }}>
-                    <SelectItem key="20">{translate("20 条")}</SelectItem><SelectItem key="50">{translate("50 条")}</SelectItem><SelectItem key="100">{translate("100 条")}</SelectItem>
+                    <SelectItem key="10">10 / {translate("页")}</SelectItem><SelectItem key="20">{translate("20 条")}</SelectItem><SelectItem key="50">{translate("50 条")}</SelectItem><SelectItem key="100">{translate("100 条")}</SelectItem>
                   </Select>
-                  <Button size="sm" isDisabled={rulePage <= 1} onPress={() => setRulePage(page => page - 1)}>{translate("上一页")}</Button>
+                  <Button isIconOnly title={translate("上一页")} aria-label={translate("上一页")} size="sm" isDisabled={rulePage <= 1} onPress={() => setRulePage(page => page - 1)}><RuleIcon name="prev" /></Button>
                   <span className="text-sm">{rulePage} / {Math.max(1, Math.ceil(tableRules.length / rulePageSize))}</span>
-                  <Button size="sm" isDisabled={rulePage >= Math.ceil(tableRules.length / rulePageSize)} onPress={() => setRulePage(page => page + 1)}>{translate("下一页")}</Button>
+                  <Button isIconOnly title={translate("下一页")} aria-label={translate("下一页")} size="sm" isDisabled={rulePage >= Math.ceil(tableRules.length / rulePageSize)} onPress={() => setRulePage(page => page + 1)}><RuleIcon name="next" /></Button>
                 </div>
               </div>
             </CardBody>
