@@ -109,50 +109,47 @@ public class ForwardBatchController {
                         "SELECT id, user_id, name, tunnel_id, remote_addr, strategy, protocol, " +
                                 "proxy_accept, proxy_send, proxy_trusted_cidrs, origin_tls, origin_server_name, origin_root_ca, origin_alpn, group_id, status " +
                                 "FROM forward WHERE " + scope + " ORDER BY id", scopedArgs);
-                if (selected.stream().anyMatch(row -> ((Number) row.get("status")).intValue() != 1)) {
-                    return R.err("暂停中的规则请先恢复，再批量切换入口");
-                }
-                Integer shared = jdbc.queryForObject("SELECT COUNT(*) FROM forward WHERE " + scope + " AND tls_inbound_id>0", Integer.class, scopedArgs);
-                if (shared != null && shared > 0) return R.err("共享 TLS 规则请逐条编辑并重新选择目标入口");
+                List<Map<String, Object>> failures = new ArrayList<>();
+                List<Long> succeeded = new ArrayList<>();
                 for (Map<String, Object> row : selected) {
-                    int ruleOwner = ((Number) row.get("user_id")).intValue();
-                    if (!admin && ruleOwner != owner) return R.err("规则无权操作");
+                    long id = ((Number) row.get("id")).longValue();
                     Integer originalPort = jdbc.queryForObject(
-                            "SELECT MIN(port) FROM forward_port WHERE forward_id=?", Integer.class, row.get("id"));
+                            "SELECT MIN(port) FROM forward_port WHERE forward_id=?", Integer.class, id);
+                    String error = null;
+                    if (((Number) row.get("tunnel_id")).intValue() == tunnelId.intValue()) {
+                        succeeded.add(id);
+                        continue;
+                    }
                     Integer distinctPorts = jdbc.queryForObject(
-                            "SELECT COUNT(DISTINCT port) FROM forward_port WHERE forward_id=?", Integer.class, row.get("id"));
-                    if (originalPort == null || distinctPorts == null || distinctPorts != 1) {
-                        return R.err("规则 " + row.get("id") + " 的原入口端口不一致，无法安全批量切换");
+                            "SELECT COUNT(DISTINCT port) FROM forward_port WHERE forward_id=?", Integer.class, id);
+                    Integer shared = jdbc.queryForObject("SELECT COUNT(*) FROM forward WHERE id=? AND tls_inbound_id>0", Integer.class, id);
+                    if (((Number) row.get("status")).intValue() != 1) error = "暂停中的规则请先恢复";
+                    else if (shared != null && shared > 0) error = "共享 TLS 规则请逐条编辑并重新选择目标入口";
+                    else if (originalPort == null || distinctPorts == null || distinctPorts != 1) error = "原入口端口不一致，无法保持原端口切换";
+                    else {
+                        int ruleOwner = ((Number) row.get("user_id")).intValue();
+                        Integer allowed = jdbc.queryForObject(
+                                "SELECT COUNT(*) FROM tunnel t WHERE t.id=? AND t.status=1 " +
+                                        "AND EXISTS (SELECT 1 FROM user_tunnel ut " +
+                                        "WHERE ut.tunnel_id=t.id AND ut.user_id=? AND ut.status=1)",
+                                Integer.class, tunnelId, ruleOwner);
+                        if (allowed == null || allowed != 1) error = "无目标隧道权限";
                     }
-                    row.put("original_port", originalPort.intValue());
-                    Integer allowed = jdbc.queryForObject(
-                            "SELECT COUNT(*) FROM tunnel t WHERE t.id=? AND t.status=1 " +
-                                    "AND EXISTS (SELECT 1 FROM user_tunnel ut " +
-                                    "WHERE ut.tunnel_id=t.id AND ut.user_id=? AND ut.status=1)",
-                            Integer.class, tunnelId, ruleOwner);
-                    if (allowed == null || allowed != 1) return R.err("规则 " + row.get("id") + " 无目标隧道权限");
-                }
-                List<Map<String, Object>> completed = new ArrayList<>();
-                for (Map<String, Object> row : selected) {
-                    if (((Number) row.get("tunnel_id")).intValue() == tunnelId.intValue()) continue;
-                    ForwardUpdateDto update = forwardUpdate(row, tunnelId.intValue());
-                    R result = forwardService.updateForward(update);
-                    if (result.getCode() != 0) {
-                        List<Long> rollbackFailed = new ArrayList<>();
-                        for (int i = completed.size() - 1; i >= 0; i--) {
-                            Map<String, Object> old = completed.get(i);
-                            ForwardUpdateDto restore = forwardUpdate(old, ((Number) old.get("tunnel_id")).intValue());
-                            restore.setInPort(((Number) old.get("original_port")).intValue());
-                            R rollback = forwardService.updateForward(restore);
-                            if (rollback.getCode() != 0) rollbackFailed.add(((Number) old.get("id")).longValue());
+                    if (error == null) {
+                        ForwardUpdateDto update = forwardUpdate(row, tunnelId.intValue());
+                        update.setInPort(originalPort);
+                        try {
+                            R result = forwardService.updateForward(update);
+                            if (result.getCode() != 0) error = result.getMsg();
+                        } catch (RuntimeException ex) {
+                            error = ex.getMessage() == null ? "切换失败，请检查节点状态" : ex.getMessage();
                         }
-                        return R.err("规则 " + row.get("id") + " 切换失败：" + result.getMsg()
-                                + (rollbackFailed.isEmpty() ? "；已尝试恢复此前规则"
-                                : "；恢复失败的规则 ID：" + rollbackFailed));
                     }
-                    completed.add(row);
+                    if (error == null) succeeded.add(id);
+                    else failures.add(Map.of("id", id, "name", String.valueOf(row.get("name")),
+                            "port", originalPort == null ? 0 : originalPort, "reason", error));
                 }
-                return R.ok(Map.of("count", completed.size()));
+                return R.ok(Map.of("count", succeeded.size(), "succeededIds", succeeded, "failures", failures));
             }
             default -> {
                 return R.err("此批量操作尚未开放");

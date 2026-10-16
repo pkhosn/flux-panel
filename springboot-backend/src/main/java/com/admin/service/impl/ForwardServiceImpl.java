@@ -1468,7 +1468,7 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
         for (ChainTunnel tunnel : chainTunnelList) {
             List<Integer> nodePort = getNodePort(tunnel.getNodeId(), forward_id);
             if (nodePort.isEmpty()) {
-                throw new RuntimeException("暂无可用端口");
+                throw new IllegalArgumentException("暂无可用端口");
             }
             list.add(nodePort);
         }
@@ -1477,7 +1477,7 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
         if (in_port != null) {
             for (List<Integer> ports : list) {
                 if (!ports.contains(in_port)) {
-                    throw new RuntimeException("指定端口 " + in_port + " 不可用（并非所有节点都有此端口）");
+                    throw new IllegalArgumentException("端口 " + in_port + " 冲突或不在目标节点可用范围内，未切换");
                 }
             }
 

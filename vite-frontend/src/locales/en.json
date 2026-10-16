@@ -798,5 +798,9 @@
   "请选择要切换的隧道": "Select the destination tunnel",
   "切换会关闭旧连接，并重新分配监听端口。": "Switching closes existing connections and reallocates listening ports.",
   "确认切换": "Confirm switch",
-  "批量切换失败": "Batch switch failed"
+  "批量切换失败": "Batch switch failed",
+  "切换会关闭旧连接，保持原监听端口；端口冲突的规则不切换，并在结果中列出。": "Switching closes existing connections and keeps listening ports. Rules with port conflicts stay unchanged and appear in the results.",
+  "切换结果": "Switch results",
+  "失败：": "Failed: ",
+  "端口": "Port"
 }

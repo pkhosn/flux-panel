@@ -196,6 +196,7 @@ export default function ForwardPage() {
   const [batchTunnelId, setBatchTunnelId] = useState<number | null>(null);
   const [switchModalOpen, setSwitchModalOpen] = useState(false);
   const [switchLoading, setSwitchLoading] = useState(false);
+  const [switchResult, setSwitchResult] = useState<{ count: number; failures: { id: number; name: string; port: number; reason: string }[] } | null>(null);
 
   // 模态框状态
   const [modalOpen, setModalOpen] = useState(false);
@@ -408,9 +409,9 @@ export default function ForwardPage() {
     try {
       const result = await batchForward({ ids, action: "switch", tunnelId: batchTunnelId });
       if (result.code !== 0) return toast.error(result.msg || translate("批量切换失败"));
-      toast.success(translate("入口切换完成"));
-      setSwitchModalOpen(false);
-      setSelectedForwardIds([]);
+      const failures = result.data?.failures || [];
+      setSwitchResult({ count: result.data?.count || 0, failures });
+      setSelectedForwardIds(failures.map((row: { id: number }) => row.id));
       await loadData(false);
     } catch {
       toast.error(translate("批量切换失败"));
@@ -1249,7 +1250,7 @@ export default function ForwardPage() {
               {group => <SelectItem key={String(group.id)}>{group.name}</SelectItem>}
             </Select>
             <Button className="rules-text-action" title={translate("移动分组")} aria-label={translate("移动分组")} size="sm" variant="flat" isDisabled={!tableSelectedIds.length || !!inspectedUserId} onPress={() => handleBatchMeta("group", batchGroupId)}><RuleIcon name="group" />{translate("移动分组")}</Button>
-            <Button className="rules-text-action" title={translate("切换入口")} aria-label={translate("切换入口")} size="sm" variant="flat" isDisabled={!tableSelectedIds.length} onPress={() => { setBatchTunnelId(null); setSwitchModalOpen(true); }}><RuleIcon name="switch" />{translate("切换入口")}</Button>
+            <Button className="rules-text-action" title={translate("切换入口")} aria-label={translate("切换入口")} size="sm" variant="flat" isDisabled={!tableSelectedIds.length} onPress={() => { setBatchTunnelId(null); setSwitchResult(null); setSwitchModalOpen(true); }}><RuleIcon name="switch" />{translate("切换入口")}</Button>
             </>}
             <Button className="rules-text-action" title={translate("删除选中")} aria-label={translate("删除选中")} size="sm" color="danger" variant="flat" isDisabled={!tableSelectedIds.length} onPress={handleBatchDelete}><RuleIcon name="delete" />{translate("删除选中")}</Button>
             {!!tableSelectedIds.length && <span className="text-sm text-default-500">{translate("已选择")}{tableSelectedIds.length}{translate("条")}</span>}
@@ -1913,9 +1914,21 @@ export default function ForwardPage() {
           </ModalContent>
         </Modal>
 
-        <Modal isOpen={switchModalOpen} onClose={() => { if (!switchLoading) setSwitchModalOpen(false); }} size="2xl"
+        <Modal disableAnimation isOpen={switchModalOpen} onClose={() => { if (!switchLoading) setSwitchModalOpen(false); }} size="2xl"
           scrollBehavior="outside" backdrop="blur" placement="center" isDismissable={!switchLoading} isKeyboardDismissDisabled={switchLoading} hideCloseButton={switchLoading}>
           <ModalContent>
+            {switchResult ? <>
+            <ModalHeader>{translate("切换结果")}</ModalHeader>
+            <ModalBody>
+              <p>{translate("成功：")}{switchResult?.count || 0} · {translate("失败：")}{switchResult?.failures.length || 0}</p>
+              {switchResult?.failures.map(row => <div key={row.id} className="rounded-lg border border-danger-200 p-3 text-sm">
+                <p className="font-medium">{row.name} (#{row.id}) · {translate("端口")}: {row.port || "—"}</p>
+                <p className="text-danger break-words">{row.reason}</p>
+              </div>)}
+            </ModalBody>
+            <ModalFooter><Button color="primary" onPress={() => { setSwitchModalOpen(false); setSwitchResult(null); }}>{translate("关闭")}</Button></ModalFooter>
+            </> : <>
+
             <ModalHeader className="flex flex-col gap-1">
               <h2 className="text-xl font-bold">{translate("切换入口")}</h2>
               <p className="text-small text-default-500">{translate("已选择")}{tableSelectedIds.length}{translate("条")}{translate("规则，选择目标隧道后确认切换。")}</p>
@@ -1926,14 +1939,16 @@ export default function ForwardPage() {
                 onSelectionChange={keys => { const value = Array.from(keys)[0]; setBatchTunnelId(value === undefined ? null : Number(value)); }}>
                 {tunnels.map(tunnel => <SelectItem key={String(tunnel.id)} textValue={tunnel.name}>{tunnel.name}</SelectItem>)}
               </Select>
-              <p className="text-small text-warning">{translate("切换会关闭旧连接，并重新分配监听端口。")}</p>
+              <p className="text-small text-warning">{translate("切换会关闭旧连接，保持原监听端口；端口冲突的规则不切换，并在结果中列出。")}</p>
             </ModalBody>
             <ModalFooter>
               <Button variant="light" isDisabled={switchLoading} onPress={() => setSwitchModalOpen(false)}>{translate("取消")}</Button>
               <Button color="primary" isLoading={switchLoading} isDisabled={!batchTunnelId || !tableSelectedIds.length} onPress={handleBatchSwitch}>{translate("确认切换")}</Button>
             </ModalFooter>
+            </>}
           </ModalContent>
         </Modal>
+
 
         {/* 导入数据模态框 */}
         <Modal
