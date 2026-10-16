@@ -1,3 +1,4 @@
+import { isAdminWorkspace } from '@/utils/workspace';
 import { translate } from '@/utils/locale';
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -72,7 +73,7 @@ export default function AdminLayout({
     },
     {
       path: '/forward',
-      label: translate("转发管理"),
+      label: translate("我的转发"),
       icon: (
         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
           <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
@@ -81,7 +82,7 @@ export default function AdminLayout({
     },
     {
       path: '/billing',
-      label: translate("购买充值"),
+      label: translate(isAdmin ? "订单管理" : "购买充值"),
       icon: (
         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
           <path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z" />
@@ -171,16 +172,7 @@ export default function AdminLayout({
     // 获取用户信息
 
 
-    // 兼容处理：如果没有admin字段，根据role_id判断（0为管理员）
-    let adminFlag = localStorage.getItem('admin') === 'true';
-    if (localStorage.getItem('admin') === null) {
-      const roleId = parseInt(localStorage.getItem('role_id') || '1', 10);
-      adminFlag = roleId === 0;
-      // 补充设置admin字段，避免下次再次判断
-      localStorage.setItem('admin', adminFlag.toString());
-    }
-
-    setIsAdmin(adminFlag);
+    setIsAdmin(isAdminWorkspace());
     setIsSidebarCollapsed(localStorage.getItem('admin_sidebar_collapsed') === 'true');
 
     // 响应式检查

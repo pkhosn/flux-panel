@@ -34,6 +34,8 @@ public interface ForwardService extends IService<Forward> {
      */
     R getAllForwards();
 
+    R getForwardsForUser(Integer userId);
+
     /**
      * 更新端口转发
      * @param forwardUpdateDto 更新数据

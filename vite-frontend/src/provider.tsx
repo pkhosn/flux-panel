@@ -25,13 +25,19 @@ export function Provider({ children }: ProvidersProps) {
     window.addEventListener('panelLocaleChanged', update);
     return () => window.removeEventListener('panelLocaleChanged', update);
   }, []);
+  const [workspace, setWorkspace] = React.useState(localStorage.getItem('panel_workspace') || 'admin');
+  React.useEffect(() => {
+    const update = () => setWorkspace(localStorage.getItem('panel_workspace') || 'admin');
+    window.addEventListener('panelWorkspaceChanged', update);
+    return () => window.removeEventListener('panelWorkspaceChanged', update);
+  }, []);
   React.useEffect(() => { document.documentElement.lang = locale; }, [locale]);
 
   return (
     <I18nProvider locale={locale}>
       <HeroUIProvider navigate={navigate} useHref={useHref}>
         <ThemeProvider>
-          <React.Fragment key={locale}>{children}</React.Fragment>
+          <React.Fragment key={`${locale}:${workspace}`}>{children}</React.Fragment>
           <Toaster 
             position="top-center"
             toastOptions={{

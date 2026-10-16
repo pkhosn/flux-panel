@@ -1,3 +1,5 @@
+import { useSearchParams, Link } from 'react-router-dom';
+import { isAdminWorkspace } from '@/utils/workspace';
 import './forward.css';
 import { translate } from '@/utils/locale';
 import { useState, useEffect, useRef } from "react";
@@ -158,6 +160,11 @@ interface DiagnosisResult {
 }
 
 export default function ForwardPage() {
+  const [searchParams] = useSearchParams();
+  const rawUserId = Number(searchParams.get('userId'));
+  const inspectedUserId = isAdminWorkspace() && Number.isSafeInteger(rawUserId) && rawUserId > 0
+    && rawUserId !== JwtUtil.getUserIdFromToken() ? rawUserId : undefined;
+
   const [loading, setLoading] = useState(true);
   const [forwards, setForwards] = useState<Forward[]>([]);
   const [tunnels, setTunnels] = useState<Tunnel[]>([]);
@@ -243,15 +250,18 @@ export default function ForwardPage() {
   const [errors, setErrors] = useState<{[key: string]: string}>({});
 
   useEffect(() => {
+    setSelectedForwardIds([]);
+    setActiveGroupId(-1);
+    setRulePage(1);
     loadData();
-  }, []);
+  }, [inspectedUserId]);
 
   // 加载所有数据
   const loadData = async (lod = true, notify = false) => {
     setLoading(lod);
     try {
       const [forwardsRes, tunnelsRes, groupsRes, tlsRes] = await Promise.all([
-        getForwardList(),
+        getForwardList(inspectedUserId),
         userTunnel(),
         getForwardGroups(),
         getTlsInbounds()
@@ -392,10 +402,10 @@ export default function ForwardPage() {
   };
 
   const showForwardStats = async (forward?: Forward) => {
-    const result = await getForwardStats(forward?.id);
+    const result = await getForwardStats(forward?.id, inspectedUserId);
     if (result.code !== 0) return toast.error(result.msg || "获取统计失败");
     setRuleHours(result.data || []);
-    setStatsTitle(forward ? `${forward.name} · 最近 24 小时流量` : JwtUtil.getRoleIdFromToken() === 0 ? translate("全站最近 24 小时流量") : translate("最近 24 小时流量"));
+    setStatsTitle(forward ? `${forward.name} · 最近 24 小时流量` : translate("最近 24 小时流量"));
     setStatsOpen(true);
   };
 
@@ -1145,8 +1155,8 @@ export default function ForwardPage() {
   }
 
   const ownUserId = JwtUtil.getUserIdFromToken();
-  const isAdmin = JwtUtil.getRoleIdFromToken() === 0;
-  const ownRuleGroups = ruleGroups.filter(group => group.userId === ownUserId);
+  const isAdmin = isAdminWorkspace();
+  const ownRuleGroups = inspectedUserId ? [] : ruleGroups.filter(group => group.userId === ownUserId);
   const filterRuleGroups = ownRuleGroups;
   const tableRules = [...forwards].sort((a, b) => (a.inx ?? 0) - (b.inx ?? 0)).filter(forward => {
     const matchesGroup = activeGroupId === -1 ||
@@ -1169,7 +1179,8 @@ export default function ForwardPage() {
         <Card className="rules-toolbar border border-divider shadow-none">
           <CardBody className="gap-3 p-4">
             <div className="rules-title-row flex flex-wrap items-center gap-3">
-              <h1 className="text-sm font-semibold">{translate("转发规则")}</h1>
+              <h1 className="text-sm font-semibold">{inspectedUserId ? `${translate("用户规则")} #${inspectedUserId}` : translate("我的转发")}</h1>
+              {inspectedUserId && <Link to="/user" className="text-sm text-primary">{translate("返回用户管理")}</Link>}
               <div className="flex flex-wrap gap-2">
                 <Button className="rules-text-action" size="sm" variant="bordered" title={translate("搜索规则")} aria-label={translate("搜索规则")} onPress={() => setSearchVisible(value => !value)}><RuleIcon name="search" />{translate("搜索规则")}</Button>
                 <Button className="rules-text-action" title={translate("刷新")} aria-label={translate("刷新")} size="sm" variant="flat" onPress={() => loadData(false, true)}><RuleIcon name="refresh" />{translate("刷新")}</Button>
@@ -1179,7 +1190,7 @@ export default function ForwardPage() {
             <div className="flex flex-wrap items-center gap-2 text-sm">
               <Chip size="sm" variant="flat">{translate("规则数：")}{forwards.length}</Chip>
               <Chip size="sm" variant="flat">{translate("已用流量：")}{formatFlow(forwards.reduce((sum, row) => sum + (row.inFlow || 0) + (row.outFlow || 0), 0))}</Chip>
-              <Button className="rules-text-action" title={translate("管理分组")} aria-label={translate("管理分组")} size="sm" variant="bordered" onPress={() => setGroupModalOpen(true)}><RuleIcon name="group" />{translate("管理分组")}</Button>
+              <Button className="rules-text-action" title={translate("管理分组")} aria-label={translate("管理分组")} size="sm" variant="bordered" isDisabled={!!inspectedUserId} onPress={() => setGroupModalOpen(true)}><RuleIcon name="group" />{translate("管理分组")}</Button>
               {isAdmin && <Button className="rules-text-action" title={translate("共享 TLS 入口")} aria-label={translate("共享 TLS 入口")} size="sm" variant="bordered" onPress={async () => { setTlsModalOpen(true); const result = await getNodeList(); if (result.code === 0) setTlsNodes(result.data || []); }}><RuleIcon name="tls" />{translate("共享 TLS 入口")}</Button>}
               <Button size="sm" variant={activeGroupId === -1 ? "solid" : "flat"} onPress={() => { setActiveGroupId(-1); setRulePage(1); }}>{translate("全部")}</Button>
               <Button size="sm" variant={activeGroupId === 0 ? "solid" : "flat"} onPress={() => { setActiveGroupId(0); setRulePage(1); }}>{translate("未分组")}</Button>
@@ -1199,8 +1210,8 @@ export default function ForwardPage() {
           </CardBody>
         </Card>
           <div className="rules-batch flex flex-wrap items-center gap-2">
-            <Button className="rules-text-action" title={translate("添加规则")} aria-label={translate("添加规则")} size="sm" color="primary" onPress={handleAdd}><RuleIcon name="add" />{translate("添加规则")}</Button>
-            <Button className="rules-text-action" title={translate("批量导入")} aria-label={translate("批量导入")} size="sm" variant="flat" onPress={handleImport}><RuleIcon name="import" />{translate("批量导入")}</Button>
+            <Button className="rules-text-action" title={translate("添加规则")} aria-label={translate("添加规则")} size="sm" color="primary" isDisabled={!!inspectedUserId} onPress={handleAdd}><RuleIcon name="add" />{translate("添加规则")}</Button>
+            <Button className="rules-text-action" title={translate("批量导入")} aria-label={translate("批量导入")} size="sm" variant="flat" isDisabled={!!inspectedUserId} onPress={handleImport}><RuleIcon name="import" />{translate("批量导入")}</Button>
             <Button className="rules-text-action" title={translate("批量导出")} aria-label={translate("批量导出")} size="sm" variant="flat" onPress={handleExport}><RuleIcon name="export" />{translate("批量导出")}</Button>
             <Button className="rules-text-action" title={translate("清空选中流量")} aria-label={translate("清空选中流量")} size="sm" variant="flat" isDisabled={!tableSelectedIds.length} onPress={() => handleBatchMeta("clear")}><RuleIcon name="clear" />{translate("清空选中流量")}</Button>
             <Button className="rules-text-action" title={translate("恢复选中")} aria-label={translate("恢复选中")} size="sm" variant="flat" isDisabled={!tableSelectedIds.length} onPress={() => handleBatchMeta("enable")}><RuleIcon name="play" />{translate("恢复选中")}</Button>
@@ -1212,7 +1223,7 @@ export default function ForwardPage() {
             }}>
               {group => <SelectItem key={String(group.id)}>{group.name}</SelectItem>}
             </Select>
-            <Button className="rules-text-action" title={translate("移动分组")} aria-label={translate("移动分组")} size="sm" variant="flat" isDisabled={!tableSelectedIds.length} onPress={() => handleBatchMeta("group", batchGroupId)}><RuleIcon name="group" />{translate("移动分组")}</Button>
+            <Button className="rules-text-action" title={translate("移动分组")} aria-label={translate("移动分组")} size="sm" variant="flat" isDisabled={!tableSelectedIds.length || !!inspectedUserId} onPress={() => handleBatchMeta("group", batchGroupId)}><RuleIcon name="group" />{translate("移动分组")}</Button>
             <Select aria-label={translate("批量目标隧道")} size="sm" className="w-48" placeholder={translate("目标隧道")} selectedKeys={batchTunnelId ? [String(batchTunnelId)] : []} onSelectionChange={keys => {
               const value = Array.from(keys)[0];
               setBatchTunnelId(value === undefined ? null : Number(value));
@@ -1548,8 +1559,10 @@ export default function ForwardPage() {
 
                     <Select
                       label={translate("规则分组")}
+                      isDisabled={!!inspectedUserId}
                       items={[
                         { id: 0, name: translate("未分组") },
+                        ...(inspectedUserId && form.groupId ? [{ id: form.groupId, name: `#${form.groupId}` }] : []),
                         ...ruleGroups.filter(group => group.userId === (form.userId || JwtUtil.getUserIdFromToken()))
                       ]}
                       selectedKeys={[String(form.groupId)]}

@@ -1,4 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
+import { isAdmin } from '@/utils/auth';
+import { isAdminWorkspace } from '@/utils/workspace';
 import { useNavigate } from 'react-router-dom';
 import { Dropdown, DropdownTrigger, DropdownMenu, DropdownItem } from '@heroui/dropdown';
 import { Modal, ModalContent, ModalHeader, ModalBody } from '@heroui/modal';
@@ -81,6 +83,11 @@ export function PanelHeader({ onToggleSidebar, sidebarExpanded = true, onPasswor
         </div>
         <Dropdown placement="bottom-end" disableAnimation><DropdownTrigger><button className={`panel-header-avatar ${vip ? 'is-vip' : ''}`} title={account.user || account.name} aria-label={text('用户菜单', 'User menu')}><span>{avatarLetter}</span>{vip && <span className="panel-header-vip">AVIP</span>}</button></DropdownTrigger>
           <DropdownMenu aria-label={text('用户菜单', 'User menu')}>
+            {isAdmin() ? <DropdownItem key="workspace" onPress={() => {
+              localStorage.setItem('panel_workspace', isAdminWorkspace() ? 'user' : 'admin');
+              navigate('/dashboard');
+              window.dispatchEvent(new Event('panelWorkspaceChanged'));
+            }}>{isAdminWorkspace() ? text('切换到用户前台', 'Switch to user area') : text('切换到管理后台', 'Switch to administration')}</DropdownItem> : null}
             <DropdownItem key="profile" onPress={() => navigate('/profile')}>{text('个人中心', 'Profile')}</DropdownItem>
             <DropdownItem key="password" onPress={() => onPassword ? onPassword() : navigate('/profile')}>{text('修改密码', 'Change password')}</DropdownItem>
             <DropdownItem key="logout" color="danger" onPress={() => { safeLogout(); navigate('/'); }}>{text('退出登录', 'Sign out')}</DropdownItem>

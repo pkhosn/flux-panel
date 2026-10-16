@@ -1,4 +1,4 @@
-import { Route, Routes, useNavigate } from "react-router-dom";
+import { Route, Routes, useNavigate, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
 
 import IndexPage from "@/pages/index";
@@ -20,6 +20,7 @@ import AdminLayout from "@/layouts/admin";
 import H5Layout from "@/layouts/h5";
 import H5SimpleLayout from "@/layouts/h5-simple";
 
+import { isAdminWorkspace } from "@/utils/workspace";
 import { isLoggedIn } from "@/utils/auth";
 import { siteConfig } from "@/config/site";
 
@@ -64,6 +65,9 @@ const useH5Mode = () => {
 // 简化的路由保护组件 - 使用 React Router 导航避免循环
 const ProtectedRoute = ({ children, useSimpleLayout = false, skipLayout = false }: { children: React.ReactNode, useSimpleLayout?: boolean, skipLayout?: boolean }) => {
   const authenticated = isLoggedIn();
+  const location = useLocation();
+  const managementOnly = ["/user", "/node", "/tunnel", "/limit", "/config", "/plan", "/redeem"].includes(location.pathname);
+  const unavailable = managementOnly && !isAdminWorkspace();
   const isH5 = useH5Mode();
   const navigate = useNavigate();
   
@@ -74,7 +78,11 @@ const ProtectedRoute = ({ children, useSimpleLayout = false, skipLayout = false 
     }
   }, [authenticated, navigate]);
 
-  if (!authenticated) {
+  useEffect(() => {
+    if (authenticated && unavailable) navigate("/dashboard", { replace: true });
+  }, [authenticated, unavailable, navigate]);
+
+  if (!authenticated || unavailable) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-white dark:bg-black">
         <div className="text-lg text-gray-700 dark:text-gray-200"></div>

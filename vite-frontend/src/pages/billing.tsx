@@ -17,7 +17,7 @@ import {
   repayOrder,
   useRedeemCode,
 } from '@/api';
-import { isAdmin } from '@/utils/auth';
+import { isAdminWorkspace } from '@/utils/workspace';
 import { copyText } from '@/utils/clipboard';
 import { getCachedConfig } from '@/config/site';
 
@@ -86,7 +86,7 @@ const parsePaymentMethods = (raw?: string | null): PaymentMethodOption[] => {
 };
 
 export default function BillingPage() {
-  const admin = isAdmin();
+  const admin = isAdminWorkspace();
 
   const [plans, setPlans] = useState<PlanItem[]>([]);
   const [orders, setOrders] = useState<OrderItem[]>([]);

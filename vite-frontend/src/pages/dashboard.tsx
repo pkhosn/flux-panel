@@ -1,6 +1,6 @@
 import { translate } from '@/utils/locale';
 import { Card, CardBody, CardHeader } from "@heroui/card";
-import { JwtUtil } from "@/utils/jwt";
+import { isAdminWorkspace } from "@/utils/workspace";
 import { useState, useEffect } from "react";
 import toast from 'react-hot-toast';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -157,7 +157,7 @@ export default function DashboardPage() {
     setStatisticsFlows([]);
 
     // 检查用户是否是管理员
-    setIsAdmin(JwtUtil.getRoleIdFromToken() === 0);
+    setIsAdmin(isAdminWorkspace());
 
     loadPackageData();
     localStorage.setItem('e', '/dashboard');

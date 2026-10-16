@@ -80,7 +80,7 @@ export const userTunnel = () => Network.post("/tunnel/user/tunnel");
 // 转发CRUD操作 - 全部使用POST请求
 export const createForward = (data: any) => Network.post("/forward/create", data);
 export const importForwardRules = (rules: unknown[]) => Network.post("/forward/import", { rules });
-export const getForwardList = () => Network.post("/forward/list");
+export const getForwardList = (userId?: number) => Network.post("/forward/list", userId ? { userId } : {});
 export const updateForward = (data: any) => Network.post("/forward/update", data);
 export const deleteForward = (id: number) => Network.post("/forward/delete", { id });
 export const forceDeleteForward = (id: number) => Network.post("/forward/force-delete", { id });
@@ -99,7 +99,7 @@ export const createForwardGroup = (name: string) => Network.post("/forward/group
 export const updateForwardGroup = (id: number, name: string) => Network.post("/forward/group/update", { id, name });
 export const deleteForwardGroup = (id: number) => Network.post("/forward/group/delete", { id });
 export const batchForward = (data: { ids: number[]; action: "group" | "clear" | "enable" | "disable" | "switch" | "delete"; groupId?: number; tunnelId?: number }) => Network.post("/forward/batch", data);
-export const getForwardStats = (forwardId?: number) => Network.post("/forward/stats", forwardId ? { forwardId } : {});
+export const getForwardStats = (forwardId?: number, userId?: number) => Network.post("/forward/stats", { forwardId, userId });
 export const clearForwardTraffic = (id: number) => Network.post("/forward/clear-traffic", { id });
 
 // 限速规则CRUD操作 - 全部使用POST请求

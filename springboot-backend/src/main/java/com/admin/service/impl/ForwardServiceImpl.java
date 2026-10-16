@@ -66,13 +66,19 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
 
     @Override
     public R getAllForwards() {
+        return getForwardsForUser(null);
+    }
+
+    @Override
+    public R getForwardsForUser(Integer requestedUserId) {
         UserInfo currentUser = getCurrentUserInfo();
-        List<ForwardWithTunnelDto> forwardList;
-        if (currentUser.getRoleId() != 0) {
-            forwardList = baseMapper.selectForwardsWithTunnelByUserId(currentUser.getUserId());
-        } else {
-            forwardList = baseMapper.selectAllForwardsWithTunnel();
+        int owner = currentUser.getUserId();
+        if (requestedUserId != null) {
+            if (requestedUserId <= 0) return R.err("用户 ID 无效");
+            if (requestedUserId != owner && currentUser.getRoleId() != 0) return R.err("无权查看其他用户规则");
+            owner = requestedUserId;
         }
+        List<ForwardWithTunnelDto> forwardList = baseMapper.selectForwardsWithTunnelByUserId(owner);
 
         // 填充入口IP和端口信息
         for (ForwardWithTunnelDto forward : forwardList) {

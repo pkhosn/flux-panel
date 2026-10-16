@@ -43,8 +43,13 @@ public class ForwardController extends BaseController {
 
     @LogAnnotation
     @PostMapping("/list")
-    public R readAll() {
-        return forwardService.getAllForwards();
+    public R readAll(@RequestBody(required = false) Map<String, Object> input) {
+        if (input == null || input.get("userId") == null) return forwardService.getAllForwards();
+        try {
+            return forwardService.getForwardsForUser(Integer.valueOf(input.get("userId").toString()));
+        } catch (NumberFormatException ex) {
+            return R.err("用户 ID 无效");
+        }
     }
 
     @LogAnnotation

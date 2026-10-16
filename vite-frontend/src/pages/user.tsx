@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 import { translate } from '@/utils/locale';
 import { useState, useEffect, useMemo } from 'react';
 import { Button } from "@heroui/button";
@@ -118,6 +119,7 @@ interface UserNodePermission {
 }
 
 export default function UserPage() {
+  const navigate = useNavigate();
   const PAGE_SIZE_OPTIONS = [10, 30, 50];
 
   // 状态管理
@@ -844,6 +846,7 @@ export default function UserPage() {
 
                     <div className="xl:w-[360px]">
                       <div className="grid grid-cols-2 md:grid-cols-5 xl:grid-cols-5 gap-2">
+                        <Button size="sm" variant="flat" onPress={() => navigate(`/forward?userId=${user.id}`)}>{translate("查看规则")}</Button>
                         <Button size="sm" variant="flat" color="primary" onPress={() => handleEdit(user)} startContent={<EditIcon className="w-3 h-3" />}>{translate("编辑")}</Button>
                         <Button
                           size="sm"
