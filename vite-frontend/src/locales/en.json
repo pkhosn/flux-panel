@@ -816,5 +816,15 @@
   "国内探测点到节点，手动测试，结果缓存15分钟": "China probes to this node. Manual test; cached for 15 minutes.",
   "点击复制": "Click to copy",
   "IP已复制": "IP copied",
-  "国内探测点到节点，每次点击重新测试": "China probes to this node. Each click starts a fresh test."
+  "国内探测点到节点，每次点击重新测试": "China probes to this node. Each click starts a fresh test.",
+  "全部节点": "All nodes",
+  "分组已更新": "Group updated",
+  "全选可管理节点": "Select all manageable nodes",
+  "批量加入分组": "Batch node group",
+  "选择分组": "Select a group",
+  "加入分组": "Add to group",
+  "移出分组": "Remove from group",
+  "删除分组仅解除节点归属，不会删除节点，是否继续？": "Delete this group? Nodes will remain and their group assignment will be removed.",
+  "切换节点分组": "Change node group",
+  "不加入分组": "No group"
 }

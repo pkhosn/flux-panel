@@ -18,6 +18,7 @@ import axios from 'axios';
 
 
 import {
+  getNodeGroups, createNodeGroup, deleteNodeGroup, assignNodeGroup,
   createNode,
   getNodeList,
   updateNode,
@@ -86,8 +87,29 @@ function NodeAddress({ value, placeholder, label }: { value?: string; placeholde
 export default function NodePage() {
   const [nodeList, setNodeList] = useState<Node[]>([]);
   const [groupFilter, setGroupFilter] = useState("all");
-  const nodeGroups = Array.from(new Set(nodeList.map(node => node.groupName || ""))).sort();
-  const visibleNodes = groupFilter === "all" ? nodeList : nodeList.filter(node => (node.groupName || "") === groupFilter);
+  const [nodeGroups, setNodeGroups] = useState<{name: string; nodeCount: number}[]>([]);
+  const [groupModalOpen, setGroupModalOpen] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [selectedNodes, setSelectedNodes] = useState<number[]>([]);
+  const [batchGroup, setBatchGroup] = useState('');
+  const [groupBusy, setGroupBusy] = useState(false);
+  const loadGroups = async () => {
+    const result = await getNodeGroups();
+    if (result.code === 0) setNodeGroups(result.data || []);
+  };
+  const changeGroup = async (ids: number[], name: string) => {
+    if (groupBusy) return;
+    setGroupBusy(true);
+    try {
+      const result = await assignNodeGroup(ids, name);
+      if (result.code !== 0) return toast.error(result.msg || translate('操作失败'));
+      setNodeList(previous => previous.map(node => ids.includes(node.id) ? { ...node, groupName: name } : node));
+      setSelectedNodes([]);
+      toast.success(translate('分组已更新'));
+      await loadGroups();
+    } finally { setGroupBusy(false); }
+  };
+  const visibleNodes = groupFilter === "all" ? nodeList : nodeList.filter(node => (node.groupName || "") === groupFilter.slice(6));
   const [loading, setLoading] = useState(false);
   const [dialogVisible, setDialogVisible] = useState(false);
   const [dialogTitle, setDialogTitle] = useState('');
@@ -136,6 +158,7 @@ export default function NodePage() {
   const loadNodes = async () => {
     setLoading(true);
     try {
+      await loadGroups();
       const res = await getNodeList();
       if (res.code === 0) {
         setNodeList(res.data.map((node: any) => ({
@@ -651,15 +674,16 @@ export default function NodePage() {
 
       <div className="px-3 lg:px-6 py-8">
         {/* 页面头部 */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div className="flex-1">
           <Select aria-label={translate("节点分组筛选")} label={translate("节点分组筛选")} size="sm" className="max-w-xs" selectedKeys={[groupFilter]} onSelectionChange={keys => {
             const value = Array.from(keys)[0]; if (value !== undefined) setGroupFilter(String(value));
           }}>
-            {[{ id: 'all', name: translate("全部节点分组") }, ...nodeGroups.map(group => ({ id: group, name: group || translate("未分组") }))].map(group => <SelectItem key={group.id}>{group.name}</SelectItem>)}
+            {[{ id: 'all', name: translate("全部节点") }, ...nodeGroups.map(group => ({ id: `group:${group.name}`, name: group.name }))].map(group => <SelectItem key={group.id}>{group.name}</SelectItem>)}
           </Select>
         </div>
 
+        <Button size="sm" variant="bordered" onPress={() => setGroupModalOpen(true)}>{translate("管理分组")}</Button>
         <Button
               size="sm"
               variant="flat"
@@ -669,6 +693,33 @@ export default function NodePage() {
             >{translate("新增")}</Button>
 
         </div>
+
+        <div className="flex flex-wrap items-center gap-3 mb-4 text-sm">
+          <label className="flex items-center gap-2"><input type="checkbox" aria-label={translate("全选可管理节点")} checked={visibleNodes.some(n => n.manageable !== false) && visibleNodes.filter(n => n.manageable !== false).every(n => selectedNodes.includes(n.id))}
+            onChange={event => { const ids = visibleNodes.filter(n => n.manageable !== false).map(n => n.id); setSelectedNodes(previous => event.target.checked ? [...new Set([...previous, ...ids])] : previous.filter(id => !ids.includes(id))); }} />{translate("全选")}</label>
+          {!!selectedNodes.length && <>
+            <span>{translate("已选择")}{selectedNodes.length}</span>
+            <Select aria-label={translate("批量加入分组")} className="w-44" size="sm" selectedKeys={batchGroup ? [batchGroup] : []} placeholder={translate("选择分组")} onSelectionChange={keys => { const value = Array.from(keys)[0]; if (value !== undefined) setBatchGroup(String(value)); }}>
+              {nodeGroups.map(group => <SelectItem key={group.name}>{group.name}</SelectItem>)}
+            </Select>
+            <Button size="sm" isDisabled={!batchGroup || groupBusy} onPress={() => changeGroup(selectedNodes, batchGroup)}>{translate("加入分组")}</Button>
+            <Button size="sm" variant="flat" isDisabled={groupBusy} onPress={() => changeGroup(selectedNodes, '')}>{translate("移出分组")}</Button>
+          </>}
+        </div>
+        <Modal isOpen={groupModalOpen} onOpenChange={setGroupModalOpen} size="md" scrollBehavior="inside">
+          <ModalContent><ModalHeader>{translate("管理分组")}</ModalHeader><ModalBody>
+            <div className="flex gap-2"><Input aria-label={translate("分组名称")} placeholder={translate("分组名称")} maxLength={64} value={newGroupName} onValueChange={setNewGroupName} />
+              <Button isDisabled={groupBusy || !newGroupName.trim()} onPress={async () => { setGroupBusy(true); try { const result = await createNodeGroup(newGroupName.trim()); if (result.code !== 0) return toast.error(result.msg); setNewGroupName(''); await loadGroups(); } finally { setGroupBusy(false); } }}>{translate("新增")}</Button></div>
+            {nodeGroups.map(group => <div key={group.name} className="flex items-center justify-between gap-2 border-b border-divider py-2"><span>{group.name} ({group.nodeCount})</span>
+              <Button size="sm" color="danger" variant="light" isDisabled={groupBusy} onPress={async () => {
+                if (!window.confirm(translate('删除分组仅解除节点归属，不会删除节点，是否继续？'))) return;
+                setGroupBusy(true); try { const result = await deleteNodeGroup(group.name); if (result.code !== 0) return toast.error(result.msg);
+                  setNodeList(previous => previous.map(node => node.groupName === group.name && node.manageable !== false ? { ...node, groupName: '' } : node));
+                  if (groupFilter === `group:${group.name}`) setGroupFilter('all'); if (batchGroup === group.name) setBatchGroup(''); await loadGroups();
+                } finally { setGroupBusy(false); }
+              }}>{translate("删除")}</Button></div>)}
+          </ModalBody><ModalFooter><Button variant="light" onPress={() => setGroupModalOpen(false)}>{translate("关闭")}</Button></ModalFooter></ModalContent>
+        </Modal>
 
         {/* 节点列表 */}
         {loading ? (
@@ -704,13 +755,16 @@ export default function NodePage() {
                 <CardHeader className="pb-2">
                   <div className="flex justify-between items-start w-full">
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-foreground truncate text-sm">{node.name}</h3>
+                      <div className="flex items-center gap-2"><input type="checkbox" aria-label={`${translate('选择节点')} ${node.name}`} disabled={node.manageable === false || groupBusy} checked={selectedNodes.includes(node.id)} onChange={event => setSelectedNodes(previous => event.target.checked ? [...previous, node.id] : previous.filter(id => id !== node.id))} /><h3 className="font-semibold text-foreground truncate text-sm">{node.name}</h3></div>
                       {node.manageable === false && (
                         <p className="text-[11px] text-default-500">{translate("只读授权节点")}</p>
                       )}
                     </div>
                     <div className="flex items-center gap-1.5 ml-2">
-                      {node.groupName && <Chip size="sm" variant="flat">{node.groupName}</Chip>}
+                      <Select aria-label={`${translate('切换节点分组')} ${node.name}`} size="sm" variant="underlined" className="max-w-44 mt-1" isDisabled={node.manageable === false || groupBusy} selectedKeys={[node.groupName ? `group:${node.groupName}` : 'none']} onSelectionChange={keys => { const value = Array.from(keys)[0]; if (value !== undefined) changeGroup([node.id], String(value) === 'none' ? '' : String(value).slice(6)); }}
+                        items={[{id:'none',name:translate('不加入分组')}, ...Array.from(new Set([...nodeGroups.map(g => g.name), ...(node.groupName ? [node.groupName] : [])])).map(name => ({id:`group:${name}`,name}))]}>
+                        {group => <SelectItem key={group.id}>{group.name}</SelectItem>}
+                      </Select>
                       <Chip
                         color={node.connectionStatus === 'online' ? 'success' : 'danger'}
                         variant="flat"
@@ -904,8 +958,10 @@ export default function NodePage() {
                   variant="bordered"
                 />
 
-                <Input label={translate("节点分组")} placeholder={translate("例如：日本、香港、专线；留空为未分组")}
-                  value={form.groupName || ''} maxLength={64} onValueChange={value => setForm(prev => ({ ...prev, groupName: value }))} />
+                <Select label={translate("节点分组")} selectedKeys={[form.groupName ? `group:${form.groupName}` : 'none']} onSelectionChange={keys => { const value = Array.from(keys)[0]; if (value !== undefined) setForm(previous => ({ ...previous, groupName: String(value) === 'none' ? '' : String(value).slice(6) })); }}
+                  items={[{id:'none',name:translate('不加入分组')}, ...Array.from(new Set([...nodeGroups.map(g => g.name), ...(form.groupName ? [form.groupName] : [])])).map(name => ({id:`group:${name}`,name}))]}>
+                  {group => <SelectItem key={group.id}>{group.name}</SelectItem>}
+                </Select>
                 <Input
                   label={translate("服务器地址（可留空，Agent 连接后自动获取）")}
                   placeholder={translate("可留空，或填写 IP / 域名作为获取前的地址")}

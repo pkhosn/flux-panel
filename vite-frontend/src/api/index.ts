@@ -137,3 +137,8 @@ export const saveTlsPolicy = (data: any) => Network.post("/forward/tls-inbound/p
 export const saveNodeTlsPolicy = (data: any) => Network.post("/forward/tls-inbound/node-policy", data);
 
 export const getNodeLatency = (id: number, run = false) => Network.post("/node/latency", { id, run });
+
+export const getNodeGroups = () => Network.post("/node/group/list");
+export const createNodeGroup = (name: string) => Network.post("/node/group/create", { name });
+export const deleteNodeGroup = (name: string) => Network.post("/node/group/delete", { name });
+export const assignNodeGroup = (ids: number[], name: string) => Network.post("/node/group/assign", { ids, name });

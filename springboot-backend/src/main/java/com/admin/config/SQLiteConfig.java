@@ -110,6 +110,11 @@ public class SQLiteConfig implements ApplicationRunner {
         ensureForwardGroupTable(connection);
         ensureForwardFlowHourTable(connection);
         ensureColumn(connection, "node", "owner_user_id", "INTEGER");
+        try (Statement statement = connection.createStatement()) {
+            statement.execute("CREATE TABLE IF NOT EXISTS node_group (user_id INTEGER NOT NULL, name TEXT NOT NULL, PRIMARY KEY(user_id,name))");
+            statement.execute("INSERT OR IGNORE INTO node_group(user_id,name) SELECT COALESCE(owner_user_id,0),group_name FROM node WHERE group_name<>''");
+        }
+
         ensureColumn(connection, "node", "created_by_role", "INTEGER NOT NULL DEFAULT 0");
         ensureColumn(connection, "node", "detected_ipv4", "VARCHAR(100)");
         ensureColumn(connection, "node", "detected_ipv6", "VARCHAR(100)");
