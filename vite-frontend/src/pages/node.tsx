@@ -761,10 +761,7 @@ export default function NodePage() {
                       )}
                     </div>
                     <div className="flex items-center gap-1.5 ml-2">
-                      <Select aria-label={`${translate('切换节点分组')} ${node.name}`} size="sm" variant="underlined" className="max-w-44 mt-1" isDisabled={node.manageable === false || groupBusy} selectedKeys={[node.groupName ? `group:${node.groupName}` : 'none']} onSelectionChange={keys => { const value = Array.from(keys)[0]; if (value !== undefined) changeGroup([node.id], String(value) === 'none' ? '' : String(value).slice(6)); }}
-                        items={[{id:'none',name:translate('不加入分组')}, ...Array.from(new Set([...nodeGroups.map(g => g.name), ...(node.groupName ? [node.groupName] : [])])).map(name => ({id:`group:${name}`,name}))]}>
-                        {group => <SelectItem key={group.id}>{group.name}</SelectItem>}
-                      </Select>
+                      {node.groupName && <Chip size="sm" variant="flat" className="mt-1 max-w-full" classNames={{ content: "truncate" }}>{node.groupName}</Chip>}
                       <Chip
                         color={node.connectionStatus === 'online' ? 'success' : 'danger'}
                         variant="flat"
