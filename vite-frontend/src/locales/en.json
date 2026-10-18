@@ -491,7 +491,7 @@
   "总测试数": "Total number of tests",
   "路径": "path",
   "延迟(ms)": "Delay(ms)",
-  "丢包率": "Packet loss rate",
+  "丢包率": "Packet loss",
   "质量": "quality",
   "失败详情": "Failure details",
   "暂无诊断数据": "No diagnostic data yet",
@@ -802,5 +802,16 @@
   "切换会关闭旧连接，保持原监听端口；端口冲突的规则不切换，并在结果中列出。": "Switching closes existing connections and keeps listening ports. Rules with port conflicts stay unchanged and appear in the results.",
   "切换结果": "Switch results",
   "失败：": "Failed: ",
-  "端口": "Port"
+  "端口": "Port",
+  "三网延迟": "China network latency",
+  "电信": "Telecom",
+  "联通": "Unicom",
+  "移动": "Mobile",
+  "测试中": "Testing",
+  "测试": "Test",
+  "重试": "Retry",
+  "超时": "Timeout",
+  "暂无探测点": "No probe available",
+  "探测失败，请稍后重试": "Test failed. Please try again later.",
+  "国内探测点到节点，手动测试，结果缓存15分钟": "China probes to this node. Manual test; cached for 15 minutes."
 }

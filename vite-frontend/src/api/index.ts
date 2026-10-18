@@ -135,3 +135,5 @@ export const updateTlsInbound = (data: any) => Network.post("/forward/tls-inboun
 export const toggleTlsInbound = (data: any) => Network.post("/forward/tls-inbound/toggle", data);
 export const saveTlsPolicy = (data: any) => Network.post("/forward/tls-inbound/policy", data);
 export const saveNodeTlsPolicy = (data: any) => Network.post("/forward/tls-inbound/node-policy", data);
+
+export const getNodeLatency = (id: number, run = false) => Network.post("/node/latency", { id, run });

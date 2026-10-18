@@ -1,3 +1,4 @@
+import { NodeLatency } from '@/components/node-latency';
 import { Select, SelectItem } from '@/components/select';
 import { translate } from '@/utils/locale';
 import { useState, useEffect, useRef } from "react";
@@ -730,6 +731,7 @@ export default function NodePage() {
                       <span className="text-default-600">IPv6</span>
                       <span className="font-mono text-xs truncate ml-2" title={node.detectedIpv6 || ''}>{node.detectedIpv6 || '未获取'}</span>
                     </div>
+                    <NodeLatency key={`${node.id}:${node.detectedIpv4 || node.serverIp}`} id={node.id} />
                     <div className="flex justify-between text-sm">
                       <span className="text-default-600">{translate("版本")}</span>
                       <span className="text-xs">{node.version || '未知'}</span>
