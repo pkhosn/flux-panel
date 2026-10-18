@@ -1201,7 +1201,7 @@ export default function ForwardPage() {
                   {pagedRules.map(row => (
                     <tr key={row.id} className="border-t border-divider align-top">
                       <td className="p-3"><input type="checkbox" aria-label={`选择${row.name}`} checked={selectedForwardIds.includes(row.id)} onChange={() => toggleForwardSelection(row.id)} /></td>
-                      <td className="p-3 font-medium">{row.name} <span className="text-default-400">(#{row.id})</span><span className="ml-2 text-[10px] text-default-400">{row.protocol === "tcp" ? "TCP" : row.protocol === "udp" ? "UDP" : "TCP+UDP"}</span><div className="text-xs text-default-500">{row.userName}</div></td>
+                      <td className="p-3 font-medium">{row.name}<span className="ml-2 text-[10px] text-default-400">{row.protocol === "tcp" ? "TCP" : row.protocol === "udp" ? "UDP" : "TCP+UDP"}</span><div className="text-xs text-default-500">{row.userName}</div></td>
 
                       <td className="p-3"><div>{row.tunnelName}</div><button className="text-primary text-left break-all" onClick={() => showAddressModal(row.inIp, row.inPort, "入口地址")}>{formatInAddress(row.inIp, row.inPort)}</button></td>
                       <td className="p-3 break-all">{row.remoteAddr.split(",").join(" / ")}</td>
@@ -1213,7 +1213,6 @@ export default function ForwardPage() {
                         <Button isIconOnly title={translate("编辑")} aria-label={translate("编辑")} size="sm" variant="light" onPress={() => handleEdit(row)}><RuleIcon name="edit" /></Button>
                         <Button isIconOnly title={translate("复制")} aria-label={translate("复制")} size="sm" variant="light" onPress={() => handleCopy(row)}><RuleIcon name="copy" /></Button>
                         <Button isIconOnly title={translate("诊断")} aria-label={translate("诊断")} size="sm" variant="light" onPress={() => handleDiagnose(row)}><RuleIcon name="diagnose" /></Button>
-                        <Button isIconOnly title={translate("统计")} aria-label={translate("统计")} size="sm" variant="light" onPress={() => showForwardStats(row)}><RuleIcon name="stats" /></Button>
                         <Button isIconOnly title={translate("清空流量")} aria-label={translate("清空流量")} size="sm" variant="light" onPress={() => clearOneForwardTraffic(row)}><RuleIcon name="clear" /></Button>
                         <Button isIconOnly title={translate("删除")} aria-label={translate("删除")} size="sm" color="danger" variant="light" onPress={() => handleDelete(row)}><RuleIcon name="delete" /></Button>
                       </div></td>
