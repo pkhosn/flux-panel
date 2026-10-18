@@ -826,5 +826,14 @@
   "移出分组": "Remove from group",
   "删除分组仅解除节点归属，不会删除节点，是否继续？": "Delete this group? Nodes will remain and their group assignment will be removed.",
   "切换节点分组": "Change node group",
-  "不加入分组": "No group"
+  "不加入分组": "No group",
+  "批量修改": "Batch edit",
+  "修改结果": "Edit results",
+  "确认修改": "Confirm changes",
+  "批量修改内容": "Batch edit content",
+  "行": "Line",
+  "行数必须与所选规则数量一致，不能增删或调整行序": "Line count must match selected rules. Do not add, remove or reorder lines.",
+  "格式应为 目标地址|名称|入口端口，端口范围1–65535": "Use destination|name|listening port; ports must be 1–65535.",
+  "部分规则名称或入口端口无法用文本表示，请逐条编辑": "Some selected rules cannot be represented in this format. Edit them individually.",
+  "每行对应原规则，请勿增删或调整行序。格式：目标地址|名称|入口端口": "Each line maps to the original rule. Do not add, remove or reorder lines. Format: destination|name|listening port"
 }

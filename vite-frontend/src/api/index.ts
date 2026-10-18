@@ -142,3 +142,5 @@ export const getNodeGroups = () => Network.post("/node/group/list");
 export const createNodeGroup = (name: string) => Network.post("/node/group/create", { name });
 export const deleteNodeGroup = (name: string) => Network.post("/node/group/delete", { name });
 export const assignNodeGroup = (ids: number[], name: string) => Network.post("/node/group/assign", { ids, name });
+
+export const batchEditForwards = (ids: number[], text: string) => Network.post("/forward/batch-edit", { ids, text });

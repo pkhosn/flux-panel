@@ -16,6 +16,7 @@ import { Switch } from "@heroui/switch";
 import { Alert } from "@heroui/alert";
 import toast from 'react-hot-toast';
 import {
+  batchEditForwards,
   createForward,
   importForwardRules,
   getForwardList,
@@ -177,6 +178,26 @@ export default function ForwardPage() {
   const [statsTitle, setStatsTitle] = useState("最近 24 小时流量");
   const [ruleHours, setRuleHours] = useState<ForwardHour[]>([]);
   const [batchTunnelId, setBatchTunnelId] = useState<number | null>(null);
+  const [batchEditOpen, setBatchEditOpen] = useState(false);
+  const [batchEditRows, setBatchEditRows] = useState<Forward[]>([]);
+  const [batchEditText, setBatchEditText] = useState('');
+  const [batchEditBusy, setBatchEditBusy] = useState(false);
+  const [batchEditResult, setBatchEditResult] = useState<{count: number; failures: {id: number; line: number; name: string; reason: string}[]} | null>(null);
+  const saveBatchEdit = async () => {
+    if (batchEditBusy) return;
+    const lines = batchEditText.trim().split(/\r?\n/);
+    if (lines.length !== batchEditRows.length) return toast.error(translate('行数必须与所选规则数量一致，不能增删或调整行序'));
+    if (lines.some(line => { const fields = line.split('|'); return fields.length !== 3 || !fields[0].trim() || !fields[1].trim() || !/^\d+$/.test(fields[2].trim()) || Number(fields[2]) < 1 || Number(fields[2]) > 65535; })) return toast.error(translate('格式应为 目标地址|名称|入口端口，端口范围1–65535'));
+    setBatchEditBusy(true);
+    try {
+      const result = await batchEditForwards(batchEditRows.map(row => row.id), batchEditText);
+      if (result.code !== 0) return toast.error(result.msg || translate('修改失败'));
+      setBatchEditResult(result.data);
+      setSelectedForwardIds(result.data.failures.map((row: {id: number}) => row.id));
+      await loadData(false);
+    } catch { toast.error(translate('网络错误，请重试')); }
+    finally { setBatchEditBusy(false); }
+  };
   const [switchModalOpen, setSwitchModalOpen] = useState(false);
   const [switchLoading, setSwitchLoading] = useState(false);
   const [switchResult, setSwitchResult] = useState<{ count: number; failures: { id: number; name: string; port: number; reason: string }[] } | null>(null);
@@ -1159,6 +1180,11 @@ export default function ForwardPage() {
             <Button className="rules-text-action" title={translate("添加规则")} aria-label={translate("添加规则")} size="sm" color="primary" isDisabled={!!inspectedUserId} onPress={handleAdd}><RuleIcon name="add" />{translate("添加规则")}</Button>
             <Button className="rules-text-action" title={translate("批量导入")} aria-label={translate("批量导入")} size="sm" variant="flat" isDisabled={!!inspectedUserId} onPress={handleImport}><RuleIcon name="import" />{translate("批量导入")}</Button>
             <Button className="rules-text-action" title={translate("批量导出")} aria-label={translate("批量导出")} size="sm" variant="flat" onPress={handleExport}><RuleIcon name="export" />{translate("批量导出")}</Button>
+            <Button className="rules-text-action" size="sm" variant="flat" isDisabled={!tableSelectedIds.length} onPress={() => {
+              const rows = tableRules.filter(row => tableSelectedIds.includes(row.id));
+              if (rows.some(row => row.name.includes('|') || /[\r\n]/.test(row.name) || !row.inPort)) return toast.error(translate('部分规则名称或入口端口无法用文本表示，请逐条编辑'));
+              setBatchEditRows(rows); setBatchEditText(rows.map(row => `${row.remoteAddr}|${row.name}|${row.inPort}`).join('\n')); setBatchEditResult(null); setBatchEditOpen(true);
+            }}><RuleIcon name="edit" />{translate("批量修改")}</Button>
             <Button className="rules-text-action" title={translate("清空选中流量")} aria-label={translate("清空选中流量")} size="sm" variant="flat" isDisabled={!tableSelectedIds.length} onPress={() => handleBatchMeta("clear")}><RuleIcon name="clear" />{translate("清空选中流量")}</Button>
             <Button className="rules-text-action" title={translate("恢复选中")} aria-label={translate("恢复选中")} size="sm" variant="flat" isDisabled={!tableSelectedIds.length} onPress={() => handleBatchMeta("enable")}><RuleIcon name="play" />{translate("恢复选中")}</Button>
             <Button className="rules-text-action" title={translate("暂停选中")} aria-label={translate("暂停选中")} size="sm" variant="flat" isDisabled={!tableSelectedIds.length} onPress={() => handleBatchMeta("disable")}><RuleIcon name="pause" />{translate("暂停选中")}</Button>
@@ -1751,6 +1777,21 @@ export default function ForwardPage() {
                 variant="light"
                 onPress={() => setExportModalOpen(false)}
               >{translate("关闭")}</Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
+
+        <Modal isOpen={batchEditOpen} onClose={() => { if (!batchEditBusy) setBatchEditOpen(false); }} size="2xl" scrollBehavior="inside" backdrop="blur" placement="center" isDismissable={!batchEditBusy} isKeyboardDismissDisabled={batchEditBusy} hideCloseButton={batchEditBusy}>
+          <ModalContent><ModalHeader>{translate(batchEditResult ? '修改结果' : '批量修改')}</ModalHeader>
+            <ModalBody>{batchEditResult ? <>
+              <p>{translate('成功：')}{batchEditResult.count} · {translate('失败：')}{batchEditResult.failures.length}</p>
+              {batchEditResult.failures.map(row => <div key={row.id} className="border border-danger-200 rounded-lg p-3 text-sm"><p>{translate('行')}{row.line} · {row.name} (#{row.id})</p><p className="text-danger break-words">{row.reason}</p></div>)}
+            </> : <>
+              <p className="text-small text-default-500">{translate('每行对应原规则，请勿增删或调整行序。格式：目标地址|名称|入口端口')}</p>
+              <Textarea aria-label={translate('批量修改内容')} value={batchEditText} onValueChange={setBatchEditText} isDisabled={batchEditBusy} minRows={8} maxRows={16} classNames={{input:'font-mono text-sm'}} />
+            </>}</ModalBody>
+            <ModalFooter><Button variant="light" isDisabled={batchEditBusy} onPress={() => setBatchEditOpen(false)}>{translate(batchEditResult ? '关闭' : '取消')}</Button>
+              {!batchEditResult && <Button color="primary" isLoading={batchEditBusy} onPress={saveBatchEdit}>{translate('确认修改')}</Button>}
             </ModalFooter>
           </ModalContent>
         </Modal>
