@@ -815,5 +815,6 @@
   "探测失败，请稍后重试": "Test failed. Please try again later.",
   "国内探测点到节点，手动测试，结果缓存15分钟": "China probes to this node. Manual test; cached for 15 minutes.",
   "点击复制": "Click to copy",
-  "IP已复制": "IP copied"
+  "IP已复制": "IP copied",
+  "国内探测点到节点，每次点击重新测试": "China probes to this node. Each click starts a fresh test."
 }

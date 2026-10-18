@@ -30,7 +30,7 @@ public class NodeLatencyService {
         cache.entrySet().removeIf(e -> now - e.getValue().created >= TTL);
         Entry entry = cache.get(target);
         try {
-            if (entry == null) {
+            if (entry == null || (run && !"pending".equals(entry.data.getString("status")))) {
                 if (!run) return JSONObject.of("status", "idle");
                 entry = new Entry(); cache.put(target, entry);
                 JSONArray locations = new JSONArray();
@@ -40,7 +40,7 @@ public class NodeLatencyService {
                 entry.id = started.getString("id");
                 if (entry.id == null || !entry.id.matches("[A-Za-z0-9]+")) throw new IllegalStateException("探测服务返回异常");
                 entry.data = JSONObject.of("status", "pending", "target", target, "testedAt", entry.created);
-            } else if ("pending".equals(entry.data.getString("status")) && now - entry.polled >= 2000) {
+            } else if (!run && "pending".equals(entry.data.getString("status")) && now - entry.polled >= 2000) {
                 entry.polled = now;
                 JSONObject result = request("measurements/" + entry.id, null);
                 if ("finished".equals(result.getString("status"))) entry.data = summarize(result, target, entry.created);
@@ -50,7 +50,7 @@ public class NodeLatencyService {
         } catch (Exception ex) {
             if (ex instanceof InterruptedException) Thread.currentThread().interrupt();
             entry.data = JSONObject.of("status", "error", "message", "探测失败，请稍后重试", "target", target);
-            // Errors cool down for one minute rather than occupying the full result TTL.
+            // Keep errors briefly for display; an explicit run always starts a new attempt.
             entry.created = now - TTL + 60_000;
             return entry.data;
         }

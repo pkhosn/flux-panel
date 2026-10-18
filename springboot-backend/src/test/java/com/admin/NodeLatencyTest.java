@@ -18,15 +18,30 @@ class NodeLatencyTest {
             return JSONObject.of("status","finished","results",new JSONArray());
         }
     }
-    @Test void noAutomaticMeasurementAndTargetCacheShared() {
+    @Test void manualClickStartsFreshTestButPendingRequestsDoNotDuplicate() {
         var service = new Fake();
         assertEquals("idle", service.measure("74.48.114.112",false).getString("status"));
         assertEquals(0,service.calls);
         assertEquals("pending",service.measure("74.48.114.112",true).getString("status"));
         service.measure("74.48.114.112",true);
-        service.measure("74.48.114.112",true);
-        assertEquals(2,service.calls); // one create, one first poll; no duplicate task
+        assertEquals(1,service.calls);
         assertEquals("finished",service.measure("74.48.114.112",false).getString("status"));
+        assertEquals(2,service.calls);
+        service.measure("74.48.114.112",false);
+        assertEquals(2,service.calls);
+        assertEquals("pending",service.measure("74.48.114.112",true).getString("status"));
+        assertEquals(3,service.calls);
+    }
+    @Test void manualRetryAfterFailureDoesNotWaitForCacheExpiry() {
+        var service = new NodeLatencyService() {
+            int attempts;
+            protected JSONObject request(String path, JSONObject body) {
+                if (++attempts == 1) throw new IllegalStateException("unavailable");
+                return JSONObject.of("id", "retry123");
+            }
+        };
+        assertEquals("error",service.measure("74.48.114.112",true).getString("status"));
+        assertEquals("pending",service.measure("74.48.114.112",true).getString("status"));
     }
     @Test void strictCarrierMatchingAndTimeoutIsNotZero() {
         var raw=JSONObject.parseObject("{\"results\":[{\"probe\":{\"country\":\"CN\",\"asn\":4134,\"city\":\"Dongguan\"},\"result\":{\"stats\":{\"avg\":80.5,\"loss\":0}}},{\"probe\":{\"country\":\"CN\",\"asn\":4837},\"result\":{\"stats\":{\"avg\":null,\"loss\":100}}},{\"probe\":{\"country\":\"US\",\"asn\":9808},\"result\":{\"stats\":{\"avg\":1}}}]}");
