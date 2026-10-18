@@ -60,3 +60,5 @@ SHA256：`dc2031203c2084d7efce6e201d17499df84c1a552e2d73ca7dbcf96fdcfa7763`。
 版本 `frontend-2026.10.18.5`：源码及配套后端 `00cc8ab`，每次手动测速创建新任务。4 项 NodeLatencyTest、前端构建与浏览器连续两次测试更新结果通过；匿名下载 SHA256 校验与生产镜像构建通过。SHA256：`9ffa0efae9fd46ccf0af5c06264c0cab9f025d46cbf86dcaf84ef4bbee744190`。
 
 版本 `frontend-2026.10.18.6`：源码及配套后端 `d18a165`，节点分组管理、批量加入/移出、卡片切换。Maven clean test、npm build 与浏览器权限/分组/窄屏验证通过；匿名资源下载校验与生产镜像构建通过。SHA256：`a8d4b0a22021496006f7def36223a2d7ce3ab04eb12759af1bcf915befb893b3`。
+
+版本 `frontend-2026.10.18.7`：源码 `2f982fb`，卡片分组改静态名称。npm build、分组管理与批量操作浏览器回归通过；匿名资源下载校验及生产镜像构建通过。SHA256：`a895511dd2b5f9edd67f0a9b1879f00cd2bb822a7ae4b70a7845dd95bc9b6472`。
