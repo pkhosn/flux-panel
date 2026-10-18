@@ -13,3 +13,6 @@
 本机实测 74.48.114.112：三网任务正常完成，但 ICMP 均无回包，显示超时。对照 1.1.1.1 电信与联通有延迟返回，移动无回包；不能将无回包解释为服务器离线。
 
 本地复验：现有 Maven `test`（原有测试通过），新增 `mvn -q -Dtest=NodeLatencyTest test` 三项通过，检查手动触发、缓存、国家/ASN 匹配、超时语义、节点可见权限和自动获取地址优先级。前端现有 `NODE_OPTIONS=--max-old-space-size=768 npm --prefix vite-frontend run build` 通过；临时 `/tmp/flux-browser-check/node-latency.cjs` 模拟 API 检查首次不发起探测、手动触发、轮询、延迟取整、超时、详情悬停信息与 390px 无溢出。`git diff --check` 通过。该浏览器验证使用模拟 API，公网 Globalping 实测与之分开执行。
+
+
+2026-10-18：成功返回的延迟数字使用主题 success 绿色，超时保留警示色。节点卡片 IP、IPv4、IPv6 有值时可点击复制，复用既有 copyText（包含 HTTP 环境回退），成功/失败有提示；空地址只显示占位文本。复验：现有 npm build、git diff --check，浏览器验证绿色 class、三类地址剪贴板、缺失地址不可点击、390px 无页面溢出。

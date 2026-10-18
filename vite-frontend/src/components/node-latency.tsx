@@ -34,7 +34,7 @@ export function NodeLatency({ id }: { id: number }) {
         const row = data.results?.find(item => item.name === name);
         const value = row?.status === 'ok' && row.avg != null ? `${Math.round(row.avg)}ms` : row?.status === 'timeout' ? translate('超时') : row?.status === 'unavailable' ? '—' : busy ? '…' : '—';
         const title = row ? `${row.city || translate('暂无探测点')} · ${translate('丢包率')} ${row.loss ?? '—'}% · ${data.testedAt ? new Date(data.testedAt).toLocaleString() : ''} · ${data.target}` : translate(data.message || '国内探测点到节点，手动测试，结果缓存15分钟');
-        return <span key={name} title={title}>{translate(name)} <span className={row?.status === 'timeout' ? 'text-warning' : 'font-mono'}>{value}</span></span>;
+        return <span key={name} title={title}>{translate(name)} <span className={row?.status === 'ok' ? 'font-mono text-success' : row?.status === 'timeout' ? 'text-warning' : 'font-mono'}>{value}</span></span>;
       })}
     </div>
     <Button size="sm" variant="light" className="h-6 min-w-10 px-1 text-xs shrink-0" isDisabled={busy} onPress={() => { setBusy(true); setRefresh(value => value + 1); }}>{translate(busy ? '测试中' : data.status === 'error' ? '重试' : '测试')}</Button>

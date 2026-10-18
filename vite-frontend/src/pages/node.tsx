@@ -72,6 +72,17 @@ interface NodeForm {
   socks: number; // 0 关 1 开
 }
 
+function NodeAddress({ value, placeholder, label }: { value?: string; placeholder: string; label: string }) {
+  const address = value?.trim();
+  if (!address) return <span className="font-mono text-xs">{translate(placeholder)}</span>;
+  return <button type="button" className="font-mono text-xs truncate max-w-full text-right hover:text-primary cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary rounded"
+    aria-label={`${translate('复制')}${label}: ${address}`} title={`${address} · ${translate('点击复制')}`}
+    onClick={async () => {
+      if (await copyText(address)) toast.success(translate('IP已复制'));
+      else toast.error(translate('复制失败，请手动选择文本复制'));
+    }}>{address}</button>;
+}
+
 export default function NodePage() {
   const [nodeList, setNodeList] = useState<Node[]>([]);
   const [groupFilter, setGroupFilter] = useState("all");
@@ -718,18 +729,16 @@ export default function NodePage() {
                     <div className="flex justify-between items-center text-sm min-w-0">
                       <span className="text-default-600 flex-shrink-0">IP</span>
                       <div className="text-right text-xs min-w-0 flex-1 ml-2">
-                      <span className="font-mono truncate block" title={node.serverIp?.trim() || '待获取'}>
-                              {node.serverIp?.trim() || '待获取'}
-                      </span>
+                      <NodeAddress value={node.serverIp} placeholder="待获取" label="IP" />
                       </div>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-default-600">IPv4</span>
-                      <span className="font-mono text-xs">{node.detectedIpv4 || '未获取'}</span>
+                      <NodeAddress value={node.detectedIpv4} placeholder="未获取" label="IPv4" />
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-default-600">IPv6</span>
-                      <span className="font-mono text-xs truncate ml-2" title={node.detectedIpv6 || ''}>{node.detectedIpv6 || '未获取'}</span>
+                      <div className="min-w-0 ml-2 text-right"><NodeAddress value={node.detectedIpv6} placeholder="未获取" label="IPv6" /></div>
                     </div>
                     <NodeLatency key={`${node.id}:${node.detectedIpv4 || node.serverIp}`} id={node.id} />
                     <div className="flex justify-between text-sm">
