@@ -58,3 +58,5 @@ SHA256：`dc2031203c2084d7efce6e201d17499df84c1a552e2d73ca7dbcf96fdcfa7763`。
 版本 `frontend-2026.10.18.4`：源码 `0f2641d`，绿色延迟与卡片 IP/IPv4/IPv6 点击复制。本地构建、剪贴板完整值/绿色样式/空值/窄屏浏览器检查通过；匿名下载校验与生产 Dockerfile 构建通过。SHA256：`40795a649776c01924b9e1fad23c9ee7f218d1deaa43e3d07840b82485b8468d`。
 
 版本 `frontend-2026.10.18.5`：源码及配套后端 `00cc8ab`，每次手动测速创建新任务。4 项 NodeLatencyTest、前端构建与浏览器连续两次测试更新结果通过；匿名下载 SHA256 校验与生产镜像构建通过。SHA256：`9ffa0efae9fd46ccf0af5c06264c0cab9f025d46cbf86dcaf84ef4bbee744190`。
+
+版本 `frontend-2026.10.18.6`：源码及配套后端 `d18a165`，节点分组管理、批量加入/移出、卡片切换。Maven clean test、npm build 与浏览器权限/分组/窄屏验证通过；匿名资源下载校验与生产镜像构建通过。SHA256：`a8d4b0a22021496006f7def36223a2d7ce3ab04eb12759af1bcf915befb893b3`。
