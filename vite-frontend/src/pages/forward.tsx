@@ -49,7 +49,7 @@ const ruleIcons: Record<string, string> = {
   delete: 'M3 6h18M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7m4-7v7',
   detail: 'M12 11v6m0-10v.1M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0',
   edit: 'm15 4 5 5M4 20l5-1L21 7l-5-5L4 14z',
-  copy: 'M9 9h12v12H9zM15 5V2H2v13h3', rename: 'M4 20h16M5 15l1-5L17 1l5 5-11 10z',
+  copy: 'M9 9h12v12H9zM15 5V2H2v13h3',
   diagnose: 'M9 9a3 3 0 1 1 4 3c-1 0-1 1-1 2m0 3v.1M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0',
   prev: 'm15 6-6 6 6 6', next: 'm9 6 6 6-6 6', switch: 'M3 7h18l-4-4M21 17H3l4 4'
 };
@@ -170,7 +170,6 @@ export default function ForwardPage() {
   const [ruleQuery, setRuleQuery] = useState("");
   const [searchVisible, setSearchVisible] = useState(false);
   const [entryFilter, setEntryFilter] = useState("all");
-  const [nodeGroupFilter, setNodeGroupFilter] = useState("all");
   const [rulePage, setRulePage] = useState(1);
   const [rulePageSize, setRulePageSize] = useState(20);
   const [statsOpen, setStatsOpen] = useState(false);
@@ -338,7 +337,6 @@ export default function ForwardPage() {
   // 新增转发
   const handleAdd = () => {
     setIsEdit(false);
-    setNodeGroupFilter("all");
     setForm({
       name: '',
       tunnelId: null,
@@ -405,7 +403,6 @@ export default function ForwardPage() {
 
   // 编辑转发
   const handleEdit = (forward: Forward) => {
-    setNodeGroupFilter("all");
     setIsEdit(true);
     setForm({
       id: forward.id,
@@ -442,34 +439,6 @@ export default function ForwardPage() {
       name: `${forward.name} 副本`,
       inPort: null
     }));
-  };
-
-  const handleRename = async (forward: Forward) => {
-    const name = window.prompt("规则名称", forward.name)?.trim();
-    if (!name || name === forward.name) return;
-    if (name.length < 2 || name.length > 50) return toast.error(translate("规则名称长度应为 2–50 个字符"));
-    const result = await updateForward({
-      id: forward.id,
-      userId: forward.userId,
-      name,
-      tunnelId: forward.tunnelId,
-      inPort: forward.inPort,
-      remoteAddr: forward.remoteAddr,
-      strategy: forward.strategy,
-      protocol: forward.protocol || "tcp_udp",
-      tlsInboundId: forward.tlsInboundId || 0,
-      sniNames: forward.sniNames || "",
-      originTls: forward.originTls || 0,
-      originServerName: forward.originServerName || "",
-      originRootCa: forward.originRootCa || "",
-      originAlpn: forward.originAlpn || "",
-      proxyAccept: forward.proxyAccept || 0,
-      proxySend: forward.proxySend || 0,
-      proxyTrustedCidrs: forward.proxyTrustedCidrs || '',
-      groupId: forward.groupId || 0
-    });
-    if (result.code !== 0) return toast.error(result.msg || "重命名失败");
-    await loadData(false);
   };
 
   // 显示删除确认
@@ -1146,8 +1115,6 @@ export default function ForwardPage() {
   const ruleEntries = Array.from(new Map(forwards.map(row => [row.tunnelId, {
     id: row.tunnelId, name: row.tunnelName || `#${row.tunnelId}`
   }])).values()).sort((a, b) => a.name.localeCompare(b.name));
-  const nodeGroups = Array.from(new Set(tunnels.flatMap(tunnel => tunnel.entryGroups || []))).sort();
-  const selectableTunnels = nodeGroupFilter === "all" ? tunnels : tunnels.filter(tunnel => tunnel.entryGroups?.includes(nodeGroupFilter));
   const tableRules = [...forwards].sort((a, b) => (a.inx ?? 0) - (b.inx ?? 0)).filter(forward => {
     const haystack = `${forward.name} ${forward.tunnelName} ${forward.inIp} ${forward.inPort} ${forward.remoteAddr} ${forward.userName || ""}`.toLowerCase();
     return (entryFilter === "all" || forward.tunnelId === Number(entryFilter)) && haystack.includes(ruleQuery.trim().toLowerCase());
@@ -1245,7 +1212,6 @@ export default function ForwardPage() {
                         <Button isIconOnly size="sm" variant="light" title={row.serviceRunning ? translate("暂停") : translate("恢复")} aria-label={row.serviceRunning ? translate("暂停") : translate("恢复")} onPress={() => handleServiceToggle(row)}><RuleIcon name={row.serviceRunning ? "pause" : "play"} /></Button>
                         <Button isIconOnly title={translate("编辑")} aria-label={translate("编辑")} size="sm" variant="light" onPress={() => handleEdit(row)}><RuleIcon name="edit" /></Button>
                         <Button isIconOnly title={translate("复制")} aria-label={translate("复制")} size="sm" variant="light" onPress={() => handleCopy(row)}><RuleIcon name="copy" /></Button>
-                        <Button isIconOnly title={translate("重命名")} aria-label={translate("重命名")} size="sm" variant="light" onPress={() => handleRename(row)}><RuleIcon name="rename" /></Button>
                         <Button isIconOnly title={translate("诊断")} aria-label={translate("诊断")} size="sm" variant="light" onPress={() => handleDiagnose(row)}><RuleIcon name="diagnose" /></Button>
                         <Button isIconOnly title={translate("统计")} aria-label={translate("统计")} size="sm" variant="light" onPress={() => showForwardStats(row)}><RuleIcon name="stats" /></Button>
                         <Button isIconOnly title={translate("清空流量")} aria-label={translate("清空流量")} size="sm" variant="light" onPress={() => clearOneForwardTraffic(row)}><RuleIcon name="clear" /></Button>
@@ -1426,17 +1392,6 @@ export default function ForwardPage() {
                       variant="bordered"
                     />
 
-                    <Select label={translate("入口节点分组")} aria-label={translate("入口节点分组")} selectedKeys={[nodeGroupFilter]} onSelectionChange={keys => {
-                      const value = Array.from(keys)[0];
-                      if (value !== undefined) {
-                        const group = String(value); setNodeGroupFilter(group);
-                        if (form.tunnelId && group !== "all" && !tunnels.find(tunnel => tunnel.id === form.tunnelId)?.entryGroups?.includes(group)) {
-                          setForm(prev => ({ ...prev, tunnelId: null, tlsInboundId: 0 }));
-                        }
-                      }
-                    }}>
-                      {[{ id: 'all', name: translate("全部节点分组") }, ...nodeGroups.map(group => ({ id: group, name: group || translate("未分组") }))].map(group => <SelectItem key={group.id}>{group.name}</SelectItem>)}
-                    </Select>
                     <Select
                       label={translate("选择隧道")}
                       placeholder={translate("请选择关联的隧道")}
@@ -1451,7 +1406,7 @@ export default function ForwardPage() {
                       errorMessage={errors.tunnelId}
                       variant="bordered"
                     >
-                      {selectableTunnels.map((tunnel) => (
+                      {tunnels.map((tunnel) => (
                         <SelectItem key={tunnel.id} >
                           {tunnel.name}
                         </SelectItem>
