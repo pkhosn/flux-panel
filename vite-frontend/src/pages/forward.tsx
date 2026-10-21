@@ -224,7 +224,7 @@ export default function ForwardPage() {
   // 导出相关状态
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [exportData, setExportData] = useState('');
-  const [exportFormat, setExportFormat] = useState<"legacy" | "json" | "nyanpass">("json");
+  const [exportFormat, setExportFormat] = useState<"legacy" | "nyanpass">("legacy");
   const [exportLoading, setExportLoading] = useState(false);
   const [selectedTunnelForExport, setSelectedTunnelForExport] = useState<number | null>(null);
   const exportTextareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -894,25 +894,10 @@ export default function ForwardPage() {
       });
 
       let exportText = exportLines.join('\n');
-      if (exportFormat === "json") {
-        exportText = JSON.stringify({ format: "flux-rules", version: 1, rules: forwardsToExport.map(row => ({
-          name: row.name, tunnelId: row.tunnelId, remoteAddr: row.remoteAddr, inPort: row.inPort,
-          protocol: row.protocol || "tcp_udp", strategy: row.strategy || "fifo",
-          groupId: row.groupId || 0, status: row.status, proxyAccept: row.proxyAccept || 0,
-          proxySend: row.proxySend || 0, proxyTrustedCidrs: row.proxyTrustedCidrs || "",
-          tlsInboundId: row.tlsInboundId || 0, tlsInboundPort: tlsInbounds.find(item => item.id === row.tlsInboundId)?.port || 0, sniNames: row.sniNames || "",
-          originTls: row.originTls || 0, originServerName: row.originServerName || "",
-          originRootCa: row.originRootCa || "", originAlpn: row.originAlpn || ""
-        })) }, null, 2);
-      } else if (exportFormat === "nyanpass") {
-        if (forwardsToExport.some(row => row.protocol !== "tcp" || row.originTls === 1 || !!row.tlsInboundId)) {
-          toast.error(translate("nyanpass 格式仅支持无回源 TLS 的 TCP；请选完整 JSON 保留配置"));
-          return;
-        }
+      if (exportFormat === "nyanpass") {
         exportText = forwardsToExport.map(row => JSON.stringify({
-          name: row.name, dest: row.remoteAddr.split(","), listen_port: row.inPort,
-          proxy_protocol: row.proxySend === 2 ? 3 : row.proxySend || 0,
-          accept_proxy_protocol: row.proxyAccept ? 1 : 0
+          dest: row.remoteAddr.split(",").map(address => address.trim()).filter(Boolean),
+          listen_port: row.inPort, name: row.name
         })).join("\n");
       }
       setExportData(exportText);
@@ -1671,7 +1656,7 @@ export default function ForwardPage() {
           <ModalContent>
             <ModalHeader className="flex flex-col gap-1">
               <h2 className="text-xl font-bold">{translate("导出转发数据")}</h2>
-              <p className="text-small text-default-500">{translate("完整 JSON 保留协议、分组及 Proxy 设置；nyanpass 适用于 TCP 规则。")}</p>
+              <p className="text-small text-default-500">{translate("仅导出目标地址、名称和入口端口，每行一条规则。")}</p>
             </ModalHeader>
             <ModalBody className="pb-6">
               <div className="space-y-4">
@@ -1698,9 +1683,8 @@ export default function ForwardPage() {
                     const value = Array.from(keys)[0] as typeof exportFormat;
                     if (value) { setExportFormat(value); setExportData(""); }
                   }}>
-                    <SelectItem key="json">{translate("Flux 完整 JSON")}</SelectItem>
-                    <SelectItem key="nyanpass">nyanpass JSONL</SelectItem>
-                    <SelectItem key="legacy">{translate("旧版文本：目标|名称|端口")}</SelectItem>
+                    <SelectItem key="legacy">{translate("标准格式：目标|名称|端口")}</SelectItem>
+                    <SelectItem key="nyanpass">{translate("ny格式")}</SelectItem>
                   </Select>
                 </div>
 
