@@ -64,3 +64,5 @@ SHA256：`dc2031203c2084d7efce6e201d17499df84c1a552e2d73ca7dbcf96fdcfa7763`。
 版本 `frontend-2026.10.18.7`：源码 `2f982fb`，卡片分组改静态名称。npm build、分组管理与批量操作浏览器回归通过；匿名资源下载校验及生产镜像构建通过。SHA256：`a895511dd2b5f9edd67f0a9b1879f00cd2bb822a7ae4b70a7845dd95bc9b6472`。
 
 版本 `frontend-2026.10.18.8`：源码及后端 `36a57fa`，批量文本修改规则。本地 Maven 定向测试、npm build、浏览器预填/校验/结果/窄屏检查通过；匿名下载 SHA256 与生产镜像构建通过。SHA256：`9fc7e0e355a5c7b0dd4f829af26e9ae92490f51f5285cbe193da5419974440d0`。
+
+版本 `frontend-2026.10.21.1`：源码 `550ed94`，批量导出仅保留标准文本与 ny JSONL（dest、listen_port、name），默认标准格式。本地 npm build、浏览器两种格式及多规则/多目标/UDP 验证通过；匿名下载 SHA256 与生产 Dockerfile 构建通过。SHA256：`b80088526e1e3b92edf792c7a53eb7bce1706ccf5fc205ff4bb840ff5b0e8126`。
