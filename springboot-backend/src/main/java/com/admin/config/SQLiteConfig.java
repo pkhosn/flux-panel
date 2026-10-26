@@ -39,7 +39,7 @@ public class SQLiteConfig implements ApplicationRunner {
             statement.execute("PRAGMA synchronous=NORMAL;");
             statement.execute("PRAGMA cache_size=-64000;"); // 64MB 缓存
             statement.execute("PRAGMA temp_store=MEMORY;");
-            statement.execute("PRAGMA busy_timeout=5000;"); // 5秒超时
+            // busy_timeout 由 Hikari connection-init-sql 为每个连接设置。
             statement.execute("PRAGMA wal_autocheckpoint=1000;"); // 每1000页自动checkpoint
             ensureSchema(connection);
             

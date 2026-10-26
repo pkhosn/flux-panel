@@ -354,6 +354,9 @@ public class TunnelServiceImpl extends ServiceImpl<TunnelMapper, Tunnel> impleme
     @Override
     @Transactional(rollbackFor = Exception.class)
     public R updateTunnel(TunnelUpdateDto tunnelUpdateDto) {
+        // SQLite WAL 的读事务不能在其他连接提交后升级为写事务。
+        // 在首次读取前取得写锁，避免准备拓扑期间心跳/流量写入使快照过期。
+        tlsJdbc.update("UPDATE tunnel SET id=id WHERE id=?", tunnelUpdateDto.getId());
         Tunnel existingTunnel = this.getById(tunnelUpdateDto.getId());
         Integer sharedInbounds = tlsJdbc.queryForObject("SELECT COUNT(*) FROM forward_tls_inbound WHERE tunnel_id=?", Integer.class, tunnelUpdateDto.getId());
         if (sharedInbounds != null && sharedInbounds > 0) return R.err("请先移除共享 TLS 入口及关联规则，再修改隧道拓扑");
