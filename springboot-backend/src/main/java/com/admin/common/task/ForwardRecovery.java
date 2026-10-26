@@ -52,7 +52,14 @@ public class ForwardRecovery {
     public Object around(ProceedingJoinPoint call) throws Throwable {
         if (Boolean.TRUE.equals(ACTIVE.get())) return call.proceed();
         synchronized (LOCK) {
-            if (pending()) return R.err("上次规则操作正在恢复，请等待节点上线后重试");
+            if (pending()) {
+                String method = call.getSignature().getName();
+                if (("deleteForward".equals(method) || "forceDeleteForward".equals(method))
+                        && call.getArgs().length == 1 && call.getArgs()[0] instanceof Long id) {
+                    return deleteDuringRecovery(id);
+                }
+                return R.err("上次规则操作尚未恢复，可能存在端口冲突或节点离线；可先删除冲突规则后重试");
+            }
             if (call.getArgs().length > 0 && call.getArgs()[0] instanceof Map<?, ?> input
                     && ("group".equals(input.get("action")) || "clear".equals(input.get("action")))) {
                 return transaction.execute(status -> {
@@ -97,6 +104,31 @@ public class ForwardRecovery {
                 return R.err("规则操作失败，数据库已回退" + (pending() ? "；节点恢复任务已保存，将自动重试" : "；节点已恢复"));
             } finally { ACTIVE.remove(); }
         }
+    }
+
+    private R deleteDuringRecovery(Long id) {
+        Set<Long> nodes = new HashSet<>(jdbc.queryForList("SELECT node_id FROM forward_recovery", Long.class));
+        addRuleNodes(nodes, id);
+        ACTIVE.set(true);
+        try {
+            R result = transaction.execute(status -> {
+                // 先取得写锁；强制删除仍执行原有用户归属校验。
+                jdbc.update("UPDATE forward_recovery SET services=services");
+                R deleted = forwards.forceDeleteForward(id);
+                if (deleted.getCode() != 0) { status.setRollbackOnly(); return deleted; }
+                Map<Long, JSONArray> desired = forwards.recoveryServices(nodes);
+                for (Long node : nodes) {
+                    jdbc.update("INSERT OR REPLACE INTO forward_recovery(node_id,services) VALUES(?,?)",
+                            node, desired.getOrDefault(node, new JSONArray()).toJSONString());
+                }
+                return deleted;
+            });
+            if (result.getCode() == 0) {
+                restore();
+                if (pending()) result.setMsg("规则已删除；部分节点仍在同步，请检查端口冲突或节点连接");
+            }
+            return result;
+        } finally { ACTIVE.remove(); }
     }
 
     private Set<Long> operationNodes(Object[] args, String owner) {

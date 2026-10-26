@@ -70,6 +70,43 @@ class ForwardRecoveryTest {
         } finally {ds.destroy();}
     }
 
+    @Test void deletionWhileRecoveringReplacesSnapshotAndKeepsPermissionChecks() throws Throwable {
+        var ds = new SingleConnectionDataSource("jdbc:sqlite::memory:",true);
+        try {
+            var jdbc = new JdbcTemplate(ds);
+            jdbc.execute("CREATE TABLE forward_recovery(node_id INTEGER PRIMARY KEY,services TEXT)");
+            jdbc.execute("CREATE TABLE forward(id INTEGER,tunnel_id INTEGER)");
+            jdbc.execute("CREATE TABLE forward_port(forward_id INTEGER,node_id INTEGER)");
+            jdbc.execute("CREATE TABLE chain_tunnel(tunnel_id INTEGER,node_id INTEGER,chain_type INTEGER)");
+            jdbc.update("INSERT INTO forward_recovery VALUES(21,'[{\"name\":\"398_1_0_tcp\"}]')");
+            jdbc.update("INSERT INTO forward VALUES(398,26)");
+            jdbc.update("INSERT INTO forward_port VALUES(398,21)");
+            var recovery = spy(new ForwardRecovery(jdbc,new DataSourceTransactionManager(ds)));
+            var forwards = mock(ForwardServiceImpl.class);
+            ReflectionTestUtils.setField(recovery,"forwards",forwards);
+            var call = mock(ProceedingJoinPoint.class); var signature = mock(Signature.class);
+            when(signature.getName()).thenReturn("deleteForward");
+            when(signature.getDeclaringTypeName()).thenReturn(ForwardServiceImpl.class.getName());
+            when(call.getSignature()).thenReturn(signature); when(call.getArgs()).thenReturn(new Object[]{398L});
+            when(forwards.forceDeleteForward(398L)).thenReturn(R.err("无权限"));
+            assertNotEquals(0,((R)recovery.around(call)).getCode());
+            assertTrue(jdbc.queryForObject("SELECT services FROM forward_recovery",String.class).contains("398"));
+            when(forwards.forceDeleteForward(398L)).thenAnswer(inv -> {
+                jdbc.update("DELETE FROM forward WHERE id=398");
+                jdbc.update("DELETE FROM forward_port WHERE forward_id=398"); return R.ok();
+            });
+            when(forwards.recoveryServices(anySet())).thenReturn(Map.of());
+            GostDto failure = new GostDto(); failure.setMsg("bind: address already in use");
+            doReturn(failure).when(recovery).sendRecovery(eq(21L),any());
+            assertEquals(0,((R)recovery.around(call)).getCode());
+            assertEquals("[]",jdbc.queryForObject("SELECT services FROM forward_recovery",String.class));
+            assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM forward",Integer.class));
+            verify(call,never()).proceed();
+            GostDto ok = new GostDto(); ok.setMsg("OK"); doReturn(ok).when(recovery).sendRecovery(eq(21L),any());
+            recovery.restore(); assertFalse(recovery.pending());
+        } finally {ds.destroy();}
+    }
+
     @Test void oldAgentsAreRejectedBeforeMutation() {
         assertFalse(ForwardRecovery.supportsRecovery("2.0.15-beta"));
         assertFalse(ForwardRecovery.supportsRecovery(null));
