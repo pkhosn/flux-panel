@@ -120,10 +120,12 @@ func main() {
 	logger.SetDefault(log)
 	service.SetProtocolBlock(config.Http, config.Tls, config.Socks)
 
+	socket.SetProbeMode(config.ProbeMode)
 	wsReporter := socket.StartWebSocketReporterWithConfig(config.Addr, config.Secret, config.Http, config.Tls, config.Socks, version)
 	defer wsReporter.Stop()
 	service.SetHTTPReportURL(config.Addr, config.Secret)
 
+	socket.WaitForForwarding()
 	p := &program{}
 	if err := svc.Run(p); err != nil {
 		logger.Default().Fatal(err)

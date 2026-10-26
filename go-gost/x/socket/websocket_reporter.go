@@ -201,11 +201,12 @@ func (w *WebSocketReporter) connect() error {
 
 	// 重新读取 config.json 获取最新的协议配置
 	type LocalConfig struct {
-		Addr   string `json:"addr"`
-		Secret string `json:"secret"`
-		Http   int    `json:"http"`
-		Tls    int    `json:"tls"`
-		Socks  int    `json:"socks"`
+		ProbeMode bool   `json:"probe_mode"`
+		Addr      string `json:"addr"`
+		Secret    string `json:"secret"`
+		Http      int    `json:"http"`
+		Tls       int    `json:"tls"`
+		Socks     int    `json:"socks"`
 	}
 
 	var cfg LocalConfig
@@ -578,7 +579,14 @@ func (w *WebSocketReporter) routeCommand(cmd CommandMessage) {
 	// 传递 requestId
 	response.RequestId = cmd.RequestId
 
+	if !probeCommandAllowed(cmd.Type) {
+		w.sendResponse(CommandResponse{Type: cmd.Type + "Response", RequestId: cmd.RequestId, Success: false, Message: "probe mode does not allow forwarding commands"})
+		return
+	}
 	switch cmd.Type {
+	case "EnableForwarding":
+		err = enableForwarding()
+		response.Type = "EnableForwardingResponse"
 	// Service 相关命令
 	case "ReconcileForwards":
 		err = w.handleReconcileForwards(cmd.Data)
@@ -929,11 +937,12 @@ func updateLocalConfigJSON(httpVal int, tlsVal int, socksVal int) error {
 
 	// 读取现有配置
 	type LocalConfig struct {
-		Addr   string `json:"addr"`
-		Secret string `json:"secret"`
-		Http   int    `json:"http"`
-		Tls    int    `json:"tls"`
-		Socks  int    `json:"socks"`
+		ProbeMode bool   `json:"probe_mode"`
+		Addr      string `json:"addr"`
+		Secret    string `json:"secret"`
+		Http      int    `json:"http"`
+		Tls       int    `json:"tls"`
+		Socks     int    `json:"socks"`
 	}
 
 	var cfg LocalConfig
@@ -950,7 +959,7 @@ func updateLocalConfigJSON(httpVal int, tlsVal int, socksVal int) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, data, 0644)
+	return os.WriteFile(path, data, 0600)
 }
 
 // handleCall 处理服务端的call回调消息

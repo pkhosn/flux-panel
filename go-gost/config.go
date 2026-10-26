@@ -8,11 +8,12 @@ import (
 
 // Config 配置结构体
 type Config struct {
-	Addr   string `json:"addr"`
-	Secret string `json:"secret"`
-	Http   int    `json:"http"`
-	Tls    int    `json:"tls"`
-	Socks  int    `json:"socks"`
+	ProbeMode bool   `json:"probe_mode"`
+	Addr      string `json:"addr"`
+	Secret    string `json:"secret"`
+	Http      int    `json:"http"`
+	Tls       int    `json:"tls"`
+	Socks     int    `json:"socks"`
 }
 
 // LoadConfig 加载配置文件
