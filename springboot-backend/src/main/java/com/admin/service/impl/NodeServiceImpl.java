@@ -81,7 +81,7 @@ public class NodeServiceImpl extends ServiceImpl<NodeMapper, Node> implements No
         Map<Integer, UserNodePermission> permissionMap = java.util.Collections.emptyMap();
 
         if (roleId == 0) {
-            nodeList = this.list(new QueryWrapper<Node>().orderByDesc("status"));
+            nodeList = this.list(new QueryWrapper<Node>().eq("probe_mode", 0).orderByDesc("status"));
         } else {
             permissionMap = userNodePermissionService.getUserNodePermissionMap(userId);
             Set<Integer> permittedIds = permissionMap.keySet();
@@ -91,7 +91,7 @@ public class NodeServiceImpl extends ServiceImpl<NodeMapper, Node> implements No
             } else {
                 queryWrapper.and(w -> w.eq("owner_user_id", userId).or().in("id", permittedIds));
             }
-            queryWrapper.orderByDesc("status");
+            queryWrapper.eq("probe_mode", 0).orderByDesc("status");
             nodeList = this.list(queryWrapper);
         }
 
@@ -117,7 +117,7 @@ public class NodeServiceImpl extends ServiceImpl<NodeMapper, Node> implements No
     @Override
     public R updateNode(NodeUpdateDto nodeUpdateDto) {
         Node node = this.getById(nodeUpdateDto.getId());
-        if (node == null) {
+        if (node == null || Integer.valueOf(1).equals(node.getProbeMode())) {
             return R.err("节点不存在");
         }
         Integer roleId = JwtUtil.getRoleIdFromToken();
@@ -157,7 +157,7 @@ public class NodeServiceImpl extends ServiceImpl<NodeMapper, Node> implements No
     @Override
     public R deleteNode(Long id) {
         Node node = this.getById(id);
-        if (node == null) {
+        if (node == null || Integer.valueOf(1).equals(node.getProbeMode())) {
             return R.err("节点不存在");
         }
         Integer roleId = JwtUtil.getRoleIdFromToken();
@@ -179,7 +179,7 @@ public class NodeServiceImpl extends ServiceImpl<NodeMapper, Node> implements No
     @Override
     public R getInstallCommand(Long id) {
         Node node = this.getById(id);
-        if (node == null) {
+        if (node == null || Integer.valueOf(1).equals(node.getProbeMode())) {
             return R.err("节点不存在");
         }
         Integer roleId = JwtUtil.getRoleIdFromToken();

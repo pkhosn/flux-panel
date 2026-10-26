@@ -78,7 +78,7 @@ public class TunnelServiceImpl extends ServiceImpl<TunnelMapper, Tunnel> impleme
             chainTunnels.add(in_node);
 
             Node node = nodeService.getById(in_node.getNodeId());
-            if (node == null) return R.err("节点不存在");
+            if (node == null || Integer.valueOf(1).equals(node.getProbeMode())) return R.err("节点不存在或尚未启用转发");
             nodes.put(node.getId(), node);
         }
 
@@ -89,7 +89,7 @@ public class TunnelServiceImpl extends ServiceImpl<TunnelMapper, Tunnel> impleme
                 for (ChainTunnel chain_node : chainNode) {
                     node_ids.add(chain_node.getNodeId());
                     Node node = nodeService.getById(chain_node.getNodeId());
-                    if (node == null) return R.err("节点不存在");
+                    if (node == null || Integer.valueOf(1).equals(node.getProbeMode())) return R.err("节点不存在或尚未启用转发");
                     nodes.put(node.getId(), node);
                     Integer nodePort = getNodePort(chain_node.getNodeId());
                     chain_node.setPort(nodePort);
@@ -101,7 +101,7 @@ public class TunnelServiceImpl extends ServiceImpl<TunnelMapper, Tunnel> impleme
             for (ChainTunnel out_node : tunnelDto.getOutNodeId()) {
                 node_ids.add(out_node.getNodeId());
                 Node node = nodeService.getById(out_node.getNodeId());
-                if (node == null) return R.err("节点不存在");
+                if (node == null || Integer.valueOf(1).equals(node.getProbeMode())) return R.err("节点不存在或尚未启用转发");
                 nodes.put(node.getId(), node);
                 Integer nodePort = getNodePort(out_node.getNodeId());
                 out_node.setPort(nodePort);
@@ -736,8 +736,8 @@ public class TunnelServiceImpl extends ServiceImpl<TunnelMapper, Tunnel> impleme
 
         for (Long nodeId : allNodeIds) {
             Node node = nodeMap.get(nodeId);
-            if (node == null) {
-                throw new RuntimeException("部分节点不存在");
+            if (node == null || Integer.valueOf(1).equals(node.getProbeMode())) {
+                throw new RuntimeException("部分节点不存在或尚未启用转发");
             }
             if (node.getStatus() != 1) {
                 throw new RuntimeException("部分节点不在线");

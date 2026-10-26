@@ -16,6 +16,7 @@ import (
 	metrics "github.com/go-gost/x/metrics/service"
 	"github.com/go-gost/x/registry"
 	xservice "github.com/go-gost/x/service"
+	"github.com/go-gost/x/socket"
 	"github.com/judwhite/go-svc"
 	"net/http"
 	"os"
@@ -74,6 +75,7 @@ func (p *program) Start() error {
 	p.cancel = cancel
 	go p.reload(ctx)
 
+	socket.SetForwardingReady(true)
 	go func() {
 		select {
 		case <-time.After(10 * time.Second):
@@ -175,6 +177,7 @@ func (p *program) run(cfg *config.Config) error {
 }
 
 func (p *program) Stop() error {
+	socket.SetForwardingReady(false)
 	if p.cancel != nil {
 		p.cancel()
 	}

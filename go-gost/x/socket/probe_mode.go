@@ -9,6 +9,9 @@ import (
 )
 
 var probeOnly atomic.Bool
+var forwardingReady atomic.Bool
+
+func SetForwardingReady(ready bool) { forwardingReady.Store(ready) }
 
 func SetProbeMode(enabled bool) { probeOnly.Store(enabled) }
 func ProbeMode() bool           { return probeOnly.Load() }
@@ -70,5 +73,5 @@ func enableForwarding() error {
 }
 
 func probeCommandAllowed(command string) bool {
-	return !ProbeMode() || command == "EnableForwarding" || command == "TcpPing" || command == "call"
+	return !ProbeMode() || command == "ForwardingStatus" || command == "EnableForwarding" || command == "TcpPing" || command == "call"
 }

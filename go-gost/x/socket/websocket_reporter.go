@@ -584,6 +584,9 @@ func (w *WebSocketReporter) routeCommand(cmd CommandMessage) {
 		return
 	}
 	switch cmd.Type {
+	case "ForwardingStatus":
+		response.Type = "ForwardingStatusResponse"
+		response.Data = map[string]bool{"ready": forwardingReady.Load()}
 	case "EnableForwarding":
 		err = enableForwarding()
 		response.Type = "EnableForwardingResponse"

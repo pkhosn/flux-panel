@@ -14,7 +14,7 @@ class ProbeRegistrationTest {
         try {
             var jdbc = new JdbcTemplate(ds);
             jdbc.execute("CREATE TABLE probe_registration(token_hash TEXT PRIMARY KEY,user_id INTEGER,expires_at INTEGER)");
-            jdbc.execute("CREATE TABLE node(id INTEGER,name TEXT,status INTEGER,server_ip TEXT,detected_ipv4 TEXT,detected_ipv6 TEXT,version TEXT,probe_mode INTEGER,owner_user_id INTEGER)");
+            jdbc.execute("CREATE TABLE node(id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT,status INTEGER,server_ip TEXT,detected_ipv4 TEXT,detected_ipv6 TEXT,version TEXT,secret TEXT,port TEXT,created_time INTEGER,updated_time INTEGER,created_by_role INTEGER,probe_mode INTEGER,owner_user_id INTEGER)");
             jdbc.update("INSERT INTO node(id,probe_mode,owner_user_id) VALUES(1,1,11),(2,1,22),(3,0,11)");
             var service = new ProbeRegistrationService(jdbc);
             var tx = new TransactionTemplate(new DataSourceTransactionManager(ds));
@@ -26,7 +26,12 @@ class ProbeRegistrationTest {
             jdbc.update("UPDATE probe_registration SET expires_at=0");
             assertThrows(IllegalArgumentException.class,() -> tx.execute(s -> service.consume(expired)));
             assertThrows(IllegalArgumentException.class,() -> service.consume("invalid"));
-            assertEquals(1,service.listOwned(11).size());
+            String registration = tx.execute(s -> service.issue(11));
+            var identity = tx.execute(s -> service.register(registration,"probe"));
+            assertEquals(true,identity.get("probe_mode"));
+            assertEquals(48,identity.get("secret").toString().length());
+            assertThrows(IllegalArgumentException.class,() -> tx.execute(s -> service.register(registration,"again")));
+            assertEquals(2,service.listOwned(11).size());
             assertTrue(service.listOwned(0).isEmpty());
             service.requireOwner(1,11);
             assertThrows(IllegalArgumentException.class,() -> service.requireOwner(1,22));

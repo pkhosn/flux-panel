@@ -43,6 +43,21 @@ public class ProbeRegistrationService {
         return owners.getFirst();
     }
 
+    @Transactional
+    public Map<String,Object> register(String token, String name) {
+        if (name == null || name.isBlank() || name.length() > 100) {
+            throw new IllegalArgumentException("探针名称长度应为1–100个字符");
+        }
+        int owner = consume(token);
+        byte[] bytes = new byte[24]; random.nextBytes(bytes);
+        String secret = HexFormat.of().formatHex(bytes);
+        long now = System.currentTimeMillis();
+        jdbc.update("INSERT INTO node(name,secret,server_ip,port,status,created_time,updated_time,probe_mode,owner_user_id,created_by_role) " +
+                "VALUES(?,?,'','',0,?,?,1,?,1)", name.trim(), secret, now, now, owner);
+        Long id = jdbc.queryForObject("SELECT id FROM node WHERE secret=?", Long.class,secret);
+        return Map.of("id",id,"secret",secret,"probe_mode",true);
+    }
+
     public List<Map<String,Object>> listOwned(int userId) {
         return jdbc.queryForList("SELECT id,name,status,server_ip,detected_ipv4,detected_ipv6,version FROM node WHERE probe_mode=1 AND owner_user_id=? ORDER BY id DESC",userId);
     }
