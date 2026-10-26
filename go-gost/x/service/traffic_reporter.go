@@ -27,8 +27,12 @@ type TrafficReportItem struct {
 }
 
 func SetHTTPReportURL(addr string, secret string) {
-	httpReportURL = "http://" + addr + "/flow/upload?secret=" + secret
-	configReportURL = "http://" + addr + "/flow/config?secret=" + secret
+	base := strings.TrimRight(addr, "/")
+	if !strings.HasPrefix(base, "http://") && !strings.HasPrefix(base, "https://") {
+		base = "http://" + base
+	}
+	httpReportURL = base + "/flow/upload?secret=" + secret
+	configReportURL = base + "/flow/config?secret=" + secret
 
 	// 创建 AES 加密器
 	var err error
@@ -111,7 +115,6 @@ func sendBatchTrafficReport(ctx context.Context, reportItems []TrafficReportItem
 		return false, fmt.Errorf("服务器响应: %s (期望: ok)", responseText)
 	}
 }
-
 
 // sendConfigReport 发送配置报告到HTTP接口
 func sendConfigReport(ctx context.Context) (bool, error) {

@@ -74,3 +74,15 @@ func TestProbeWaitsUntilForwardingEnabled(t *testing.T) {
 		t.Fatal("forwarding did not start")
 	}
 }
+
+func TestPanelWebSocketURL(t *testing.T) {
+	for input, expected := range map[string]string{
+		"panel:6365":             "ws://panel:6365",
+		"http://panel:6365/":     "ws://panel:6365",
+		"https://panel.example/": "wss://panel.example",
+	} {
+		if got := panelWebSocketURL(input); got != expected {
+			t.Fatalf("%s: %s", input, got)
+		}
+	}
+}

@@ -215,7 +215,7 @@ func (w *WebSocketReporter) connect() error {
 	}
 
 	// 使用最新的配置重新构建 URL
-	currentURL := "ws://" + w.addr + "/system-info?type=1&secret=" + w.secret + "&version=" + w.version +
+	currentURL := panelWebSocketURL(w.addr) + "/system-info?type=1&secret=" + w.secret + "&version=" + w.version +
 		"&http=" + strconv.Itoa(cfg.Http) + "&tls=" + strconv.Itoa(cfg.Tls) + "&socks=" + strconv.Itoa(cfg.Socks)
 
 	u, err := url.Parse(currentURL)
@@ -1135,7 +1135,7 @@ func getMemoryInfo() MemoryInfo {
 func StartWebSocketReporterWithConfig(addr string, secret string, http int, tls int, socks int, version string) *WebSocketReporter {
 
 	// 构建初始 WebSocket URL
-	fullURL := "ws://" + addr + "/system-info?type=1&secret=" + secret + "&version=" + version + "&http=" + strconv.Itoa(http) + "&tls=" + strconv.Itoa(tls) + "&socks=" + strconv.Itoa(socks)
+	fullURL := panelWebSocketURL(addr) + "/system-info?type=1&secret=" + secret + "&version=" + version + "&http=" + strconv.Itoa(http) + "&tls=" + strconv.Itoa(tls) + "&socks=" + strconv.Itoa(socks)
 
 	fmt.Printf("🔗 WebSocket连接URL: %s\n", fullURL)
 
@@ -1346,4 +1346,15 @@ func (w *WebSocketReporter) processDurationInData(data interface{}) interface{} 
 	default:
 		return v
 	}
+}
+
+func panelWebSocketURL(addr string) string {
+	addr = strings.TrimRight(addr, "/")
+	if strings.HasPrefix(addr, "https://") {
+		return "wss://" + strings.TrimPrefix(addr, "https://")
+	}
+	if strings.HasPrefix(addr, "http://") {
+		return "ws://" + strings.TrimPrefix(addr, "http://")
+	}
+	return "ws://" + addr
 }

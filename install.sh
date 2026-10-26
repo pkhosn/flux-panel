@@ -153,8 +153,20 @@ fetch_flux_agent_binary() {
     amd64) expected_sha256="525361db938732c140334340fb99504412dad7d4cc3a47e49dff5267b5d4ca62" ;;
     arm64) expected_sha256="a265e05d5a21511f41e573e2579c0abdd63a5880f9e7c8c0af5e5bdabfd3ea6f" ;;
   esac
-  echo "⬇️ 下载 flux_agent 2.0.16-beta 中..."
+  local expected_version=2.0.16-beta
+  if [[ "${PROBE_MODE:-false}" == true ]]; then
+    expected_version=2.0.17-beta
+    local checksums
+    checksums=$(curl -fsSL --connect-timeout 5 --max-time 30 "https://github.com/pkhosn/flux-panel/releases/download/${expected_version}/SHA256SUMS") || return 1
+    expected_sha256=$(printf '%s\n' "$checksums" | awk -v name="gost-$(get_architecture)" '$2==name {print $1}')
+    [[ "$expected_sha256" =~ ^[0-9a-f]{64}$ ]] || return 1
+  fi
+  echo "⬇️ 下载 flux_agent ${expected_version} 中..."
   if ! curl -fL "$DOWNLOAD_URL" -o "$output_path"; then
+    if [[ "${PROBE_MODE:-false}" == true ]]; then
+      echo "❌ 探针 Agent 资源尚未就绪，请稍后重新生成安装命令。"
+      return 1
+    fi
     echo "⚠️ Release 暂无可用二进制，尝试从 beta 源码编译..."
     build_flux_agent_from_source "$output_path" || return 1
     built_from_source=1
@@ -171,7 +183,7 @@ fetch_flux_agent_binary() {
   fi
 
   chmod +x "$output_path"
-  if ! "$output_path" -V | grep -q '2.0.16-beta'; then
+  if ! "$output_path" -V | grep -Fq "$expected_version"; then
     echo "❌ Agent 版本校验失败。"
     rm -f "$output_path"
     return 1
@@ -296,17 +308,55 @@ get_config_params() {
 }
 
 # 解析命令行参数
-while getopts "a:s:" opt; do
+while getopts "a:s:p:r:n:" opt; do
   case $opt in
     a) SERVER_ADDR="$OPTARG" ;;
     s) SECRET="$OPTARG" ;;
+    p) PROBE_PANEL_URL="$OPTARG" ;;
+    r) PROBE_TOKEN="$OPTARG" ;;
+    n) PROBE_NAME="$OPTARG" ;;
     *) echo "❌ 无效参数"; exit 1 ;;
   esac
 done
 
+# 探针安装复用现有服务；只接受新安装，避免覆盖已有节点身份。
+register_probe() {
+  if [[ -e "$INSTALL_DIR/config.json" || -e "$INSTALL_DIR/gost.json" || -e "$INSTALL_DIR/flux_agent" ]]; then
+    echo "❌ 已存在 flux_agent 配置或程序，不能覆盖安装探针。"
+    return 1
+  fi
+  if [[ ! "$PROBE_PANEL_URL" =~ ^https?://[^/[:space:]]+/?$ || ! "$PROBE_TOKEN" =~ ^[A-Za-z0-9_-]{43}$ ]]; then
+    echo "❌ 面板地址或安装凭证无效。"
+    return 1
+  fi
+  if ! command -v python3 >/dev/null 2>&1; then
+    echo "❌ 探针注册需要 python3，请安装后重试。"
+    return 1
+  fi
+  PROBE_NAME="${PROBE_NAME:-$(hostname)}"
+  local request response decoded
+  request=$(PROBE_REG_TOKEN="$PROBE_TOKEN" PROBE_REG_NAME="$PROBE_NAME" python3 -c 'import json,os; print(json.dumps({"token":os.environ["PROBE_REG_TOKEN"],"name":os.environ["PROBE_REG_NAME"]}))') || return 1
+  response=$(curl -fsS --connect-timeout 5 --max-time 15 -H 'Content-Type: application/json' --data-binary "$request" "${PROBE_PANEL_URL%/}/api/v1/probe/register") || {
+    echo "❌ 注册失败，未安装服务；请检查网络，必要时重新生成安装命令。"
+    return 1
+  }
+  decoded=$(printf '%s' "$response" | python3 -c 'import json,sys,re; r=json.load(sys.stdin); d=r.get("data") or {}; s=d.get("secret",""); assert r.get("code")==0 and re.fullmatch("[0-9a-f]{48}",s), r.get("msg","注册失败"); print(s)' 2>/dev/null) || {
+    echo "❌ 安装凭证无效、已使用或注册失败，请重新生成命令。"
+    return 1
+  }
+  SECRET="$decoded"
+  SERVER_ADDR="${PROBE_PANEL_URL%/}"
+  PROBE_MODE=true
+  # 探针必须使用支持监控模式的版本，不能回退旧版监听程序。
+  DOWNLOAD_URL="https://github.com/pkhosn/flux-panel/releases/download/2.0.17-beta/gost-$(get_architecture)"
+}
+
 # 安装功能
 install_flux_agent() {
   echo "🚀 开始安装 flux_agent..."
+  if [[ -n "$PROBE_PANEL_URL" || -n "$PROBE_TOKEN" ]]; then
+    register_probe || exit 1
+  fi
   get_config_params
 
     # 检查并安装 tcpkill
@@ -318,6 +368,11 @@ install_flux_agent() {
   # 先构建新版本，失败时保留正在运行的旧服务。
   if ! fetch_flux_agent_binary "$INSTALL_DIR/flux_agent.new"; then
     echo "❌ 安装失败：无法获取有效的 flux_agent 二进制。"
+    exit 1
+  fi
+  if [[ "${PROBE_MODE:-false}" == true ]] && ! "$INSTALL_DIR/flux_agent.new" -V 2>/dev/null | grep -Fq '2.0.17-beta'; then
+    rm -f "$INSTALL_DIR/flux_agent.new"
+    echo "❌ 下载的 Agent 不支持探针模式，安装终止。"
     exit 1
   fi
   if systemctl list-units --full -all | grep -Fq "flux_agent.service"; then
@@ -337,7 +392,8 @@ install_flux_agent() {
   cat > "$CONFIG_FILE" <<EOF
 {
   "addr": "$SERVER_ADDR",
-  "secret": "$SECRET"
+  "secret": "$SECRET",
+  "probe_mode": ${PROBE_MODE:-false}
 }
 EOF
 
@@ -469,7 +525,7 @@ uninstall_flux_agent() {
 # 主逻辑
 main() {
   # 如果提供了命令行参数，直接执行安装
-  if [[ -n "$SERVER_ADDR" && -n "$SECRET" ]]; then
+  if [[ -n "$PROBE_PANEL_URL" || -n "$PROBE_TOKEN" || ( -n "$SERVER_ADDR" && -n "$SECRET" ) ]]; then
     install_flux_agent
     delete_self
     exit 0
