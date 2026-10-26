@@ -1,0 +1,60 @@
+package com.admin.service.probe;
+
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.SecureRandom;
+import java.util.Base64;
+import java.util.HexFormat;
+import java.util.List;
+import java.util.Map;
+
+/** Internal registration primitives; HTTP exposure follows Agent mode enforcement. */
+@Service
+public class ProbeRegistrationService {
+    private final JdbcTemplate jdbc;
+    private final SecureRandom random = new SecureRandom();
+
+    public ProbeRegistrationService(JdbcTemplate jdbc) { this.jdbc = jdbc; }
+
+    @Transactional
+    public String issue(int userId) {
+        long now = System.currentTimeMillis();
+        jdbc.update("DELETE FROM probe_registration WHERE expires_at<=?", now);
+        byte[] bytes = new byte[32]; random.nextBytes(bytes);
+        String token = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+        jdbc.update("INSERT INTO probe_registration(token_hash,user_id,expires_at) VALUES(?,?,?)",
+                hash(token), userId, now + 15 * 60_000L);
+        return token;
+    }
+
+    @Transactional
+    public int consume(String token) {
+        if (token == null || token.length() != 43) throw new IllegalArgumentException("安装凭证无效或已过期");
+        String digest = hash(token);
+        // Atomic write precedes read: one transaction owns the token during consumption.
+        jdbc.update("UPDATE probe_registration SET expires_at=expires_at WHERE token_hash=?", digest);
+        List<Integer> owners = jdbc.queryForList("SELECT user_id FROM probe_registration WHERE token_hash=? AND expires_at>?",
+                Integer.class, digest, System.currentTimeMillis());
+        if (owners.size() != 1) throw new IllegalArgumentException("安装凭证无效或已过期");
+        jdbc.update("DELETE FROM probe_registration WHERE token_hash=?", digest);
+        return owners.getFirst();
+    }
+
+    public List<Map<String,Object>> listOwned(int userId) {
+        return jdbc.queryForList("SELECT id,name,status,server_ip,detected_ipv4,detected_ipv6,version FROM node WHERE probe_mode=1 AND owner_user_id=? ORDER BY id DESC",userId);
+    }
+
+    public void requireOwner(long nodeId, int userId) {
+        Integer count = jdbc.queryForObject("SELECT COUNT(*) FROM node WHERE id=? AND probe_mode=1 AND owner_user_id=?",
+                Integer.class,nodeId,userId);
+        if (!Integer.valueOf(1).equals(count)) throw new IllegalArgumentException("探针不存在或无权限");
+    }
+
+    private String hash(String token) {
+        try { return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(token.getBytes(StandardCharsets.UTF_8))); }
+        catch (java.security.NoSuchAlgorithmException impossible) { throw new IllegalStateException(impossible); }
+    }
+}
