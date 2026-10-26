@@ -922,9 +922,13 @@ public class TunnelServiceImpl extends ServiceImpl<TunnelMapper, Tunnel> impleme
 
         for (Forward forward : forwards) {
             String serviceName = buildForwardServiceName(forward, tunnel.getId().intValue());
-            for (ChainTunnel oldInNode : oldInNodes) {
-                JSONArray services = GostUtil.forwardServiceNames(serviceName, forward.getProtocol());
-                GostDto deleteResult = GostUtil.DeleteService(oldInNode.getNodeId(), services);
+            // 同时清理新入口上此前失败操作留下的同规则服务，重试时避免重名。
+            Set<Long> affectedNodeIds = new LinkedHashSet<>();
+            oldInNodes.forEach(entry -> affectedNodeIds.add(entry.getNodeId()));
+            newInNodes.forEach(entry -> affectedNodeIds.add(entry.getNodeId()));
+            for (Long nodeId : affectedNodeIds) {
+                JSONArray services = GostUtil.forwardServiceNames(serviceName, "tcp_udp");
+                GostDto deleteResult = GostUtil.DeleteService(nodeId, services);
                 if (!Objects.equals(deleteResult.getMsg(), "OK")) {
                     return R.err(deleteResult.getMsg());
                 }

@@ -225,13 +225,31 @@ public class GostUtil {
     }
 
     public static GostDto DeleteService(Long node_id, JSONArray services) {
-        JSONObject data = new JSONObject();
-        data.put("services", services);
-        GostDto gostDto = WebSocketServer.send_msg(node_id, data, "DeleteService");
-        if (gostDto.getMsg().contains("not found")){
-            gostDto.setMsg("OK");
+        return DeleteService(node_id, services,
+                (nodeId, data) -> WebSocketServer.send_msg(nodeId, data, "DeleteService"));
+    }
+
+    static GostDto DeleteService(Long nodeId, JSONArray services,
+                                java.util.function.BiFunction<Long, JSONObject, GostDto> sender) {
+        // Agent 删除是整批验证后执行，混合存在/缺失的服务必须拆开删除。
+        if (services.isEmpty()) {
+            JSONObject data = new JSONObject();
+            data.put("services", services);
+            return sender.apply(nodeId, data);
         }
-        return gostDto;
+        GostDto result = null;
+        for (Object service : services) {
+            JSONArray single = new JSONArray();
+            single.add(service);
+            JSONObject data = new JSONObject();
+            data.put("services", single);
+            result = sender.apply(nodeId, data);
+            if (("service " + service + " not found").equals(result.getMsg())) {
+                result.setMsg("OK");
+            }
+            if (!"OK".equals(result.getMsg())) return result;
+        }
+        return result;
     }
 
     public static GostDto PauseAndResumeService(Long node_id, String name, String meth) {
