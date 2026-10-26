@@ -531,6 +531,14 @@ public class WebSocketServer extends TextWebSocketHandler {
         return userNodePermissionService.getUserNodePermissionMap(userId).containsKey(node.getId().intValue());
     }
 
+    public static void disconnectNode(long nodeId) {
+        WebSocketSession session = nodeSessions.remove(nodeId);
+        if (session != null) {
+            try { session.close(CloseStatus.POLICY_VIOLATION); }
+            catch (java.io.IOException error) { log.debug("关闭已删除探针连接失败: {}", nodeId); }
+        }
+    }
+
     public static GostDto send_msg(Long node_id, Object msg, String type) {
         WebSocketSession nodeSession = nodeSessions.get(node_id);
 

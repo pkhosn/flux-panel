@@ -19,7 +19,7 @@ get_architecture() {
 # 构建下载地址
 build_download_url() {
     local ARCH=$(get_architecture)
-    echo "https://github.com/pkhosn/flux-panel/releases/download/2.0.16-beta/gost-${ARCH}"
+    echo "https://github.com/pkhosn/flux-panel/releases/download/2.0.17-beta/gost-${ARCH}"
 }
 
 # 下载地址
@@ -149,18 +149,11 @@ fetch_flux_agent_binary() {
   local output_path="$1"
   local expected_sha256
   local built_from_source=0
-  case "$(get_architecture)" in
-    amd64) expected_sha256="525361db938732c140334340fb99504412dad7d4cc3a47e49dff5267b5d4ca62" ;;
-    arm64) expected_sha256="a265e05d5a21511f41e573e2579c0abdd63a5880f9e7c8c0af5e5bdabfd3ea6f" ;;
-  esac
-  local expected_version=2.0.16-beta
-  if [[ "${PROBE_MODE:-false}" == true ]]; then
-    expected_version=2.0.17-beta
-    local checksums
-    checksums=$(curl -fsSL --connect-timeout 5 --max-time 30 "https://github.com/pkhosn/flux-panel/releases/download/${expected_version}/SHA256SUMS") || return 1
-    expected_sha256=$(printf '%s\n' "$checksums" | awk -v name="gost-$(get_architecture)" '$2==name {print $1}')
-    [[ "$expected_sha256" =~ ^[0-9a-f]{64}$ ]] || return 1
-  fi
+  local expected_version=2.0.17-beta
+  local checksums
+  checksums=$(curl -fsSL --connect-timeout 5 --max-time 30 "https://github.com/pkhosn/flux-panel/releases/download/${expected_version}/SHA256SUMS") || return 1
+  expected_sha256=$(printf '%s\n' "$checksums" | awk -v name="gost-$(get_architecture)" '$2==name {print $1}')
+  [[ "$expected_sha256" =~ ^[0-9a-f]{64}$ ]] || return 1
   echo "⬇️ 下载 flux_agent ${expected_version} 中..."
   if ! curl -fL "$DOWNLOAD_URL" -o "$output_path"; then
     if [[ "${PROBE_MODE:-false}" == true ]]; then
@@ -334,6 +327,11 @@ register_probe() {
     return 1
   fi
   PROBE_NAME="${PROBE_NAME:-$(hostname)}"
+  # Download and verify before consuming the one-use credential.
+  PROBE_MODE=true
+  DOWNLOAD_URL="https://github.com/pkhosn/flux-panel/releases/download/2.0.17-beta/gost-$(get_architecture)"
+  mkdir -p "$INSTALL_DIR" || return 1
+  fetch_flux_agent_binary "$INSTALL_DIR/flux_agent.new" || return 1
   local request response decoded
   request=$(PROBE_REG_TOKEN="$PROBE_TOKEN" PROBE_REG_NAME="$PROBE_NAME" python3 -c 'import json,os; print(json.dumps({"token":os.environ["PROBE_REG_TOKEN"],"name":os.environ["PROBE_REG_NAME"]}))') || return 1
   response=$(curl -fsS --connect-timeout 5 --max-time 15 -H 'Content-Type: application/json' --data-binary "$request" "${PROBE_PANEL_URL%/}/api/v1/probe/register") || {
@@ -366,7 +364,7 @@ install_flux_agent() {
   mkdir -p "$INSTALL_DIR"
 
   # 先构建新版本，失败时保留正在运行的旧服务。
-  if ! fetch_flux_agent_binary "$INSTALL_DIR/flux_agent.new"; then
+  if [[ "${PROBE_MODE:-false}" != true ]] && ! fetch_flux_agent_binary "$INSTALL_DIR/flux_agent.new"; then
     echo "❌ 安装失败：无法获取有效的 flux_agent 二进制。"
     exit 1
   fi

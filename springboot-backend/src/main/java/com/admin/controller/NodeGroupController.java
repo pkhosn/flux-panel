@@ -14,7 +14,7 @@ public class NodeGroupController {
     public NodeGroupController(JdbcTemplate jdbc) { this.jdbc = jdbc; }
     private boolean admin() { return JwtUtil.getRoleIdFromToken() == 0; }
     private int owner() { return admin() ? 0 : JwtUtil.getUserIdFromToken(); }
-    private String scope() { return admin() ? "1=1" : "owner_user_id=" + JwtUtil.getUserIdFromToken(); }
+    private String scope() { return "probe_mode=0 AND " + (admin() ? "1=1" : "owner_user_id=" + JwtUtil.getUserIdFromToken()); }
     private String name(Map<String,Object> input) {
         Object raw=input.get("name");
         return raw instanceof String value && value.trim().length()<=64 ? value.trim() : null;

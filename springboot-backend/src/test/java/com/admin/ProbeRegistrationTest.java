@@ -37,6 +37,15 @@ class ProbeRegistrationTest {
             assertThrows(IllegalArgumentException.class,() -> service.requireOwner(1,22));
             assertThrows(IllegalArgumentException.class,() -> service.requireOwner(1,0));
             assertThrows(IllegalArgumentException.class,() -> service.requireOwner(3,11));
+            assertThrows(IllegalArgumentException.class,() -> tx.executeWithoutResult(t -> service.delete(1,22)));
+            assertThrows(IllegalArgumentException.class,() -> tx.executeWithoutResult(t -> service.delete(1,0)));
+            assertThrows(IllegalArgumentException.class,() -> tx.executeWithoutResult(t -> service.delete(3,11)));
+            tx.executeWithoutResult(t -> service.delete(1,11));
+            assertThrows(IllegalArgumentException.class,() -> service.requireOwner(1,11));
+            for (int i=0;i<10;i++) tx.executeWithoutResult(t -> service.issue(33));
+            assertThrows(IllegalArgumentException.class,() -> tx.executeWithoutResult(t -> service.issue(33)));
+            jdbc.update("UPDATE probe_registration SET expires_at=0 WHERE user_id=33");
+            assertNotNull(tx.execute(t -> service.issue(33)));
         } finally {ds.destroy();}
     }
 }

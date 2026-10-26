@@ -144,3 +144,9 @@ export const deleteNodeGroup = (name: string) => Network.post("/node/group/delet
 export const assignNodeGroup = (ids: number[], name: string) => Network.post("/node/group/assign", { ids, name });
 
 export const batchEditForwards = (ids: number[], text: string) => Network.post("/forward/batch-edit", { ids, text });
+
+export const getProbeList = () => Network.post("/probe/list");
+export const issueProbeToken = () => Network.post("/probe/token");
+export const activateProbe = (data: {id: number; name: string; ports: string}) => Network.post("/probe/activate", data);
+
+export const deleteProbe = (id: number) => Network.post("/probe/delete", { id });

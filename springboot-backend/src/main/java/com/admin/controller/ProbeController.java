@@ -30,11 +30,25 @@ public class ProbeController {
 
     @PostMapping("/token")
     public R token() {
-        return R.ok(java.util.Map.of("token",probes.issue(JwtUtil.getUserIdFromToken()),"expiresIn",900));
+        try { return R.ok(java.util.Map.of("token",probes.issue(JwtUtil.getUserIdFromToken()),"expiresIn",900)); }
+        catch (IllegalArgumentException invalid) { return R.err(invalid.getMessage()); }
     }
 
     @PostMapping("/list")
     public R list() { return R.ok(probes.listOwned(JwtUtil.getUserIdFromToken())); }
+
+    @PostMapping("/delete")
+    public R delete(@Valid @RequestBody Deletion request) {
+        try {
+            probes.delete(request.id, JwtUtil.getUserIdFromToken());
+            com.admin.common.utils.WebSocketServer.disconnectNode(request.id);
+            return R.ok();
+        } catch (IllegalArgumentException invalid) { return R.err(invalid.getMessage()); }
+    }
+
+    public static class Deletion {
+        @javax.validation.constraints.NotNull @javax.validation.constraints.Positive public Long id;
+    }
 
     // No request logging: bearer registration tokens and returned node secrets are credentials.
     @PostMapping("/register")

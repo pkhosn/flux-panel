@@ -23,6 +23,8 @@ public class ProbeRegistrationService {
     public String issue(int userId) {
         long now = System.currentTimeMillis();
         jdbc.update("DELETE FROM probe_registration WHERE expires_at<=?", now);
+        Integer pending = jdbc.queryForObject("SELECT COUNT(*) FROM probe_registration WHERE user_id=?", Integer.class, userId);
+        if (pending != null && pending >= 10) throw new IllegalArgumentException("有效安装命令过多，请15分钟后重试");
         byte[] bytes = new byte[32]; random.nextBytes(bytes);
         String token = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
         jdbc.update("INSERT INTO probe_registration(token_hash,user_id,expires_at) VALUES(?,?,?)",
@@ -66,6 +68,13 @@ public class ProbeRegistrationService {
         Integer count = jdbc.queryForObject("SELECT COUNT(*) FROM node WHERE id=? AND probe_mode=1 AND owner_user_id=?",
                 Integer.class,nodeId,userId);
         if (!Integer.valueOf(1).equals(count)) throw new IllegalArgumentException("探针不存在或无权限");
+    }
+
+    @Transactional
+    public void delete(long nodeId, int userId) {
+        // Conditional write avoids both an ownership bypass and a stale snapshot on concurrent activation.
+        int changed = jdbc.update("DELETE FROM node WHERE id=? AND probe_mode=1 AND owner_user_id=?", nodeId, userId);
+        if (changed != 1) throw new IllegalArgumentException("探针不存在或已启用转发，请刷新后重试");
     }
 
     private String hash(String token) {

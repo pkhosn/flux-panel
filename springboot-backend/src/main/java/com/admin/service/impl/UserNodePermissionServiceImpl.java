@@ -37,7 +37,7 @@ public class UserNodePermissionServiceImpl extends ServiceImpl<UserNodePermissio
             return R.err("用户不存在");
         }
         Node node = nodeMapper.selectById(dto.getNodeId());
-        if (node == null) {
+        if (node == null || Integer.valueOf(1).equals(node.getProbeMode())) {
             return R.err("节点不存在");
         }
         if (dto.getAllowIn() != 0 && dto.getAllowIn() != 1) {

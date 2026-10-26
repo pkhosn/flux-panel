@@ -1137,7 +1137,7 @@ func StartWebSocketReporterWithConfig(addr string, secret string, http int, tls 
 	// 构建初始 WebSocket URL
 	fullURL := panelWebSocketURL(addr) + "/system-info?type=1&secret=" + secret + "&version=" + version + "&http=" + strconv.Itoa(http) + "&tls=" + strconv.Itoa(tls) + "&socks=" + strconv.Itoa(socks)
 
-	fmt.Printf("🔗 WebSocket连接URL: %s\n", fullURL)
+	fmt.Printf("🔗 WebSocket: %s\n", panelWebSocketURL(addr))
 
 	reporter := NewWebSocketReporter(fullURL, secret)
 	// 保存 addr, secret, version 供重连时使用
