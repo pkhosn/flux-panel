@@ -868,5 +868,10 @@
   "已收到数据": "Reporting",
   "在线服务器自启动以来累计流量": "Online servers: cumulative traffic since boot",
   "本人服务器探针": "Your server probes",
-  "全部转发节点": "All forwarding nodes"
+  "全部转发节点": "All forwarding nodes",
+  "隐藏规则入口地址": "Hide rule entry addresses",
+  "后台和用户前台的规则列表及详情隐藏入口地址，保留端口；编辑与导出不受影响。": "Hide entry addresses in admin and user rule lists and details, keeping ports. Editing and exports are unchanged.",
+  "入口地址替代文字": "Entry address replacement text",
+  "已隐藏": "Hidden",
+  "例如：私用不公开。留空显示“已隐藏”。": "For example: Private. Leave blank to display “Hidden”."
 }

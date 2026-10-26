@@ -16,6 +16,7 @@ import { Switch } from "@heroui/switch";
 import { Alert } from "@heroui/alert";
 import toast from 'react-hot-toast';
 import {
+  getConfigs,
   batchEditForwards,
   createForward,
   importForwardRules,
@@ -260,6 +261,33 @@ export default function ForwardPage() {
 
   // 表单验证错误
   const [errors, setErrors] = useState<{[key: string]: string}>({});
+
+  // Start concealed until the site-wide display preference has loaded.
+  const [entryPrivacy, setEntryPrivacy] = useState({ hidden: true, text: '' });
+  useEffect(() => {
+    let disposed = false;
+    const sync = async () => {
+      const response = await getConfigs();
+      if (!disposed && response.code === 0 && response.data) {
+        setEntryPrivacy({ hidden: response.data.hide_rule_entry_address === 'true', text: response.data.rule_entry_hidden_text?.trim() || '' });
+      }
+    };
+    void sync();
+    const refreshVisible = () => { if (!document.hidden) void sync(); };
+    window.addEventListener('configUpdated', refreshVisible);
+    window.addEventListener('focus', refreshVisible);
+    document.addEventListener('visibilitychange', refreshVisible);
+    const timer = setInterval(refreshVisible, 30000);
+    return () => {
+      disposed = true; clearInterval(timer);
+      window.removeEventListener('configUpdated', refreshVisible);
+      window.removeEventListener('focus', refreshVisible);
+      document.removeEventListener('visibilitychange', refreshVisible);
+    };
+  }, []);
+  useEffect(() => {
+    if (entryPrivacy.hidden) { setAddressModalOpen(false); setAddressList([]); }
+  }, [entryPrivacy.hidden]);
 
   useEffect(() => {
     setSelectedForwardIds([]);
@@ -740,6 +768,16 @@ export default function ForwardPage() {
 
   // 格式化入口地址
   const formatInAddress = (ipString: string, port: number): string => {
+    if (entryPrivacy.hidden) {
+      const label = entryPrivacy.text || translate('已隐藏');
+      // Addresses may contain separate listening ports for multiple entry nodes.
+      const ports = [...new Set(ipString.split(',').map(item => {
+        const value = item.trim();
+        const match = value.startsWith('[') || value.split(':').length === 2 ? value.match(/:(\d+)$/) : null;
+        return match?.[1] || (port ? String(port) : '');
+      }).filter(Boolean))];
+      return label + (ports.length ? `:${ports.join(' / ')}` : '');
+    }
     if (!ipString) return '';
 
     const items = ipString.split(',').map(item => item.trim()).filter(item => item);
@@ -782,7 +820,7 @@ export default function ForwardPage() {
 
   // 显示地址列表弹窗
   const showAddressModal = (addressString: string, port: number | null, title: string) => {
-    if (!addressString) return;
+    if (!addressString || (entryPrivacy.hidden && port !== null)) return;
 
     let addresses: string[];
     if (port !== null) {
@@ -1214,7 +1252,7 @@ export default function ForwardPage() {
                       <td className="p-3"><input type="checkbox" aria-label={`选择${row.name}`} checked={selectedForwardIds.includes(row.id)} onChange={() => toggleForwardSelection(row.id)} /></td>
                       <td className="p-3 font-medium">{row.name}<span className="ml-2 text-[10px] text-default-400">{row.protocol === "tcp" ? "TCP" : row.protocol === "udp" ? "UDP" : "TCP+UDP"}</span><div className="text-xs text-default-500">{row.userName}</div></td>
 
-                      <td className="p-3"><div>{row.tunnelName}</div><button className="text-primary text-left break-all" onClick={() => showAddressModal(row.inIp, row.inPort, "入口地址")}>{formatInAddress(row.inIp, row.inPort)}</button></td>
+                      <td className="p-3"><div>{row.tunnelName}</div>{entryPrivacy.hidden ? <span className="break-all">{formatInAddress(row.inIp, row.inPort)}</span> : <button className="text-primary text-left break-all" onClick={() => showAddressModal(row.inIp, row.inPort, "入口地址")}>{formatInAddress(row.inIp, row.inPort)}</button>}</td>
                       <td className="p-3 break-all">{row.remoteAddr.split(",").join(" / ")}</td>
                       <td className="p-3">{formatFlow(row.trafficBytes ?? ((row.inFlow || 0) + (row.outFlow || 0)))}</td>
                       <td className="p-3"><Chip size="sm" color={getStatusDisplay(row.status).color as any} variant="flat">{getStatusDisplay(row.status).text}</Chip></td>

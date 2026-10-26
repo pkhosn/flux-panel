@@ -137,6 +137,8 @@ const CONFIG_ITEMS = (): ConfigItem[] => ([
     type: 'input'
   },
   { key: 'app_logo', label: translate("品牌 Logo 地址"), placeholder: 'https://example.com/logo.svg', description: translate("导航栏 Logo 图片地址，留空使用默认 Logo"), type: 'input' },
+  { key: 'hide_rule_entry_address', label: translate("隐藏规则入口地址"), description: translate("后台和用户前台的规则列表及详情隐藏入口地址，保留端口；编辑与导出不受影响。"), type: 'switch' },
+  { key: 'rule_entry_hidden_text', label: translate("入口地址替代文字"), placeholder: translate("已隐藏"), description: translate("例如：私用不公开。留空显示“已隐藏”。"), type: 'input', dependsOn: 'hide_rule_entry_address', dependsValue: 'true' },
   { key: 'announcement_title', label: translate("公告标题"), placeholder: translate("网站公告"), description: translate("顶部铃铛打开的公告标题"), type: 'input' },
   { key: 'announcement_content', label: translate("公告内容"), placeholder: translate("请输入公告内容"), description: translate("顶部铃铛展示的公告，支持换行纯文本"), type: 'textarea' },
   {
