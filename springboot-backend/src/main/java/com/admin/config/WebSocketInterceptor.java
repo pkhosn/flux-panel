@@ -65,6 +65,7 @@ public class WebSocketInterceptor extends HttpSessionHandshakeInterceptor {
             boolean b = JwtUtil.validateToken(secret);
             if (!b) return false;
             attributes.put("id", JwtUtil.getUserIdFromToken(secret));
+            attributes.put("roleId", JwtUtil.getRoleIdFromToken(secret));
         }
         attributes.put("type", type);
         return true;

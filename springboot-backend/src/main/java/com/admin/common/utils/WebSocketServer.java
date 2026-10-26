@@ -6,6 +6,7 @@ import com.admin.common.dto.GostDto;
 import com.admin.common.task.CheckGostConfigAsync;
 import com.admin.entity.Node;
 import com.admin.service.NodeService;
+import com.admin.service.UserNodePermissionService;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import lombok.SneakyThrows;
@@ -34,6 +35,9 @@ public class WebSocketServer extends TextWebSocketHandler {
 
     @Resource
     NodeService nodeService;
+
+    @Resource
+    UserNodePermissionService userNodePermissionService;
 
     // 存储所有活跃的 WebSocket 连接（
     private static final CopyOnWriteArraySet<WebSocketSession> activeSessions = new CopyOnWriteArraySet<>();
@@ -141,11 +145,9 @@ public class WebSocketServer extends TextWebSocketHandler {
                     jsonObject.put("data", decryptedPayload);
                     String broadcastMessage = jsonObject.toJSONString();
                     
-                    // 异步处理广播消息，避免阻塞当前线程
-                    for (WebSocketSession targetSession : activeSessions) {
-                        if (targetSession != null && targetSession.isOpen() && !targetSession.equals(session)) {
-                            sendToUser(targetSession, broadcastMessage, null);
-                        }
+                    // 命令回复仅在后端关联请求，不向浏览器发送内部配置。
+                    if (decryptedPayload.contains("memory_usage")) {
+                        broadcastNodeMessage(Long.valueOf(id), broadcastMessage);
                     }
                 }
             }
@@ -312,7 +314,7 @@ public class WebSocketServer extends TextWebSocketHandler {
                         res.put("id", id);
                         res.put("type", "status");
                         res.put("data", 1);
-                        broadcastMessage(res.toJSONString());
+                        broadcastNodeMessage(Long.valueOf(id), res.toJSONString());
                     } else {
                         log.info("节点 {} 状态更新失败", nodeId);
                     }
@@ -432,7 +434,7 @@ public class WebSocketServer extends TextWebSocketHandler {
                     res.put("id", id);
                     res.put("type", "status");
                     res.put("data", 0);
-                    broadcastMessage(res.toJSONString());
+                    broadcastNodeMessage(Long.valueOf(id), res.toJSONString());
                 } else {
                     log.info("节点 {} 延迟确认后状态更新为离线失败", nodeId);
                 }
@@ -505,14 +507,29 @@ public class WebSocketServer extends TextWebSocketHandler {
         }
     }
 
-    // 广播消息
-    public static void broadcastMessage(String message) {
-        for (WebSocketSession session : activeSessions) {
-            sendToUser(session, message);
+    private void broadcastNodeMessage(Long nodeId, String message) {
+        Node node = nodeService.getById(nodeId);
+        if (node == null) return;
+        for (WebSocketSession target : activeSessions) {
+            if (target != null && target.isOpen() && canReceiveNode(target, node)) {
+                sendToUser(target, message);
+            }
         }
     }
 
-
+    boolean canReceiveNode(WebSocketSession target, Node node) {
+        if ("1".equals(String.valueOf(target.getAttributes().get("type")))) return false;
+        Object user = target.getAttributes().get("id");
+        if (user == null) return false;
+        int userId;
+        try { userId = Integer.parseInt(user.toString()); }
+        catch (NumberFormatException invalid) { return false; }
+        boolean owner = Objects.equals(node.getOwnerUserId(), userId);
+        // 私有探针不接受管理员或转发授权绕过归属。
+        if (Integer.valueOf(1).equals(node.getProbeMode())) return owner;
+        if (owner || Integer.valueOf(0).equals(target.getAttributes().get("roleId"))) return true;
+        return userNodePermissionService.getUserNodePermissionMap(userId).containsKey(node.getId().intValue());
+    }
 
     public static GostDto send_msg(Long node_id, Object msg, String type) {
         WebSocketSession nodeSession = nodeSessions.get(node_id);

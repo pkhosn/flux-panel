@@ -31,3 +31,9 @@
 已完成：node.probe_mode 向后兼容迁移、probe_registration 表、短期令牌哈希存储与一次性消费、本人列表及归属校验内部服务。尚未开放 HTTP 注册和安装入口，WebSocket 隔离与 Agent 模式将在对外开放前完成。第一步整体尚未完成。
 
 本地验证：沿用 docs/tunnel-service-rebuild.md 的 Docker Maven `clean package`，增加 ProbeRegistrationTest 覆盖令牌过期/重放、哈希存储及跨用户/管理员归属隔离，完整构建通过。首次因 JUnit 泛型断言类型歧义编译失败，修正后重跑通过。所有测试均用隔离数据库。
+
+## 实时数据隔离进度
+
+WebSocket 浏览器握手保存已验证角色，节点监控与上下线状态统一按所有者/现有转发授权过滤；probe_mode=1 严格仅所有者可接收，管理员不绕过。节点命令回复仅处理后端 requestId，不再广播给浏览器。新增 ProbeWebSocketPrivacyTest 覆盖本人、其他普通用户、其他管理员、授权用户及 Agent 会话。
+
+本地 Docker Maven clean package 通过；此阶段仍未开放注册 HTTP、安装流程和探针页面，Agent 监控模式待实现。原有浏览器 WebSocket 需要重新连接以取得角色属性（页面刷新即可）。
