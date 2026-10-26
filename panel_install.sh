@@ -12,7 +12,7 @@ REPO_OWNER="pkhosn"
 REPO_NAME="flux-panel"
 REPO_BRANCH="beta"
 COMPOSE_PROJECT_NAME="flux-panel"
-SCRIPT_VERSION="2026-10-16.2"
+SCRIPT_VERSION="2026-10-26.1"
 DOCKER_COMPOSEV4_URL="https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/refs/heads/${REPO_BRANCH}/docker-compose-v4.yml"
 DOCKER_COMPOSEV6_URL="https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/refs/heads/${REPO_BRANCH}/docker-compose-v6.yml"
 
@@ -65,6 +65,18 @@ build_panel() {
   compose "$@" build backend || return 1
   echo "📦 下载已编译前端并构建 Nginx 镜像（2/2）..."
   compose "$@" build frontend || return 1
+}
+
+# 新容器启动时可能短暂断开连接；所有 curl 失败均在有限窗口内重试。
+wait_http_ready() {
+  local url="$1" attempt
+  for ((attempt=1; attempt<=15; attempt++)); do
+    if curl --noproxy '*' -fsS --connect-timeout 2 --max-time 3 "$url" >/dev/null 2>&1; then
+      return 0
+    fi
+    if ((attempt < 15)); then sleep 1; fi
+  done
+  return 1
 }
 
 backend_container_id() {
@@ -378,7 +390,7 @@ update_panel() {
     compose logs --tail=50 || true
     return 1
   fi
-  if ! curl --noproxy '*' -fsS --retry 5 --retry-connrefused --retry-delay 2 --connect-timeout 5 --max-time 15 "http://127.0.0.1:${FRONTEND_PORT}/" >/dev/null; then
+  if ! wait_http_ready "http://127.0.0.1:${FRONTEND_PORT}/"; then
     echo "❌ 网页端口 ${FRONTEND_PORT} 无法访问"
     compose logs --tail=50 || true
     return 1

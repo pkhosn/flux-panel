@@ -149,6 +149,9 @@ public class FlowController extends BaseController {
     @LogAnnotation
     @Transactional
     public String uploadFlowData(@RequestBody String rawData, String secret) {
+        // 在任何读取前取得 SQLite 写锁，避免并发流量事务的旧快照升级失败。
+        // secret 索引定位节点，不改变节点内容；无效节点不会产生流量更新。
+        jdbc.update("UPDATE node SET id=id WHERE secret=?", secret);
         // 1. 验证节点权限
         if (!isValidNode(secret)) {
             return SUCCESS_RESPONSE;

@@ -19,3 +19,11 @@
 本地验证：使用 `docs/tunnel-service-rebuild.md` 中 Docker Maven 命令执行 `clean package`，26 项测试、0 失败、0 错误。新增入口增量测试覆盖增加/移除、保留端口及未变节点不下发，模拟端口占用返回失败。恢复测试改为 TunnelUpdateDto 入口操作，验证数据库回滚、恢复持久化和重启重试。Agent 现有 `TestReconcileRemovesOrphansAndRestoresPausedState` 本地通过；首次因仓库 go.sum 缺依赖失败，复验用临时 `-modfile` 和 `-mod=mod`，未修改 Agent 依赖文件。
 
 Agent 复验：本机 Go 容器挂载 go-gost/x 为只读，复制 go.mod/go.sum 到 /tmp/check.mod、/tmp/check.sum 后运行 `go test -mod=mod -modfile=/tmp/check.mod ./socket -run TestReconcileRemovesOrphansAndRestoresPausedState -count=1`。全部验证均在本地隔离环境；生产仅查看日志和只读数据库，没有以生产操作代替测试。
+
+## 更新后现场补充
+
+生产前端在启动检查报 curl 52 后只读实测 HTTP 200。更新脚本改为最多 15 次检查，每次请求最多 3 秒，覆盖 empty reply 等短暂启动错误；持续失败仍返回失败。本地 Bash 模拟先两次 curl 52 后成功，以及连续 15 次失败，两项通过，`bash -n panel_install.sh` 通过。
+
+生产流量上报出现 SQLITE_BUSY_SNAPSHOT；uploadFlowData 仍为先读再写事务。调整为权限读取前执行指定节点的无值变更 UPDATE 取得 SQLite 写锁，与隧道保存的快照问题采用相同方式。新增本地顺序测试，确保真实流量处理先写锁再校验节点。
+
+现场端口占用尚未定位到进程：ReconcileForwards 后入口 16 的 22166 及入口 21 的 26566 仍有占用日志。面板数据库无同节点同端口重复规则，当前恢复队列只读查询为空。需入口机 SSH 检查监听进程，未假定为孤立服务，未杀进程。已请求入口机访问资料。
