@@ -1,8 +1,8 @@
 # Production: consume the locally verified, immutable frontend release.
 FROM nginx:stable-alpine
 
-ARG FRONTEND_VERSION=frontend-2026.10.26.2
-ARG FRONTEND_SHA256=f26f6102cec17c2c9d4e42bfb40fc2950be2a382cef9596cebda4e91c4d6da42
+ARG FRONTEND_VERSION=frontend-2026.10.26.3
+ARG FRONTEND_SHA256=5c1c58134d8c62d4b20ca367dc4dc6a6c7013ac3f99bc6aeda612860334eb344
 RUN wget -T 60 -O /tmp/frontend.tar.gz "https://github.com/pkhosn/flux-panel/releases/download/${FRONTEND_VERSION}/flux-frontend.tar.gz" \
     && echo "${FRONTEND_SHA256}  /tmp/frontend.tar.gz" | sha256sum -c - \
     && rm -rf /usr/share/nginx/html/* \
