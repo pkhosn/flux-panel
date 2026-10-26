@@ -861,5 +861,12 @@
   "运行时间": "Uptime",
   "面板地址": "Panel address",
   "服务器探针": "Server probes",
-  "转发节点": "Forwarding nodes"
+  "转发节点": "Forwarding nodes",
+  "服务器总速率": "Total server transfer rate",
+  "总上传": "Total upload",
+  "总下载": "Total download",
+  "已收到数据": "Reporting",
+  "在线服务器自启动以来累计流量": "Online servers: cumulative traffic since boot",
+  "本人服务器探针": "Your server probes",
+  "全部转发节点": "All forwarding nodes"
 }

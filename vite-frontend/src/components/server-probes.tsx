@@ -1,3 +1,4 @@
+import type { ServerTraffic } from '@/components/server-traffic-summary';
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Button } from '@heroui/button';
@@ -21,7 +22,7 @@ function panelURL() {
 }
 const quote = (value: string) => "'" + value.replace(/'/g, "'\\''") + "'";
 
-export default function ServerProbes({ onActivated }: { onActivated: () => void }) {
+export default function ServerProbes({ onActivated, onTrafficChange }: { onActivated: () => void; onTrafficChange: (servers: ServerTraffic[]) => void }) {
   const [probes, setProbes] = useState<Probe[]>([]);
   const [info, setInfo] = useState<Record<number, Info>>({});
   const [busy, setBusy] = useState(false);
@@ -32,6 +33,17 @@ export default function ServerProbes({ onActivated }: { onActivated: () => void 
   const [selected, setSelected] = useState<Probe | null>(null);
   const [name, setName] = useState('');
   const [ports, setPorts] = useState('10000-60000');
+
+  useEffect(() => {
+    onTrafficChange(probes.map(probe => {
+      const stats = info[probe.id];
+      return {
+        online: probe.status === 1,
+        uploadSpeed: stats?.uploadSpeed, downloadSpeed: stats?.downloadSpeed,
+        uploadTraffic: stats?.bytes_transmitted, downloadTraffic: stats?.bytes_received,
+      };
+    }));
+  }, [probes, info, onTrafficChange]);
 
   async function load() {
     const result = await getProbeList();

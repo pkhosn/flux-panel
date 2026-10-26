@@ -91,3 +91,11 @@ Agent 2.0.17-beta 与 frontend-2026.10.26.1 已发布，匿名下载与本地 SH
 卡片与复制验证：原实现向 body 添加 textarea 时，真实 HeroUI Modal 焦点锁会夺回焦点，浏览器已复现。降级复制改为插入当前 dialog，检查焦点、完整选择，finally 恢复焦点与选区。Playwright 验证原生及禁用 navigator.clipboard 后的降级路径，读取真实系统剪贴板与安装命令逐字一致，IP 复制通过。ServerCard 与 serverCardGrid 为两类卡片唯一布局来源，原节点多选/分组/延迟/安装编辑删除保留，探针保留启用删除；共用 CPU/内存、地址/版本/开机时间、速率与流量布局。模拟连续遥测验证探针 1MB/s、2MB/s 速率，暗色390px无溢出，原启用失败重试/删除回归通过。Node20 npm run build 通过，首次因抽取后多余 Chip 导入失败，清理后通过。复现：/tmp/flux-browser-check/card-copy.cjs、probes-production.cjs，运行在 dist 本地 HTTP 服务。
 
 已发布 frontend-2026.10.26.2（源码 7278d03），匿名下载/校验、本机生产镜像构建、镜像 HTTP build-info 及真实剪贴板卡片回归均通过。SHA256 f26f6102cec17c2c9d4e42bfb40fc2950be2a382cef9596cebda4e91c4d6da42。此次不改 Agent。
+
+## 汇总速率栏（用户已确认位置，手机端自主适配）
+
+- [x] 共用上传/下载汇总展示，电脑与标签同行靠右；窄屏自动换行靠右。
+- [x] 节点按当前分组、探针按本人列表汇总在线遥测；无遥测显示 —，悬停说明累计流量和样本数，不新增请求。
+- [ ] 本地构建与浏览器范围/上下线/移动暗色检查，发布固定资源、镜像验证后推送 beta。
+
+汇总验证：Node20 npm run build 通过；Playwright /tmp/flux-browser-check/summary.cjs 验证2台节点速率求和、Japan分组范围、切换探针独立汇总、离线数据排除、无遥测 —、累计说明、桌面同行右侧及320/390px暗色独立换行无溢出，全部通过。card-copy.cjs复制与共享卡片回归通过。初次移动布局测试发现短数字时仍同行，调整手机端统计容器 w-full 后重构建并通过。

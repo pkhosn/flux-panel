@@ -1,3 +1,4 @@
+import { ServerTrafficSummary, type ServerTraffic } from '@/components/server-traffic-summary';
 import { ServerCard, serverCardGrid, type ServerCardNode } from '@/components/server-card';
 import ServerProbes from '@/components/server-probes';
 import { NodeLatency } from '@/components/node-latency';
@@ -44,6 +45,7 @@ interface NodeForm {
 }
 
 export default function NodePage() {
+  const [probeTraffic, setProbeTraffic] = useState<ServerTraffic[]>([]);
   const [tab, setTab] = useState("nodes");
   const [nodeList, setNodeList] = useState<Node[]>([]);
   const [groupFilter, setGroupFilter] = useState("all");
@@ -586,11 +588,17 @@ export default function NodePage() {
   return (
 
       <div className="px-3 lg:px-6 py-8">
-        <div role="tablist" aria-label={translate("节点监控视图")} className="flex gap-2 mb-5">
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 mb-5">
+        <div role="tablist" aria-label={translate("节点监控视图")} className="flex gap-2 shrink-0">
           <Button role="tab" aria-selected={tab === 'nodes'} size="sm" variant={tab === 'nodes' ? 'solid' : 'flat'} color={tab === 'nodes' ? 'primary' : 'default'} onPress={() => setTab('nodes')}>{translate("转发节点")}</Button>
-          <Button role="tab" aria-selected={tab === 'probes'} size="sm" variant={tab === 'probes' ? 'solid' : 'flat'} color={tab === 'probes' ? 'primary' : 'default'} onPress={() => setTab('probes')}>{translate("服务器探针")}</Button>
+          <Button role="tab" aria-selected={tab === 'probes'} size="sm" variant={tab === 'probes' ? 'solid' : 'flat'} color={tab === 'probes' ? 'primary' : 'default'} onPress={() => { setProbeTraffic([]); setTab('probes'); }}>{translate("服务器探针")}</Button>
         </div>
-        {tab === 'probes' ? <ServerProbes onActivated={() => { setTab('nodes'); void loadNodes(); }} /> : <>
+        <div className="ml-auto w-full sm:w-auto max-w-full">
+          <ServerTrafficSummary scope={tab === 'probes' ? translate('本人服务器探针') : groupFilter === 'all' ? translate('全部转发节点') : groupFilter.slice(6)}
+            servers={tab === 'probes' ? probeTraffic : visibleNodes.map(node => ({ online: node.connectionStatus === 'online', ...node.systemInfo }))} />
+        </div>
+        </div>
+        {tab === 'probes' ? <ServerProbes onTrafficChange={setProbeTraffic} onActivated={() => { setTab('nodes'); void loadNodes(); }} /> : <>
         {/* 页面头部 */}
         <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div className="flex-1">
