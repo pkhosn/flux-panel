@@ -23,6 +23,8 @@ class ForwardRecoveryTest {
             var jdbc = new JdbcTemplate(ds);
             jdbc.execute("CREATE TABLE forward_recovery(node_id INTEGER PRIMARY KEY,services TEXT NOT NULL)");
             jdbc.execute("CREATE TABLE node(id INTEGER,version TEXT)");
+            jdbc.execute("CREATE TABLE tunnel(id INTEGER,type INTEGER)");
+            jdbc.update("INSERT INTO tunnel VALUES(1,2)");
             jdbc.execute("CREATE TABLE forward(id INTEGER,tunnel_id INTEGER,status INTEGER)");
             jdbc.execute("CREATE TABLE forward_port(forward_id INTEGER,node_id INTEGER)");
             jdbc.execute("CREATE TABLE chain_tunnel(tunnel_id INTEGER,node_id INTEGER,chain_type INTEGER)");
@@ -104,6 +106,48 @@ class ForwardRecoveryTest {
             verify(call,never()).proceed();
             GostDto ok = new GostDto(); ok.setMsg("OK"); doReturn(ok).when(recovery).sendRecovery(eq(21L),any());
             recovery.restore(); assertFalse(recovery.pending());
+        } finally {ds.destroy();}
+    }
+
+    @Test void addingAnotherEntryPreservesUnrelatedPendingRecovery() throws Throwable {
+        var ds = new SingleConnectionDataSource("jdbc:sqlite::memory:",true);
+        try {
+            var jdbc = new JdbcTemplate(ds);
+            jdbc.execute("CREATE TABLE forward_recovery(node_id INTEGER PRIMARY KEY,services TEXT)");
+            jdbc.execute("CREATE TABLE node(id INTEGER,version TEXT)");
+            jdbc.execute("CREATE TABLE tunnel(id INTEGER,type INTEGER)");
+            jdbc.execute("CREATE TABLE chain_tunnel(tunnel_id INTEGER,node_id INTEGER,chain_type INTEGER)");
+            jdbc.update("INSERT INTO tunnel VALUES(26,1)");
+            jdbc.update("INSERT INTO node VALUES(16,'2.0.16-beta'),(21,'2.0.16-beta')");
+            jdbc.update("INSERT INTO chain_tunnel VALUES(26,21,1)");
+            jdbc.update("INSERT INTO forward_recovery VALUES(21,'[]')");
+            var recovery = spy(new ForwardRecovery(jdbc,new DataSourceTransactionManager(ds)));
+            var forwards = mock(ForwardServiceImpl.class);
+            when(forwards.recoveryServices(anySet())).thenReturn(Map.of());
+            ReflectionTestUtils.setField(recovery,"forwards",forwards);
+            var dto = new com.admin.common.dto.TunnelUpdateDto(); dto.setId(26L);
+            var keep = new com.admin.entity.ChainTunnel(); keep.setNodeId(21L);
+            var add = new com.admin.entity.ChainTunnel(); add.setNodeId(16L);
+            dto.setInNodeId(java.util.List.of(keep,add));
+            var call = mock(ProceedingJoinPoint.class); var signature = mock(Signature.class);
+            when(signature.getName()).thenReturn("updateTunnel");
+            when(signature.getDeclaringTypeName()).thenReturn("com.admin.service.impl.TunnelServiceImpl");
+            when(call.getSignature()).thenReturn(signature); when(call.getArgs()).thenReturn(new Object[]{dto});
+            when(call.proceed()).thenReturn(R.ok());
+            assertEquals(0,((R)recovery.around(call)).getCode());
+            verify(forwards).recoveryServices(java.util.Set.of(16L));
+            assertEquals(java.util.List.of(21L),jdbc.queryForList("SELECT node_id FROM forward_recovery",Long.class));
+            dto.setInNodeId(java.util.List.of(add));
+            assertNotEquals(0,((R)recovery.around(call)).getCode());
+            verify(call,times(1)).proceed();
+            // 新入口下发失败：只恢复本次新增节点，原 pending 快照保持不变。
+            dto.setInNodeId(java.util.List.of(keep,add));
+            when(call.proceed()).thenReturn(R.err("bind conflict"));
+            GostDto failed = new GostDto(); failed.setMsg("bind conflict");
+            doReturn(failed).when(recovery).sendRecovery(anyLong(),any());
+            assertNotEquals(0,((R)recovery.around(call)).getCode());
+            assertEquals(2,jdbc.queryForObject("SELECT COUNT(*) FROM forward_recovery",Integer.class));
+            assertEquals("[]",jdbc.queryForObject("SELECT services FROM forward_recovery WHERE node_id=21",String.class));
         } finally {ds.destroy();}
     }
 

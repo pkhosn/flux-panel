@@ -52,13 +52,16 @@ public class ForwardRecovery {
     public Object around(ProceedingJoinPoint call) throws Throwable {
         if (Boolean.TRUE.equals(ACTIVE.get())) return call.proceed();
         synchronized (LOCK) {
-            if (pending()) {
+            Set<Long> nodes = operationNodes(call.getArgs(), call.getSignature().getDeclaringTypeName());
+            Set<Long> blocked = new HashSet<>(jdbc.queryForList("SELECT node_id FROM forward_recovery", Long.class));
+            blocked.retainAll(nodes);
+            if (!blocked.isEmpty()) {
                 String method = call.getSignature().getName();
                 if (("deleteForward".equals(method) || "forceDeleteForward".equals(method))
                         && call.getArgs().length == 1 && call.getArgs()[0] instanceof Long id) {
                     return deleteDuringRecovery(id);
                 }
-                return R.err("上次规则操作尚未恢复，可能存在端口冲突或节点离线；可先删除冲突规则后重试");
+                return R.err("本次操作涉及仍在恢复的入口节点 " + blocked + "，请检查该节点端口冲突或连接状态");
             }
             if (call.getArgs().length > 0 && call.getArgs()[0] instanceof Map<?, ?> input
                     && ("group".equals(input.get("action")) || "clear".equals(input.get("action")))) {
@@ -66,7 +69,6 @@ public class ForwardRecovery {
                     try { return call.proceed(); } catch (Throwable failure) { throw new OperationFailure(failure); }
                 });
             }
-            Set<Long> nodes = operationNodes(call.getArgs(), call.getSignature().getDeclaringTypeName());
             for (Long node : nodes) {
                 String version = jdbc.queryForObject("SELECT version FROM node WHERE id=?", String.class, node);
                 if (!supportsRecovery(version)) return R.err("请先将入口节点 " + node + " 的 Agent 升级至 2.0.16-beta，以支持故障自动恢复");
@@ -89,14 +91,14 @@ public class ForwardRecovery {
                             Map<Long, JSONArray> desired = forwards.recoveryServices(nodes);
                             for (Long node : nodes) jdbc.update("UPDATE forward_recovery SET services=? WHERE node_id=?",
                                     desired.getOrDefault(node, new JSONArray()).toJSONString(), node);
-                        } else jdbc.update("DELETE FROM forward_recovery");
+                        } else for (Long node : nodes) jdbc.update("DELETE FROM forward_recovery WHERE node_id=?", node);
                         return value;
                     } catch (Throwable failure) { throw new OperationFailure(failure); }
                 });
                 if (force) restore();
                 if (result instanceof R response && response.getCode() != 0) {
                     restore();
-                    if (pending()) response.setMsg(response.getMsg() + "；恢复任务已持久化，将在节点上线后重试");
+                    if (pending()) response.setMsg(response.getMsg() + "；恢复任务已持久化，将自动重试，请检查端口冲突或节点连接");
                 }
                 return result;
             } catch (RuntimeException failure) {
@@ -107,7 +109,7 @@ public class ForwardRecovery {
     }
 
     private R deleteDuringRecovery(Long id) {
-        Set<Long> nodes = new HashSet<>(jdbc.queryForList("SELECT node_id FROM forward_recovery", Long.class));
+        Set<Long> nodes = new HashSet<>();
         addRuleNodes(nodes, id);
         ACTIVE.set(true);
         try {
@@ -135,8 +137,18 @@ public class ForwardRecovery {
         Set<Long> nodes = new HashSet<>();
         for (Object input : args) {
             if (input instanceof TunnelUpdateDto tunnel) {
-                addTunnelNodes(nodes, tunnel.getId().intValue());
-                if (tunnel.getInNodeId() != null) tunnel.getInNodeId().forEach(entry -> nodes.add(entry.getNodeId()));
+                Set<Long> oldNodes = new HashSet<>();
+                addTunnelNodes(oldNodes, tunnel.getId().intValue());
+                Set<Long> newNodes = new HashSet<>();
+                if (tunnel.getInNodeId() != null) tunnel.getInNodeId().forEach(entry -> newNodes.add(entry.getNodeId()));
+                Integer type = jdbc.queryForObject("SELECT type FROM tunnel WHERE id=?", Integer.class, tunnel.getId());
+                nodes.addAll(oldNodes);
+                nodes.addAll(newNodes);
+                // 端口转发仅同步增减入口，保留入口上的恢复不阻塞这次变更。
+                if (Integer.valueOf(1).equals(type)) {
+                    oldNodes.retainAll(newNodes);
+                    nodes.removeAll(oldNodes);
+                }
             } else if (input instanceof ForwardImportDto batch) {
                 if (batch.getRules() != null) nodes.addAll(operationNodes(batch.getRules().toArray(), owner));
             } else if (input instanceof ForwardDto rule) {
