@@ -81,3 +81,11 @@ Agent 支持带 http/https 的面板地址，WebSocket 对应 ws/wss，流量与
 ## 发布结果
 
 Agent 2.0.17-beta 与 frontend-2026.10.26.1 已发布，匿名下载与本地 SHA256 一致，Dockerfile.prebuilt 固定新版资源和哈希。本机生产前端镜像构建与 HTTP build-info 校验通过。安装脚本的真实下载、ELF/哈希/版本检查通过，未安装到本机系统服务。生产 dist 浏览器检查通过；源码提交 8e3b37b。用户继续运行 panel_install.sh 选项 2 即可更新面板，新探针使用页面生成的一次性命令。既有转发 Agent 无需为使用探针列表而全部升级。
+
+## 卡片与复制修正计划（用户已要求实施）
+
+- [x] 复现安装弹窗剪贴板降级路径，修复焦点被 Modal 捕获造成空复制；验证实际选中文本及复制内容。
+- [x] 抽取原节点卡片为共享组件，探针复用标题、地址、资源进度、速率、流量与操作布局；保留各自业务按钮。
+- [ ] 本地构建、浏览器复制/两种卡片/遥测/暗色窄屏回归，发布新静态包、校验与生产镜像验证后推送 beta。
+
+卡片与复制验证：原实现向 body 添加 textarea 时，真实 HeroUI Modal 焦点锁会夺回焦点，浏览器已复现。降级复制改为插入当前 dialog，检查焦点、完整选择，finally 恢复焦点与选区。Playwright 验证原生及禁用 navigator.clipboard 后的降级路径，读取真实系统剪贴板与安装命令逐字一致，IP 复制通过。ServerCard 与 serverCardGrid 为两类卡片唯一布局来源，原节点多选/分组/延迟/安装编辑删除保留，探针保留启用删除；共用 CPU/内存、地址/版本/开机时间、速率与流量布局。模拟连续遥测验证探针 1MB/s、2MB/s 速率，暗色390px无溢出，原启用失败重试/删除回归通过。Node20 npm run build 通过，首次因抽取后多余 Chip 导入失败，清理后通过。复现：/tmp/flux-browser-check/card-copy.cjs、probes-production.cjs，运行在 dist 本地 HTTP 服务。

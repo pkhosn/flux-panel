@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Button } from '@heroui/button';
-import { Card, CardBody } from '@heroui/card';
+import { ServerCard, serverCardGrid } from '@/components/server-card';
 import { Input, Textarea } from '@heroui/input';
 import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from '@heroui/modal';
-import { Chip } from '@heroui/chip';
 import toast from 'react-hot-toast';
 import { activateProbe, deleteProbe, getProbeList, issueProbeToken } from '@/api';
 import { copyText } from '@/utils/clipboard';
@@ -14,14 +13,13 @@ type Probe = {
   id: number; name: string; status: number; server_ip: string;
   detected_ipv4?: string; detected_ipv6?: string; version?: string;
 };
-type Info = { cpu_usage?: number; memory_usage?: number; bytes_received?: number; bytes_transmitted?: number; uptime?: number };
+type Info = { cpu_usage?: number; memory_usage?: number; bytes_received?: number; bytes_transmitted?: number; uptime?: number; uploadSpeed?: number; downloadSpeed?: number };
 
 function panelURL() {
   const base = axios.defaults.baseURL || import.meta.env.VITE_API_BASE || window.location.origin;
   return new URL(base, window.location.origin).origin;
 }
 const quote = (value: string) => "'" + value.replace(/'/g, "'\\''") + "'";
-const bytes = (value = 0) => value >= 1024 ** 3 ? `${(value / 1024 ** 3).toFixed(1)} GB` : `${(value / 1024 ** 2).toFixed(1)} MB`;
 
 export default function ServerProbes({ onActivated }: { onActivated: () => void }) {
   const [probes, setProbes] = useState<Probe[]>([]);
@@ -61,7 +59,13 @@ export default function ServerProbes({ onActivated }: { onActivated: () => void 
           }
           if (message.type === 'info') {
             const data = typeof message.data === 'string' ? JSON.parse(message.data) : message.data;
-            setInfo(previous => ({ ...previous, [message.id]: data }));
+            setInfo(previous => {
+              const last = previous[message.id];
+              const elapsed = Number(data.uptime) - Number(last?.uptime);
+              const speed = (field: 'bytes_transmitted' | 'bytes_received') => last && elapsed > 0 && elapsed <= 10
+                ? Math.max(0, (Number(data[field] || 0) - Number(last[field] || 0)) / elapsed) : 0;
+              return { ...previous, [message.id]: { ...data, uploadSpeed: speed('bytes_transmitted'), downloadSpeed: speed('bytes_received') } };
+            });
           }
         } catch { /* Ignore malformed telemetry. */ }
       };
@@ -121,21 +125,23 @@ export default function ServerProbes({ onActivated }: { onActivated: () => void 
       </div>
     </div>
     {!probes.length && <div className="py-12 text-center text-default-500">{t('暂无服务器探针')}</div>}
-    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+    <div className={serverCardGrid}>
       {probes.map(probe => {
         const stats = probe.status === 1 ? info[probe.id] : undefined;
-        return <Card key={probe.id} shadow="none" className="border border-default-200"><CardBody className="gap-3 p-4">
-          <div className="flex justify-between gap-2 items-center"><h3 className="font-semibold truncate">{probe.name}</h3><Chip size="sm" color={probe.status === 1 ? 'success' : 'default'} variant="flat">{t(probe.status === 1 ? '在线' : '离线')}</Chip></div>
-          {([['IPv4', probe.detected_ipv4 || probe.server_ip], ['IPv6', probe.detected_ipv6]] as const).map(([label, value]) => <div key={label} className="flex gap-3 text-sm min-w-0"><span className="text-default-500 w-10 shrink-0">{label}</span>{value ? <button className="truncate text-left hover:text-primary" title={value} onClick={() => { void copy(value); }}>{value}</button> : <span className="text-default-400">{t('未获取')}</span>}</div>)}
-          <div className="grid grid-cols-2 gap-2 text-sm">
-            <span>CPU <b>{stats ? `${Number(stats.cpu_usage || 0).toFixed(1)}%` : '—'}</b></span>
-            <span>{t('内存')} <b>{stats ? `${Number(stats.memory_usage || 0).toFixed(1)}%` : '—'}</b></span>
-            <span>{t('上传')} {stats ? bytes(stats.bytes_transmitted) : '—'}</span>
-            <span>{t('下载')} {stats ? bytes(stats.bytes_received) : '—'}</span>
-          </div>
-          <div className="text-xs text-default-500">{t('运行时间')} {stats ? `${Math.floor((stats.uptime || 0) / 86400)}d ${Math.floor(((stats.uptime || 0) % 86400) / 3600)}h` : '—'} · {probe.version || '—'}</div>
-          <div className="flex gap-2"><Button size="sm" variant="light" color="danger" onPress={() => setDeleting(probe)}>{t('删除')}</Button><Button className="flex-1" size="sm" variant="flat" color="primary" isDisabled={probe.status !== 1} onPress={() => { setSelected(probe); setName(probe.name); setPorts('10000-60000'); }}>{t('启用转发')}</Button></div>
-        </CardBody></Card>;
+        return <ServerCard key={probe.id} node={{
+          id: probe.id, name: probe.name, ip: probe.server_ip, serverIp: probe.server_ip,
+          detectedIpv4: probe.detected_ipv4, detectedIpv6: probe.detected_ipv6,
+          version: probe.version, port: '', status: probe.status,
+          connectionStatus: probe.status === 1 ? 'online' : 'offline',
+          systemInfo: stats ? {
+            cpuUsage: Number(stats.cpu_usage || 0), memoryUsage: Number(stats.memory_usage || 0),
+            uploadTraffic: Number(stats.bytes_transmitted || 0), downloadTraffic: Number(stats.bytes_received || 0),
+            uploadSpeed: stats.uploadSpeed || 0, downloadSpeed: stats.downloadSpeed || 0, uptime: Number(stats.uptime || 0),
+          } : null,
+        }} actions={<div className="flex gap-1.5">
+          <Button className="flex-1 min-h-8" size="sm" variant="flat" color="primary" isDisabled={probe.status !== 1} onPress={() => { setSelected(probe); setName(probe.name); setPorts('10000-60000'); }}>{t('启用转发')}</Button>
+          <Button className="flex-1 min-h-8" size="sm" variant="flat" color="danger" onPress={() => setDeleting(probe)}>{t('删除')}</Button>
+        </div>} />;
       })}
     </div>
     <Modal isOpen={installOpen} onOpenChange={open => { if (!busy) { setInstallOpen(open); if (!open) setCommand(''); } }} placement="center" scrollBehavior="inside">
