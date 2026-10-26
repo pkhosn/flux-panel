@@ -68,3 +68,5 @@ SHA256：`dc2031203c2084d7efce6e201d17499df84c1a552e2d73ca7dbcf96fdcfa7763`。
 版本 `frontend-2026.10.21.1`：源码 `550ed94`，批量导出仅保留标准文本与 ny JSONL（dest、listen_port、name），默认标准格式。本地 npm build、浏览器两种格式及多规则/多目标/UDP 验证通过；匿名下载 SHA256 与生产 Dockerfile 构建通过。SHA256：`b80088526e1e3b92edf792c7a53eb7bce1706ccf5fc205ff4bb840ff5b0e8126`。
 
 版本 `frontend-2026.10.26.1`：源码 `8e3b37b`，私有服务器探针页面、安装命令、本人遥测、启用转发和删除。本机 Node 20 npm build、33 项 Maven 测试、Go socket/service、真实隔离面板/Agent 注册与启用转发重启联调、生产包浏览器桌面/窄屏暗色交互通过；匿名下载 SHA256、生产 Dockerfile 构建与 HTTP build-info 检查通过。SHA256：`617e7329c7c957fe172d604cd27c6b1317343baf311247c7ba1d2e0e1b5d9d12`。本机仅4GB且无交换空间时构建被系统终止，启用临时2GB交换空间后使用 NODE_OPTIONS=--max-old-space-size=1024 构建成功；生产仍只下载静态资源。
+
+版本 `frontend-2026.10.26.2`：源码 `7278d03`，修复 Modal 焦点锁导致 HTTP 降级复制为空，探针与转发节点复用 ServerCard/布局，探针增加实时速率。本机 Node20 npm build、浏览器实际剪贴板原生/降级完整内容、原焦点问题复现、节点选择、IP复制、遥测速率与暗色窄屏回归通过；匿名下载 SHA256、生产镜像构建与镜像内页面回归通过。SHA256：`f26f6102cec17c2c9d4e42bfb40fc2950be2a382cef9596cebda4e91c4d6da42`。
