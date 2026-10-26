@@ -26,6 +26,7 @@ import com.admin.common.dto.ForwardImportDto;
 @Aspect
 @Component
 public class ForwardRecovery {
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(ForwardRecovery.class);
     private final JdbcTemplate jdbc;
     private final TransactionTemplate transaction;
     @Autowired @Lazy private ForwardServiceImpl forwards;
@@ -85,6 +86,8 @@ public class ForwardRecovery {
             try {
                 Object result = transaction.execute(status -> {
                     try {
+                        // 先获取写锁再读取规则及等待节点，避免并发流量写入使快照过期。
+                        jdbc.update("UPDATE forward_recovery SET services=services WHERE node_id=-1");
                         Object value = call.proceed();
                         if (value instanceof R response && response.getCode() != 0) status.setRollbackOnly();
                         else if (force) {
@@ -102,6 +105,7 @@ public class ForwardRecovery {
                 }
                 return result;
             } catch (RuntimeException failure) {
+                log.error("规则操作失败：{}，涉及节点 {}", call.getSignature().getName(), nodes, failure);
                 restore();
                 return R.err("规则操作失败，数据库已回退" + (pending() ? "；节点恢复任务已保存，将自动重试" : "；节点已恢复"));
             } finally { ACTIVE.remove(); }
