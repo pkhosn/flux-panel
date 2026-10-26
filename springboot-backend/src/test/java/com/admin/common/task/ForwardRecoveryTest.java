@@ -38,7 +38,11 @@ class ForwardRecoveryTest {
             var signature = mock(Signature.class);
             when(signature.getDeclaringTypeName()).thenReturn(ForwardServiceImpl.class.getName());
             when(call.getSignature()).thenReturn(signature);
-            when(call.getArgs()).thenReturn(new Object[]{1L});
+            var tunnelEdit = new com.admin.common.dto.TunnelUpdateDto();
+            tunnelEdit.setId(1L);
+            var entry = new com.admin.entity.ChainTunnel(); entry.setNodeId(2L);
+            tunnelEdit.setInNodeId(java.util.List.of(entry));
+            when(call.getArgs()).thenReturn(new Object[]{tunnelEdit});
             when(call.proceed()).thenAnswer(invocation -> {
                 jdbc.update("UPDATE forward SET status=0 WHERE id=1");
                 throw new IllegalStateException("injected DB failure after first write");

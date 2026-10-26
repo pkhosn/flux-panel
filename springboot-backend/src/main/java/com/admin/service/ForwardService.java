@@ -28,6 +28,8 @@ public interface ForwardService extends IService<Forward> {
 
     R importForwards(ForwardImportDto input);
 
+    Map<Long, com.alibaba.fastjson.JSONArray> recoveryServices(Set<Long> nodes);
+
     /**
      * 获取端口转发列表
      * @return 结果

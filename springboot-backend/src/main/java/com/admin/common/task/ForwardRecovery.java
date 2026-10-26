@@ -18,6 +18,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.HashSet;
 import com.admin.common.dto.ForwardDto;
+import com.admin.common.dto.TunnelUpdateDto;
 import com.admin.common.dto.ForwardUpdateDto;
 import com.admin.common.dto.ForwardImportDto;
 
@@ -36,7 +37,8 @@ public class ForwardRecovery {
         this.transaction = new TransactionTemplate(manager);
     }
 
-    @Around("execution(* com.admin.service.impl.ForwardServiceImpl.createForward(..)) || " +
+    @Around("execution(* com.admin.service.impl.TunnelServiceImpl.updateTunnel(..)) || " +
+            "execution(* com.admin.service.impl.ForwardServiceImpl.createForward(..)) || " +
             "execution(* com.admin.service.impl.ForwardServiceImpl.updateForward(..)) || " +
             "execution(* com.admin.service.impl.ForwardServiceImpl.deleteForward(..)) || " +
             "execution(* com.admin.service.impl.ForwardServiceImpl.forceDeleteForward(..)) || " +
@@ -100,7 +102,10 @@ public class ForwardRecovery {
     private Set<Long> operationNodes(Object[] args, String owner) {
         Set<Long> nodes = new HashSet<>();
         for (Object input : args) {
-            if (input instanceof ForwardImportDto batch) {
+            if (input instanceof TunnelUpdateDto tunnel) {
+                addTunnelNodes(nodes, tunnel.getId().intValue());
+                if (tunnel.getInNodeId() != null) tunnel.getInNodeId().forEach(entry -> nodes.add(entry.getNodeId()));
+            } else if (input instanceof ForwardImportDto batch) {
                 if (batch.getRules() != null) nodes.addAll(operationNodes(batch.getRules().toArray(), owner));
             } else if (input instanceof ForwardDto rule) {
                 addTunnelNodes(nodes, rule.getTunnelId());

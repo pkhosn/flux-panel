@@ -39,13 +39,19 @@ class TunnelUpdateConcurrencyTest {
             jdbc.execute("CREATE TABLE forward_tls_inbound(tunnel_id INTEGER)");
             jdbc.update("INSERT INTO tunnel VALUES(1,'old')");
             jdbc.update("INSERT INTO node VALUES(2,1)");
-            var service = spy(new TunnelServiceImpl());
+            var service = spy(new TunnelServiceImpl() {
+                @Override protected com.admin.common.dto.GostDto syncEntryServices(Long node, com.alibaba.fastjson.JSONArray desired) {
+                    var result = new com.admin.common.dto.GostDto(); result.setMsg("OK"); return result;
+                }
+            });
             ReflectionTestUtils.setField(service,"tlsJdbc",jdbc);
             var chains = mock(ChainTunnelService.class);
             when(chains.list(any())).thenReturn(List.of());
+            when(chains.saveBatch(anyCollection())).thenReturn(true);
             ReflectionTestUtils.setField(service,"chainTunnelService",chains);
             var forwards = mock(ForwardService.class);
             when(forwards.list(any())).thenReturn(List.of());
+            when(forwards.recoveryServices(anySet())).thenReturn(Map.of());
             ReflectionTestUtils.setField(service,"forwardService",forwards);
             doAnswer(inv -> {
                 jdbc.queryForObject("SELECT name FROM tunnel WHERE id=1",String.class);

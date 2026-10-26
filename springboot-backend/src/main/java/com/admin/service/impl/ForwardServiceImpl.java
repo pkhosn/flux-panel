@@ -777,7 +777,7 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
                 .filter(ct -> ct.getChainType() == 3)
                 .toList();
 
-        List<DiagnosisResult> results = new ArrayList<>();
+        List<java.util.concurrent.Callable<DiagnosisResult>> probes = new ArrayList<>();
         String[] remoteAddresses = forward.getRemoteAddr().split(",");
 
         // 根据隧道类型执行不同的诊断策略
@@ -790,12 +790,14 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
                         String targetIp = extractIpFromAddress(remoteAddress);
                         int targetPort = extractPortFromAddress(remoteAddress);
                         if (targetIp != null && targetPort != -1) {
-                            DiagnosisResult result = performTcpPingDiagnosisWithConnectionCheck(
+                            probes.add(() -> {
+                                DiagnosisResult result = performTcpPingDiagnosisWithConnectionCheck(
                                     node, targetIp, targetPort,
                                     "入口(" + node.getName() + ")->目标(" + remoteAddress + ")"
-                            );
-                            result.setFromChainType(1);
-                            results.add(result);
+                                    );
+                                result.setFromChainType(1);
+                                return result;
+                            });
                         }
                     }
                 }
@@ -811,27 +813,31 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
                         for (ChainTunnel firstChainNode : chainNodesList.getFirst()) {
                             Node toNode = nodeService.getById(firstChainNode.getNodeId());
                             if (toNode != null) {
-                                DiagnosisResult result = performTcpPingDiagnosisWithConnectionCheck(
+                                probes.add(() -> {
+                                    DiagnosisResult result = performTcpPingDiagnosisWithConnectionCheck(
                                         fromNode, toNode.getServerIp(), firstChainNode.getPort(),
                                         "入口(" + fromNode.getName() + ")->第1跳(" + toNode.getName() + ")"
-                                );
-                                result.setFromChainType(1);
-                                result.setToChainType(2);
-                                result.setToInx(firstChainNode.getInx());
-                                results.add(result);
+                                        );
+                                    result.setFromChainType(1);
+                                    result.setToChainType(2);
+                                    result.setToInx(firstChainNode.getInx());
+                                    return result;
+                                });
                             }
                         }
                     } else if (!outNodes.isEmpty()) {
                         for (ChainTunnel outNode : outNodes) {
                             Node toNode = nodeService.getById(outNode.getNodeId());
                             if (toNode != null) {
-                                DiagnosisResult result = performTcpPingDiagnosisWithConnectionCheck(
+                                probes.add(() -> {
+                                    DiagnosisResult result = performTcpPingDiagnosisWithConnectionCheck(
                                         fromNode, toNode.getServerIp(), outNode.getPort(),
                                         "入口(" + fromNode.getName() + ")->出口(" + toNode.getName() + ")"
-                                );
-                                result.setFromChainType(1);
-                                result.setToChainType(3);
-                                results.add(result);
+                                        );
+                                    result.setFromChainType(1);
+                                    result.setToChainType(3);
+                                    return result;
+                                });
                             }
                         }
                     }
@@ -840,6 +846,7 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
 
             // 2. 链路测试
             for (int i = 0; i < chainNodesList.size(); i++) {
+                final int hop = i;
                 List<ChainTunnel> currentHop = chainNodesList.get(i);
 
                 for (ChainTunnel currentNode : currentHop) {
@@ -850,29 +857,33 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
                             for (ChainTunnel nextNode : chainNodesList.get(i + 1)) {
                                 Node toNode = nodeService.getById(nextNode.getNodeId());
                                 if (toNode != null) {
-                                    DiagnosisResult result = performTcpPingDiagnosisWithConnectionCheck(
+                                    probes.add(() -> {
+                                        DiagnosisResult result = performTcpPingDiagnosisWithConnectionCheck(
                                             fromNode, toNode.getServerIp(), nextNode.getPort(),
-                                            "第" + (i + 1) + "跳(" + fromNode.getName() + ")->第" + (i + 2) + "跳(" + toNode.getName() + ")"
-                                    );
-                                    result.setFromChainType(2);
-                                    result.setFromInx(currentNode.getInx());
-                                    result.setToChainType(2);
-                                    result.setToInx(nextNode.getInx());
-                                    results.add(result);
+                                            "第" + (hop + 1) + "跳(" + fromNode.getName() + ")->第" + (hop + 2) + "跳(" + toNode.getName() + ")"
+                                            );
+                                        result.setFromChainType(2);
+                                        result.setFromInx(currentNode.getInx());
+                                        result.setToChainType(2);
+                                        result.setToInx(nextNode.getInx());
+                                        return result;
+                                    });
                                 }
                             }
                         } else if (!outNodes.isEmpty()) {
                             for (ChainTunnel outNode : outNodes) {
                                 Node toNode = nodeService.getById(outNode.getNodeId());
                                 if (toNode != null) {
-                                    DiagnosisResult result = performTcpPingDiagnosisWithConnectionCheck(
+                                    probes.add(() -> {
+                                        DiagnosisResult result = performTcpPingDiagnosisWithConnectionCheck(
                                             fromNode, toNode.getServerIp(), outNode.getPort(),
-                                            "第" + (i + 1) + "跳(" + fromNode.getName() + ")->出口(" + toNode.getName() + ")"
-                                    );
-                                    result.setFromChainType(2);
-                                    result.setFromInx(currentNode.getInx());
-                                    result.setToChainType(3);
-                                    results.add(result);
+                                            "第" + (hop + 1) + "跳(" + fromNode.getName() + ")->出口(" + toNode.getName() + ")"
+                                            );
+                                        result.setFromChainType(2);
+                                        result.setFromInx(currentNode.getInx());
+                                        result.setToChainType(3);
+                                        return result;
+                                    });
                                 }
                             }
                         }
@@ -888,12 +899,14 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
                         String targetIp = extractIpFromAddress(remoteAddress);
                         int targetPort = extractPortFromAddress(remoteAddress);
                         if (targetIp != null && targetPort != -1) {
-                            DiagnosisResult result = performTcpPingDiagnosisWithConnectionCheck(
+                            probes.add(() -> {
+                                DiagnosisResult result = performTcpPingDiagnosisWithConnectionCheck(
                                     node, targetIp, targetPort,
                                     "出口(" + node.getName() + ")->目标(" + remoteAddress + ")"
-                            );
-                            result.setFromChainType(3);
-                            results.add(result);
+                                    );
+                                result.setFromChainType(3);
+                                return result;
+                            });
                         }
                     }
                 }
@@ -905,7 +918,7 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
         diagnosisReport.put("forwardId", id);
         diagnosisReport.put("forwardName", forward.getName());
         diagnosisReport.put("tunnelType", tunnel.getType() == 1 ? "端口转发" : "隧道转发");
-        diagnosisReport.put("results", results);
+        diagnosisReport.put("results", com.admin.common.utils.DiagnosisRunner.run(probes));
         diagnosisReport.put("timestamp", System.currentTimeMillis());
 
         return R.ok(diagnosisReport);
@@ -1118,17 +1131,21 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
         return -1;
     }
 
+    protected GostDto sendDiagnosis(Long nodeId, JSONObject data) {
+        return WebSocketServer.send_msg(nodeId, data, "TcpPing");
+    }
+
     private DiagnosisResult performTcpPingDiagnosis(Node node, String targetIp, int port, String description) {
         try {
             // 构建TCP ping请求数据
             JSONObject tcpPingData = new JSONObject();
             tcpPingData.put("ip", targetIp);
             tcpPingData.put("port", port);
-            tcpPingData.put("count", 4);
-            tcpPingData.put("timeout", 5000); // 5秒超时
+            tcpPingData.put("count", 2);
+            tcpPingData.put("timeout", 1500); // 两次探测最多约3秒，低于命令等待上限
 
             // 发送TCP ping命令到节点
-            GostDto gostResult = WebSocketServer.send_msg(node.getId(), tcpPingData, "TcpPing");
+            GostDto gostResult = sendDiagnosis(node.getId(), tcpPingData);
 
             DiagnosisResult result = new DiagnosisResult();
             result.setNodeId(node.getId());

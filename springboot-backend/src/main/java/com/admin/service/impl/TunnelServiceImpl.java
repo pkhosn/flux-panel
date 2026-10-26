@@ -552,17 +552,19 @@ public class TunnelServiceImpl extends ServiceImpl<TunnelMapper, Tunnel> impleme
                 .filter(ct -> ct.getChainType() == 3)
                 .toList();
 
-        List<DiagnosisResult> results = new ArrayList<>();
+        List<java.util.concurrent.Callable<DiagnosisResult>> probes = new ArrayList<>();
 
         if (tunnel.getType() == 1) {
             for (ChainTunnel inNode : inNodes) {
                 Node node = nodeService.getById(inNode.getNodeId());
                 if (node != null) {
-                    DiagnosisResult result = performTcpPingDiagnosisWithConnectionCheck(
+                    probes.add(() -> {
+                        DiagnosisResult result = performTcpPingDiagnosisWithConnectionCheck(
                             node, "www.google.com", 443, "入口(" + node.getName() + ")->外网"
-                    );
-                    result.setFromChainType(1); // 入口
-                    results.add(result);
+                            );
+                        result.setFromChainType(1); // 入口
+                        return result;
+                    });
                 }
             }
         } else if (tunnel.getType() == 2) {
@@ -574,27 +576,31 @@ public class TunnelServiceImpl extends ServiceImpl<TunnelMapper, Tunnel> impleme
                         for (ChainTunnel firstChainNode : chainNodesList.getFirst()) {
                             Node toNode = nodeService.getById(firstChainNode.getNodeId());
                             if (toNode != null) {
-                                DiagnosisResult result = performTcpPingDiagnosisWithConnectionCheck(
+                                probes.add(() -> {
+                                    DiagnosisResult result = performTcpPingDiagnosisWithConnectionCheck(
                                         fromNode, toNode.getServerIp(), firstChainNode.getPort(),
                                         "入口(" + fromNode.getName() + ")->第1跳(" + toNode.getName() + ")"
-                                );
-                                result.setFromChainType(1); // 入口
-                                result.setToChainType(2); // 链
-                                result.setToInx(firstChainNode.getInx());
-                                results.add(result);
+                                        );
+                                    result.setFromChainType(1); // 入口
+                                    result.setToChainType(2); // 链
+                                    result.setToInx(firstChainNode.getInx());
+                                    return result;
+                                });
                             }
                         }
                     } else if (!outNodes.isEmpty()) {
                         for (ChainTunnel outNode : outNodes) {
                             Node toNode = nodeService.getById(outNode.getNodeId());
                             if (toNode != null) {
-                                DiagnosisResult result = performTcpPingDiagnosisWithConnectionCheck(
+                                probes.add(() -> {
+                                    DiagnosisResult result = performTcpPingDiagnosisWithConnectionCheck(
                                         fromNode, toNode.getServerIp(), outNode.getPort(),
                                         "入口(" + fromNode.getName() + ")->出口(" + toNode.getName() + ")"
-                                );
-                                result.setFromChainType(1);
-                                result.setToChainType(3);
-                                results.add(result);
+                                        );
+                                    result.setFromChainType(1);
+                                    result.setToChainType(3);
+                                    return result;
+                                });
                             }
                         }
                     }
@@ -602,6 +608,7 @@ public class TunnelServiceImpl extends ServiceImpl<TunnelMapper, Tunnel> impleme
             }
 
             for (int i = 0; i < chainNodesList.size(); i++) {
+                final int hop = i;
                 List<ChainTunnel> currentHop = chainNodesList.get(i);
                 
                 for (ChainTunnel currentNode : currentHop) {
@@ -612,29 +619,33 @@ public class TunnelServiceImpl extends ServiceImpl<TunnelMapper, Tunnel> impleme
                             for (ChainTunnel nextNode : chainNodesList.get(i + 1)) {
                                 Node toNode = nodeService.getById(nextNode.getNodeId());
                                 if (toNode != null) {
-                                    DiagnosisResult result = performTcpPingDiagnosisWithConnectionCheck(
+                                    probes.add(() -> {
+                                        DiagnosisResult result = performTcpPingDiagnosisWithConnectionCheck(
                                             fromNode, toNode.getServerIp(), nextNode.getPort(),
-                                            "第" + (i + 1) + "跳(" + fromNode.getName() + ")->第" + (i + 2) + "跳(" + toNode.getName() + ")"
-                                    );
-                                    result.setFromChainType(2);
-                                    result.setFromInx(currentNode.getInx());
-                                    result.setToChainType(2);
-                                    result.setToInx(nextNode.getInx());
-                                    results.add(result);
+                                            "第" + (hop + 1) + "跳(" + fromNode.getName() + ")->第" + (hop + 2) + "跳(" + toNode.getName() + ")"
+                                            );
+                                        result.setFromChainType(2);
+                                        result.setFromInx(currentNode.getInx());
+                                        result.setToChainType(2);
+                                        result.setToInx(nextNode.getInx());
+                                        return result;
+                                    });
                                 }
                             }
                         } else if (!outNodes.isEmpty()) {
                             for (ChainTunnel outNode : outNodes) {
                                 Node toNode = nodeService.getById(outNode.getNodeId());
                                 if (toNode != null) {
-                                    DiagnosisResult result = performTcpPingDiagnosisWithConnectionCheck(
+                                    probes.add(() -> {
+                                        DiagnosisResult result = performTcpPingDiagnosisWithConnectionCheck(
                                             fromNode, toNode.getServerIp(), outNode.getPort(),
-                                            "第" + (i + 1) + "跳(" + fromNode.getName() + ")->出口(" + toNode.getName() + ")"
-                                    );
-                                    result.setFromChainType(2);
-                                    result.setFromInx(currentNode.getInx());
-                                    result.setToChainType(3);
-                                    results.add(result);
+                                            "第" + (hop + 1) + "跳(" + fromNode.getName() + ")->出口(" + toNode.getName() + ")"
+                                            );
+                                        result.setFromChainType(2);
+                                        result.setFromInx(currentNode.getInx());
+                                        result.setToChainType(3);
+                                        return result;
+                                    });
                                 }
                             }
                         }
@@ -644,11 +655,13 @@ public class TunnelServiceImpl extends ServiceImpl<TunnelMapper, Tunnel> impleme
             for (ChainTunnel outNode : outNodes) {
                 Node node = nodeService.getById(outNode.getNodeId());
                 if (node != null) {
-                    DiagnosisResult result = performTcpPingDiagnosisWithConnectionCheck(
+                    probes.add(() -> {
+                        DiagnosisResult result = performTcpPingDiagnosisWithConnectionCheck(
                             node, "www.google.com", 443, "出口(" + node.getName() + ")->外网"
-                    );
-                    result.setFromChainType(3);
-                    results.add(result);
+                            );
+                        result.setFromChainType(3);
+                        return result;
+                    });
                 }
             }
         }
@@ -657,7 +670,7 @@ public class TunnelServiceImpl extends ServiceImpl<TunnelMapper, Tunnel> impleme
         diagnosisReport.put("tunnelId", tunnelId);
         diagnosisReport.put("tunnelName", tunnel.getName());
         diagnosisReport.put("tunnelType", tunnel.getType() == 1 ? "端口转发" : "隧道转发");
-        diagnosisReport.put("results", results);
+        diagnosisReport.put("results", com.admin.common.utils.DiagnosisRunner.run(probes));
         diagnosisReport.put("timestamp", System.currentTimeMillis());
 
         return R.ok(diagnosisReport);
@@ -810,6 +823,10 @@ public class TunnelServiceImpl extends ServiceImpl<TunnelMapper, Tunnel> impleme
     private R rebuildTunnelTopology(Tunnel existingTunnel, List<ChainTunnel> oldChainTunnels, List<ChainTunnel> newChainTunnels, Map<Long, Node> nodeMap) {
         List<Forward> forwards = forwardService.list(new QueryWrapper<Forward>().eq("tunnel_id", existingTunnel.getId()));
 
+        if (existingTunnel.getType() == 1) {
+            return syncPortTunnelEntries(existingTunnel, oldChainTunnels, newChainTunnels, forwards);
+        }
+
         R deleteResult = deleteTunnelChainResources(oldChainTunnels);
         if (deleteResult.getCode() != 0) {
             return deleteResult;
@@ -831,6 +848,52 @@ public class TunnelServiceImpl extends ServiceImpl<TunnelMapper, Tunnel> impleme
         }
 
         return syncForwardsAfterInNodeChange(existingTunnel, oldChainTunnels, newChainTunnels, forwards);
+    }
+
+    private R syncPortTunnelEntries(Tunnel tunnel, List<ChainTunnel> oldEntries,
+                                    List<ChainTunnel> newEntries, List<Forward> forwards) {
+        Set<Long> oldIds = oldEntries.stream().map(ChainTunnel::getNodeId).collect(Collectors.toSet());
+        Set<Long> newIds = newEntries.stream().map(ChainTunnel::getNodeId).collect(Collectors.toSet());
+        Set<Long> changed = new LinkedHashSet<>(oldIds);
+        changed.addAll(newIds);
+        Set<Long> retained = new HashSet<>(oldIds);
+        retained.retainAll(newIds);
+        changed.removeAll(retained);
+
+        for (Forward forward : forwards) {
+            List<ForwardPort> ports = forwardPortService.list(new QueryWrapper<ForwardPort>().eq("forward_id", forward.getId()));
+            Integer preferred = resolvePreferredInPort(ports);
+            for (ForwardPort port : ports) {
+                if (!newIds.contains(port.getNodeId())) forwardPortService.removeById(port.getId());
+            }
+            List<ChainTunnel> additions = newEntries.stream()
+                    .filter(entry -> !oldIds.contains(entry.getNodeId())).collect(Collectors.toList());
+            List<ChainTunnel> allocated;
+            try { allocated = allocateForwardPorts(additions, preferred); }
+            catch (RuntimeException failure) { return R.err("规则「" + forward.getName() + "」：" + failure.getMessage()); }
+            for (ChainTunnel entry : allocated) {
+                ForwardPort port = new ForwardPort();
+                port.setForwardId(forward.getId()); port.setNodeId(entry.getNodeId()); port.setPort(entry.getPort());
+                if (!forwardPortService.save(port)) return R.err("保存入口端口失败");
+            }
+        }
+        chainTunnelService.remove(new QueryWrapper<ChainTunnel>().eq("tunnel_id", tunnel.getId()));
+        newEntries.forEach(entry -> entry.setTunnelId(tunnel.getId()));
+        if (!newEntries.isEmpty() && !chainTunnelService.saveBatch(newEntries)) return R.err("保存入口配置失败");
+        if (changed.isEmpty()) return R.ok();
+        Map<Long, JSONArray> desired = forwardService.recoveryServices(changed);
+        for (Long nodeId : changed) {
+            GostDto result = syncEntryServices(nodeId, desired.getOrDefault(nodeId, new JSONArray()));
+            if (!"OK".equals(result.getMsg())) {
+                Node node = nodeService.getById(nodeId);
+                return R.err("入口节点「" + (node == null ? nodeId : node.getName()) + "」同步失败：" + result.getMsg());
+            }
+        }
+        return R.ok();
+    }
+
+    protected GostDto syncEntryServices(Long nodeId, JSONArray desired) {
+        return WebSocketServer.send_msg(nodeId, desired, "ReconcileForwards");
     }
 
     private R deleteTunnelChainResources(List<ChainTunnel> chainTunnels) {
@@ -1005,6 +1068,7 @@ public class TunnelServiceImpl extends ServiceImpl<TunnelMapper, Tunnel> impleme
 
     private List<ChainTunnel> allocateForwardPorts(List<ChainTunnel> inNodes, Integer preferredPort) {
         List<ChainTunnel> allocated = inNodes.stream().map(this::cloneChainTunnel).collect(Collectors.toList());
+        if (allocated.isEmpty()) return allocated;
         List<List<Integer>> nodePorts = new ArrayList<>();
         for (ChainTunnel tunnel : allocated) {
             List<Integer> ports = getAvailableForwardPorts(tunnel.getNodeId());
@@ -1134,17 +1198,21 @@ public class TunnelServiceImpl extends ServiceImpl<TunnelMapper, Tunnel> impleme
 
     }
 
+    protected GostDto sendDiagnosis(Long nodeId, JSONObject data) {
+        return WebSocketServer.send_msg(nodeId, data, "TcpPing");
+    }
+
     private DiagnosisResult performTcpPingDiagnosis(Node node, String targetIp, int port, String description) {
         try {
             // 构建TCP ping请求数据
             JSONObject tcpPingData = new JSONObject();
             tcpPingData.put("ip", targetIp);
             tcpPingData.put("port", port);
-            tcpPingData.put("count", 4);
-            tcpPingData.put("timeout", 5000); // 5秒超时
+            tcpPingData.put("count", 2);
+            tcpPingData.put("timeout", 1500); // 两次探测最多约3秒，低于命令等待上限
 
             // 发送TCP ping命令到节点
-            GostDto gostResult = WebSocketServer.send_msg(node.getId(), tcpPingData, "TcpPing");
+            GostDto gostResult = sendDiagnosis(node.getId(), tcpPingData);
 
             DiagnosisResult result = new DiagnosisResult();
             result.setNodeId(node.getId());
