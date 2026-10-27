@@ -1,18 +1,16 @@
 import { translate } from '@/utils/locale';
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useContext } from 'react';
+import { useNavigate, UNSAFE_NavigationContext } from 'react-router-dom';
 import { Button } from "@heroui/button";
 import { Card, CardBody, CardHeader } from "@heroui/card";
 import { Textarea } from "@heroui/input";
 import { Input } from "@heroui/input";
 import { Spinner } from "@heroui/spinner";
-import { Divider } from "@heroui/divider";
 import { Switch } from "@heroui/switch";
 import { Select, SelectItem } from "@/components/select";
 import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, useDisclosure } from "@heroui/modal";
 import toast from 'react-hot-toast';
 import { updateConfigs } from '@/api';
-import { SettingsIcon } from '@/components/icons';
 
 import { isAdmin } from '@/utils/auth';
 import { getCachedConfigs, clearConfigCache, updateSiteConfig } from '@/config/site';
@@ -33,6 +31,23 @@ const SaveIcon = ({ className }: { className?: string }) => (
     <polyline points="7,3 7,8 15,8" />
   </svg>
 );
+
+type SettingsCategory = 'general' | 'announcement' | 'display' | 'security' | 'payment';
+const SETTINGS_CATEGORIES: { id: SettingsCategory; label: string; description: string; icon: string }[] = [
+  { id: 'general', label: '基础与品牌', description: '设置网站品牌与面板连接地址', icon: 'M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6M9 9h.01M15 9h.01' },
+  { id: 'announcement', label: '公告', description: '管理顶部铃铛展示的公告内容', icon: 'm3 10 14-6v16L3 14v-4m2 5 2 6h3l-2-5M21 8v8' },
+  { id: 'display', label: '显示设置', description: '统一管理页面显示与地址隐私', icon: 'M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12m13 0a3 3 0 1 1-6 0 3 3 0 0 1 6 0' },
+  { id: 'security', label: '登录与验证', description: '配置登录验证方式', icon: 'M12 3 3 7v5c0 5 9 9 9 9s9-4 9-9V7l-9-4m-4 9 3 3 5-6' },
+  { id: 'payment', label: '支付设置', description: '管理支付方式、通道和回调地址', icon: 'M3 5h18v14H3zM3 10h18M7 15h3' },
+];
+const SETTINGS_SECTIONS = [
+  { id: 'brand', category: 'general', title: '品牌信息', description: '展示在导航栏和浏览器标签页', keys: ['app_name', 'app_logo'] },
+  { id: 'connection', category: 'general', title: '面板连接', description: '用于节点安装和面板通信', keys: ['ip'] },
+  { id: 'announcement', category: 'announcement', title: '公告内容', description: '用户点击顶部铃铛后查看', keys: ['announcement_title', 'announcement_content'] },
+  { id: 'privacy', category: 'display', title: '地址显示', description: '对后台与用户前台统一生效', keys: ['hide_rule_entry_address', 'rule_entry_hidden_text'] },
+  { id: 'captcha', category: 'security', title: '登录验证', description: '开启后可选择验证码类型', keys: ['captcha_enabled', 'captcha_type'] },
+  { id: 'payment', category: 'payment', title: '支付方式', description: '添加或编辑支付方式时配置对应通道参数', keys: ['payment_methods'] },
+];
 
 interface ConfigItem {
   key: string;
@@ -126,7 +141,7 @@ const CONFIG_ITEMS = (): ConfigItem[] => ([
     key: 'ip',
     label: translate("面板后端地址"),
     placeholder: translate("请输入面板后端IP:PORT"),
-    description: translate("格式“ip:port”,用于对接节点时使用,ip是你安装面板服务器的公网ip,端口是安装脚本内输入的后端端口。不要套CDN,不支持https,通讯数据有加密"),
+    description: translate("填写节点可访问的面板后端地址与端口，用于生成节点安装命令。"),
     type: 'input'
   },
   {
@@ -396,42 +411,7 @@ const CONFIG_ITEMS = (): ConfigItem[] => ([
 const getInitialConfigs = (): Record<string, string> => {
   if (typeof window === 'undefined') return {};
 
-  const configKeys = [
-    'app_name',
-    'app_logo',
-    'announcement_title',
-    'announcement_content',
-    'captcha_enabled',
-    'captcha_type',
-    'ip',
-    'payment_enabled',
-    'payment_provider',
-    'payment_mgate_url',
-    'payment_mgate_app_id',
-    'payment_mgate_app_secret',
-    'payment_mgate_source_currency',
-    'payment_notify_base_url',
-    'payment_return_base_url',
-    'payment_methods',
-    'payment_epay_url',
-    'payment_epay_pid',
-    'payment_epay_key',
-    'payment_bepusdt_url',
-    'payment_bepusdt_apitoken',
-    'payment_btcpay_url',
-    'payment_btcpay_store_id',
-    'payment_btcpay_api_key',
-    'payment_btcpay_webhook_key',
-    'payment_btcpay_currency',
-    'payment_coinpayments_merchant_id',
-    'payment_coinpayments_ipn_secret',
-    'payment_coinbase_url',
-    'payment_coinbase_api_key',
-    'payment_coinbase_webhook_key',
-    'payment_stripe_sk_live',
-    'payment_stripe_currency',
-    'payment_stripe_webhook_key'
-  ];
+  const configKeys = CONFIG_ITEMS().map(item => item.key);
   const initialConfigs: Record<string, string> = {};
 
   try {
@@ -449,6 +429,8 @@ const getInitialConfigs = (): Record<string, string> => {
 
 export default function ConfigPage() {
   const navigate = useNavigate();
+  const { navigator } = useContext(UNSAFE_NavigationContext);
+  const [category, setCategory] = useState<SettingsCategory>('general');
   const initialConfigs = getInitialConfigs();
   const [configs, setConfigs] = useState<Record<string, string>>(initialConfigs);
   const [loading, setLoading] = useState(Object.keys(initialConfigs).length === 0); // 如果有缓存数据，不显示loading
@@ -459,6 +441,22 @@ export default function ConfigPage() {
   const { isOpen: isPaymentModalOpen, onOpen: onPaymentModalOpen, onClose: onPaymentModalClose } = useDisclosure();
   const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null);
   const [paymentForm, setPaymentForm] = useState<{ value: string; label: string; enabled: boolean; provider: string }>({ value: '', label: '', enabled: true, provider: '' });
+
+  // All categories share one draft. Guard browser reload and in-app navigation.
+  useEffect(() => {
+    if (!hasChanges) return;
+    const beforeUnload = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
+    const message = translate('有未保存的更改，确定离开并放弃修改？');
+    const push = navigator.push;
+    const replace = navigator.replace;
+    navigator.push = (...args) => { if (window.confirm(message)) push.apply(navigator, args); };
+    navigator.replace = (...args) => { if (window.confirm(message)) replace.apply(navigator, args); };
+    window.addEventListener('beforeunload', beforeUnload);
+    return () => {
+      navigator.push = push; navigator.replace = replace;
+      window.removeEventListener('beforeunload', beforeUnload);
+    };
+  }, [hasChanges, navigator]);
 
   // 权限检查
   useEffect(() => {
@@ -510,12 +508,7 @@ export default function ConfigPage() {
   }, []); // 只在组件挂载时执行一次
 
   useEffect(() => {
-    const raw = configs.payment_methods || '';
-    if (raw && raw.split(',').some((item) => item.trim() && item.trim().split(':').length < 3)) {
-      updatePaymentMethods([]);
-      return;
-    }
-    setPaymentMethodsEditor(parsePaymentMethods(raw));
+    setPaymentMethodsEditor(parsePaymentMethods(configs.payment_methods || ''));
   }, [configs.payment_methods]);
 
   // 处理配置项变更
@@ -677,6 +670,7 @@ export default function ConfigPage() {
         }
         return (
           <Input
+            aria-label={item.label}
             value={configs[item.key] || ''}
             onChange={(e) => handleConfigChange(item.key, e.target.value)}
             placeholder={item.placeholder}
@@ -694,6 +688,7 @@ export default function ConfigPage() {
       case 'switch':
         return (
           <Switch
+            aria-labelledby={`setting-${item.key}`}
             isSelected={configs[item.key] === 'true'}
             onValueChange={(checked) => handleConfigChange(item.key, checked ? 'true' : 'false')}
             color="primary"
@@ -711,6 +706,7 @@ export default function ConfigPage() {
       case 'select':
         return (
           <Select
+            aria-label={item.label}
             selectedKeys={configs[item.key] ? [configs[item.key]] : []}
             onSelectionChange={(keys) => {
               const selectedKey = Array.from(keys)[0] as string;
@@ -718,7 +714,7 @@ export default function ConfigPage() {
                 handleConfigChange(item.key, selectedKey);
               }
             }}
-            placeholder={translate("请选择验证码类型")}
+            placeholder={item.label}
             variant="bordered"
             size="md"
             classNames={{
@@ -755,90 +751,43 @@ export default function ConfigPage() {
 
   return (
     <>
-      <div className="p-6 max-w-4xl mx-auto">
-        {/* 页面标题 */}
-        <div className="flex items-center gap-3 mb-6">
-          <SettingsIcon className="w-8 h-8 text-primary" />
-          <div>
-            <h1 className="text-2xl font-bold">{translate("网站配置")}</h1>
-            <p className="text-gray-600 dark:text-gray-400">{translate("管理网站的基本信息和显示设置")}</p>
+      <div className="px-3 py-6 lg:px-6 max-w-6xl mx-auto pb-28">
+        <header className="mb-6">
+          <h1 className="text-2xl font-semibold tracking-tight">{translate('网站配置')}</h1>
+          <p className="text-sm text-default-500 mt-1">{translate('按分类管理网站设置，切换分类不会丢失修改')}</p>
+        </header>
+        <div className="flex flex-col md:flex-row gap-6 items-start">
+          <nav aria-label={translate('配置分类')} className="flex md:flex-col gap-1 w-full md:w-48 shrink-0 overflow-x-auto md:sticky md:top-20 pb-1 md:pb-0">
+            {SETTINGS_CATEGORIES.map(item => <button key={item.id} type="button" aria-current={category === item.id ? 'page' : undefined}
+              onClick={() => setCategory(item.id)} className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm whitespace-nowrap text-left transition-colors ${category === item.id ? 'bg-primary-50 dark:bg-primary-100/20 text-primary font-medium' : 'text-default-500 hover:bg-default-100 hover:text-foreground'}`}>
+              <svg aria-hidden="true" className="w-[18px] h-[18px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d={item.icon} /></svg>
+              {translate(item.label)}
+              {(item.id === 'payment' ? Object.keys(configs).filter(key => key.startsWith('payment_')) : SETTINGS_SECTIONS.filter(section => section.category === item.id).flatMap(section => section.keys)).some(key => configs[key] !== originalConfigs[key]) && <span aria-label={translate('未保存')} className="w-1.5 h-1.5 bg-warning rounded-full ml-auto shrink-0" />}
+            </button>)}
+          </nav>
+          <section className="flex-1 min-w-0 w-full space-y-4" aria-label={translate(SETTINGS_CATEGORIES.find(item => item.id === category)!.label)}>
+            <p className="text-sm text-default-500">{translate(SETTINGS_CATEGORIES.find(item => item.id === category)!.description)}</p>
+            {SETTINGS_SECTIONS.filter(section => section.category === category).map(section => <Card key={section.id} shadow="none" className="border border-divider rounded-xl">
+              <CardHeader className="px-5 py-4 border-b border-divider flex-col items-start gap-1">
+                <h2 className="text-base font-semibold">{translate(section.title)}</h2>
+                <p className="text-xs text-default-500">{translate(section.description)}</p>
+              </CardHeader>
+              <CardBody className="px-5 py-0 divide-y divide-divider">
+                {section.keys.map(key => CONFIG_ITEMS().find(item => item.key === key)!).filter(shouldShowItem).map(item => <div key={item.key} className={`py-5 grid gap-4 ${item.key === 'payment_methods' ? 'grid-cols-1' : 'lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]'} items-start`}>
+                  <div><label id={`setting-${item.key}`} className="text-sm font-medium">{item.label}</label>{item.description && <p className="text-xs text-default-500 mt-1.5 leading-relaxed break-words">{item.description}</p>}</div>
+                  <div className="min-w-0">{renderConfigItem(item)}</div>
+                </div>)}
+              </CardBody>
+            </Card>)}
+          </section>
+        </div>
+        <div className="sticky bottom-3 z-20 mt-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-divider bg-background/95 backdrop-blur px-4 py-3 shadow-sm" aria-label={translate('配置保存栏')}>
+          <p className={`text-xs sm:text-sm ${hasChanges ? 'text-warning-600 dark:text-warning-400' : 'text-default-500'}`}>{hasChanges ? translate('有未保存的更改') : translate('所有更改已保存')}</p>
+          <div className="flex gap-2 ml-auto">
+            <Button size="sm" variant="flat" isDisabled={!hasChanges || saving} onPress={() => { setConfigs({ ...originalConfigs }); setHasChanges(false); }}>{translate('撤销更改')}</Button>
+            <Button size="sm" color="primary" startContent={<SaveIcon className="w-4 h-4" />} onPress={handleSave} isLoading={saving} isDisabled={!hasChanges}>{translate('保存配置')}</Button>
           </div>
         </div>
-
-        <Card className="shadow-md">
-          <CardHeader className="pb-4">
-            <div className="flex justify-between items-center w-full">
-              <div>
-                <h2 className="text-xl font-semibold">{translate("基本设置")}</h2>
-                <p className="text-sm text-gray-600 dark:text-gray-400">{translate("配置网站的基本信息，这些设置会影响网站的显示效果")}</p>
-              </div>
-              <div className="flex gap-2">
-
-                <Button
-                  color="primary"
-                  startContent={<SaveIcon className="w-4 h-4" />}
-                  onClick={handleSave}
-                  isLoading={saving}
-                  disabled={!hasChanges}
-                >
-                  {saving ? translate("保存中...") : translate("保存配置")}
-                </Button>
-              </div>
-            </div>
-          </CardHeader>
-
-          <Divider />
-
-          <CardBody className="space-y-6 pt-6">
-            {CONFIG_ITEMS().map((item, index) => {
-              if (item.key === 'payment_enabled' || item.key === 'payment_provider') return null;
-              if (item.key !== 'payment_methods' && item.key.startsWith('payment_')) return null;
-              // 检查配置项是否应该显示
-              if (!shouldShowItem(item)) {
-                return null;
-              }
-
-              // 计算是否是最后一个显示的项目（用于决定是否显示分隔线）
-              const remainingItems = CONFIG_ITEMS().slice(index + 1).filter(shouldShowItem);
-              const isLastItem = remainingItems.length === 0;
-
-              return (
-                <div key={item.key} className="space-y-3">
-                  <div className="flex flex-col gap-1">
-                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      {item.label}
-                    </label>
-                    {item.description && (
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        {item.description}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* 渲染配置项 */}
-                  {renderConfigItem(item)}
-
-                  {/* 分隔线 */}
-                  {!isLastItem && (
-                    <Divider className="mt-6" />
-                  )}
-                </div>
-              );
-            })}
-          </CardBody>
-        </Card>
-
-        {/* 操作提示 */}
-        {hasChanges && (
-          <Card className="mt-4 bg-warning-50 dark:bg-warning-900/20 border-warning-200 dark:border-warning-800">
-            <CardBody className="py-3">
-              <div className="flex items-center gap-2 text-warning-700 dark:text-warning-300">
-                <div className="w-2 h-2 bg-warning-500 rounded-full animate-pulse" />
-                <span className="text-sm">{translate("检测到配置变更，请记得保存您的修改")}</span>
-              </div>
-            </CardBody>
-          </Card>
-        )}
       </div>
 
       <Modal isOpen={isPaymentModalOpen} onClose={onPaymentModalClose} size="md">
