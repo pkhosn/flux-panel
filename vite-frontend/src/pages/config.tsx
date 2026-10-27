@@ -751,13 +751,13 @@ export default function ConfigPage() {
 
   return (
     <>
-      <div className="px-3 py-6 lg:px-6 max-w-6xl mx-auto pb-28">
-        <header className="mb-6">
+      <div className="px-3 py-5 lg:px-6 w-full pb-20">
+        <header className="mb-4">
           <h1 className="text-2xl font-semibold tracking-tight">{translate('网站配置')}</h1>
           <p className="text-sm text-default-500 mt-1">{translate('按分类管理网站设置，切换分类不会丢失修改')}</p>
         </header>
-        <div className="flex flex-col md:flex-row gap-6 items-start">
-          <nav aria-label={translate('配置分类')} className="flex md:flex-col gap-1 w-full md:w-48 shrink-0 overflow-x-auto md:sticky md:top-20 pb-1 md:pb-0">
+        <div className="flex flex-col gap-4">
+          <nav aria-label={translate('配置分类')} className="flex gap-1 w-full min-w-0 overflow-x-auto border-b border-divider pb-2">
             {SETTINGS_CATEGORIES.map(item => <button key={item.id} type="button" aria-current={category === item.id ? 'page' : undefined}
               onClick={() => setCategory(item.id)} className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm whitespace-nowrap text-left transition-colors ${category === item.id ? 'bg-primary-50 dark:bg-primary-100/20 text-primary font-medium' : 'text-default-500 hover:bg-default-100 hover:text-foreground'}`}>
               <svg aria-hidden="true" className="w-[18px] h-[18px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d={item.icon} /></svg>
@@ -765,23 +765,21 @@ export default function ConfigPage() {
               {(item.id === 'payment' ? Object.keys(configs).filter(key => key.startsWith('payment_')) : SETTINGS_SECTIONS.filter(section => section.category === item.id).flatMap(section => section.keys)).some(key => configs[key] !== originalConfigs[key]) && <span aria-label={translate('未保存')} className="w-1.5 h-1.5 bg-warning rounded-full ml-auto shrink-0" />}
             </button>)}
           </nav>
-          <section className="flex-1 min-w-0 w-full space-y-4" aria-label={translate(SETTINGS_CATEGORIES.find(item => item.id === category)!.label)}>
-            <p className="text-sm text-default-500">{translate(SETTINGS_CATEGORIES.find(item => item.id === category)!.description)}</p>
+          <section className="min-w-0 w-full space-y-3" aria-label={translate(SETTINGS_CATEGORIES.find(item => item.id === category)!.label)}>
             {SETTINGS_SECTIONS.filter(section => section.category === category).map(section => <Card key={section.id} shadow="none" className="border border-divider rounded-xl">
-              <CardHeader className="px-5 py-4 border-b border-divider flex-col items-start gap-1">
+              <CardHeader className="px-4 py-3 border-b border-divider flex-col items-start gap-1">
                 <h2 className="text-base font-semibold">{translate(section.title)}</h2>
-                <p className="text-xs text-default-500">{translate(section.description)}</p>
               </CardHeader>
-              <CardBody className="px-5 py-0 divide-y divide-divider">
-                {section.keys.map(key => CONFIG_ITEMS().find(item => item.key === key)!).filter(shouldShowItem).map(item => <div key={item.key} className={`py-5 grid gap-4 ${item.key === 'payment_methods' ? 'grid-cols-1' : 'lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]'} items-start`}>
-                  <div><label id={`setting-${item.key}`} className="text-sm font-medium">{item.label}</label>{item.description && <p className="text-xs text-default-500 mt-1.5 leading-relaxed break-words">{item.description}</p>}</div>
+              <CardBody className="px-4 py-0 divide-y divide-divider">
+                {section.keys.map(key => CONFIG_ITEMS().find(item => item.key === key)!).filter(shouldShowItem).map(item => <div key={item.key} className={`py-4 grid gap-3 ${item.key === 'payment_methods' || item.type === 'textarea' ? 'grid-cols-1' : 'lg:grid-cols-[240px_minmax(0,1fr)]'} items-start`}>
+                  <div><label id={`setting-${item.key}`} className="text-sm font-medium">{item.label}</label>{item.description && <p className="text-xs text-default-500 mt-1 leading-relaxed break-words">{item.description}</p>}</div>
                   <div className="min-w-0">{renderConfigItem(item)}</div>
                 </div>)}
               </CardBody>
             </Card>)}
           </section>
         </div>
-        <div className="sticky bottom-3 z-20 mt-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-divider bg-background/95 backdrop-blur px-4 py-3 shadow-sm" aria-label={translate('配置保存栏')}>
+        <div className="sticky bottom-3 z-20 mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-divider bg-background/95 backdrop-blur px-4 py-3 shadow-sm" aria-label={translate('配置保存栏')}>
           <p className={`text-xs sm:text-sm ${hasChanges ? 'text-warning-600 dark:text-warning-400' : 'text-default-500'}`}>{hasChanges ? translate('有未保存的更改') : translate('所有更改已保存')}</p>
           <div className="flex gap-2 ml-auto">
             <Button size="sm" variant="flat" isDisabled={!hasChanges || saving} onPress={() => { setConfigs({ ...originalConfigs }); setHasChanges(false); }}>{translate('撤销更改')}</Button>
