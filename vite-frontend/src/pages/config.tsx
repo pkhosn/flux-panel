@@ -759,7 +759,7 @@ export default function ConfigPage() {
         <div className="flex flex-col gap-4">
           <nav aria-label={translate('配置分类')} className="flex gap-1 w-full min-w-0 overflow-x-auto border-b border-divider pb-2">
             {SETTINGS_CATEGORIES.map(item => <button key={item.id} type="button" aria-current={category === item.id ? 'page' : undefined}
-              onClick={() => setCategory(item.id)} className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm whitespace-nowrap text-left transition-colors ${category === item.id ? 'bg-primary-50 dark:bg-primary-100/20 text-primary font-medium' : 'text-default-500 hover:bg-default-100 hover:text-foreground'}`}>
+              onClick={() => setCategory(item.id)} className={`cursor-pointer flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm whitespace-nowrap text-left transition-colors ${category === item.id ? 'bg-primary-50 dark:bg-primary-100/20 text-primary font-medium' : 'text-default-500 hover:bg-default-100 hover:text-foreground'}`}>
               <svg aria-hidden="true" className="w-[18px] h-[18px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d={item.icon} /></svg>
               {translate(item.label)}
               {(item.id === 'payment' ? Object.keys(configs).filter(key => key.startsWith('payment_')) : SETTINGS_SECTIONS.filter(section => section.category === item.id).flatMap(section => section.keys)).some(key => configs[key] !== originalConfigs[key]) && <span aria-label={translate('未保存')} className="w-1.5 h-1.5 bg-warning rounded-full ml-auto shrink-0" />}
