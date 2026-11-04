@@ -1,6 +1,6 @@
 # Cloudflare 动态 DNS 同步
 
-状态：用户已确认，实施中。2026-11-04。
+状态：实现、本地验证与不可变资源发布完成。2026-11-04。
 
 ## 目标
 
@@ -29,7 +29,7 @@
 - [x] 3. 同步任务：每分钟检查，IP 未变跳过更新；立即同步跳过等待。来源仅接受域名，通过有超时的公共 DNS 查询获取 IPv4；无地址、多个不同 IPv4、解析/API失败均保留旧记录并报错。避免同任务并发，限制单次网络等待，网络调用不包入数据库事务。
 - [x] 4. 网站配置界面：新增分类、凭证配置、记录选择、任务管理、状态及手动同步反馈，管理员可用，适配窄屏与暗色模式。
 - [x] 5. 本地验证：沿用 Maven/JUnit，模拟 DNS 与 Cloudflare API 覆盖变化/不变、错误、同名其他记录不变、并发与凭证隐私；本机前端构建及浏览器检查。使用隔离数据库，不改真实 DNS。真实 Cloudflare 联调需配置凭证及明确绑定记录后执行。
-- [ ] 6. 发布：本机编译静态包、上传不可变 GitHub Release、匿名下载校验 SHA256、验证生产镜像，再推送 beta；保持 panel_install.sh 选项 2 更新方式。
+- [x] 6. 发布：本机编译静态包、上传不可变 GitHub Release、匿名下载校验 SHA256、验证生产镜像，再推送 beta；保持 panel_install.sh 选项 2 更新方式。
 
 每步验证通过后更新记录，失败时停止提交。首次绑定时需用户核实对应记录，运行后不依靠旧 IP 猜测记录归属。DNS 缓存可能使变更延迟生效，界面明确这一限制。
 
@@ -42,3 +42,5 @@
 本地 Maven clean package 全部 41 项通过，其中 DdnsServiceTest 7 项覆盖隔离、失败、重复/并发、加密、权限及解析，AdminApplicationTests 验证真实迁移与匿名 HTTP 拒绝。首次测试重设 Mockito 抛错桩时误触发异常，改用 doReturn 后通过。未访问真实 Cloudflare 记录。
 
 复验后端：沿用 docs/tunnel-service-rebuild.md 的 Docker Maven clean package；定向运行可传 -Dtest=DdnsServiceTest,AdminApplicationTests test。前端沿用 docs/frontend-release.md 的 Node20 npm run build。浏览器通过本地 Playwright mock API 验证凭证失败/成功、清空 Token、同名记录按 IP/ID 选择、任务编辑、同步错误、暂停、删除及 320/390/1280px 暗色布局；原分类/草稿/支付/保存回归一并执行。测试脚本位于本机 /tmp/flux-browser-check/ddns.cjs 和 settings-ddns-regression.cjs，不作为项目新增构建脚本。
+
+发布版本 frontend-2026.11.04.1（源码 763bf34），匿名包逐字节比对通过，固定 SHA256 的生产镜像构建、镜像内 DDNS 浏览器检查与 build-info 通过。动态 DNS 分类隐藏通用配置保存栏，独立操作保存；分类切换保留凭证输入草稿。
