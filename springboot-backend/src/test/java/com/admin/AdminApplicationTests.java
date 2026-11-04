@@ -22,10 +22,21 @@ import java.util.List;
 
 
 @SpringBootTest
+@org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 class AdminApplicationTests {
 
     @Resource
     private JdbcTemplate jdbc;
+    @Resource
+    private org.springframework.test.web.servlet.MockMvc mvc;
+
+    @Test
+    void ddnsSchemaAndUnauthenticatedRequests() throws Exception {
+        for (String table : List.of("ddns_account", "ddns_task"))
+            assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?", Integer.class, table));
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/v1/ddns/list"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.code").value(401));
+    }
 
 
     @Test

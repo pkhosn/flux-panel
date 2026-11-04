@@ -124,6 +124,10 @@ public class SQLiteConfig implements ApplicationRunner {
         ensureColumn(connection, "node", "detected_ipv6", "VARCHAR(100)");
         ensureColumn(connection, "tunnel", "owner_user_id", "INTEGER");
         ensureColumn(connection, "tunnel", "created_by_role", "INTEGER NOT NULL DEFAULT 0");
+        try (Statement statement = connection.createStatement()) {
+            statement.execute("CREATE TABLE IF NOT EXISTS ddns_account (id INTEGER PRIMARY KEY CHECK(id=1),zone_id TEXT NOT NULL,token_cipher TEXT NOT NULL)");
+            statement.execute("CREATE TABLE IF NOT EXISTS ddns_task (id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT NOT NULL,source TEXT NOT NULL,zone_id TEXT NOT NULL,record_id TEXT NOT NULL,record_name TEXT NOT NULL,enabled INTEGER NOT NULL DEFAULT 1,source_ip TEXT,target_ip TEXT,checked_at INTEGER,updated_at INTEGER,error TEXT NOT NULL DEFAULT '',UNIQUE(zone_id,record_id))");
+        }
         ensureUserNodePermissionTable(connection);
         ensurePlanTable(connection);
         ensureOrderTable(connection);
