@@ -135,10 +135,12 @@ Agent 2.0.17-beta 与 frontend-2026.10.26.1 已发布，匿名下载与本地 SH
 - [x] 1. Agent 双向模式切换：持久化监控模式，关闭监听/辅助服务并清理转发配置，监控连接保留；再次启用与重启验证。
 - [x] 2. 后端转换：仅本人或管理员公共节点；离线/旧版拒绝；隧道引用、端口分配、恢复任务存在则阻止，显示关联隧道。转换过程中预留节点状态防止新隧道引用，Agent确认后再完成归属及权限清理，失败可重试。
 - [x] 3. 节点卡片转换确认弹窗、结果及标签迁移，复用探针风格。
-- [ ] 4. 本机 Maven/Go/浏览器及真实隔离Agent双向/重启验证；新Agent与前端静态资产发布、匿名校验、生产镜像验证、beta推送。
+- [x] 4. 本机 Maven/Go/浏览器及真实隔离Agent双向/重启验证；新Agent与前端静态资产发布、匿名校验、生产镜像验证、beta推送。
 
 本地验证：Maven clean package 48项通过（ProbeDeactivationTest新增4项），Go1.25主程序与x/socket、x/service测试通过，Node20 npm build及浏览器隧道错误/重试/成功标签迁移/320px通过。真实隔离面板与Agent联调通过探针启用、实际TCP转发、节点反向转换、监听关闭、持久化探针重启、再次启用及新TCP规则传输。均使用/tmp/flux-mode-e2e独立数据库与端口28365，不连接生产。重启测试需等待新的WebSocket连接，不能依据45秒离线宽限期内的旧在线状态。
 
 复验：沿用docs/tunnel-service-rebuild.md的Docker Maven clean package；Go1.25使用临时modfile运行主程序go test及x模块go test ./socket ./service（不改仓库依赖），CGO_ENABLED=0 GOOS=linux GOARCH=amd64/arm64 go build编译；前端沿用docs/frontend-release.md。本机脚本/tmp/flux-mode-go.sh、flux-mode-build.sh、flux-mode-e2e/check.py及flux-browser-check/node-to-probe.cjs可复验。Go vet发现原main.go两处Println格式占位符，修为Printf后通过。
 
 转换占用probe_mode=2，失败保留该状态供重试；隧道验证与SQLite触发器均拒绝引用非转发节点。旧Agent不执行转换，需更新此节点至2.0.18-beta。转换清理转发配置及共享权限，不删除隧道/规则；有引用、端口分配或恢复任务时拒绝。公共节点归操作管理员；他人的私有节点管理员也不能转为自己的探针。
+
+已发布Agent 2.0.18-beta（amd64/arm64）与frontend-2026.11.04.3，匿名资源逐字节校验一致，生产前端镜像构建与镜像内转换浏览器验证通过。前端SHA256：276c400c423dc29bb837bf8c133c087eecc7eff5ffe636a7164591beab692477。源码0fa6dac。
