@@ -58,6 +58,11 @@ export default function H5Layout({
       icon: <svg aria-hidden="true" className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 5h6v6H3zM15 13h6v6h-6zM6 11v5h9" /></svg>
     },
     {
+      path: '/ddns',
+      label: translate("动态 DNS"),
+      icon: <svg aria-hidden="true" className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18M3 12h18M12 3c4 5 4 13 0 18-4-5-4-13 0-18" /></svg>
+    },
+    {
       path: '/node',
       label: translate("节点"),
       icon: (
@@ -115,7 +120,7 @@ export default function H5Layout({
       <div aria-hidden className="h-16 safe-bottom" />
 
       {/* 底部Tabbar */}
-      <nav className="bg-white dark:bg-black border-t border-gray-200 dark:border-gray-600 h-16 safe-bottom flex-shrink-0 flex items-center justify-around px-2 fixed bottom-0 left-0 right-0 z-30">
+      <nav className="bg-white dark:bg-black border-t border-gray-200 dark:border-gray-600 h-16 safe-bottom flex-shrink-0 flex items-center overflow-x-auto px-2 fixed bottom-0 left-0 right-0 z-30">
         {filteredTabItems.map((item) => {
           const isActive = location.pathname === item.path;
           return (
@@ -123,7 +128,7 @@ export default function H5Layout({
               key={item.path}
               onClick={() => handleTabClick(item.path)}
               className={`
-                flex flex-col items-center justify-center flex-1 h-full
+                flex flex-col items-center justify-center flex-1 min-w-[64px] h-full
                 transition-colors duration-200 min-h-[44px]
                 ${isActive
                   ? 'text-primary-600 dark:text-primary-400'

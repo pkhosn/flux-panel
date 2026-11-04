@@ -44,3 +44,12 @@
 复验后端：沿用 docs/tunnel-service-rebuild.md 的 Docker Maven clean package；定向运行可传 -Dtest=DdnsServiceTest,AdminApplicationTests test。前端沿用 docs/frontend-release.md 的 Node20 npm run build。浏览器通过本地 Playwright mock API 验证凭证失败/成功、清空 Token、同名记录按 IP/ID 选择、任务编辑、同步错误、暂停、删除及 320/390/1280px 暗色布局；原分类/草稿/支付/保存回归一并执行。测试脚本位于本机 /tmp/flux-browser-check/ddns.cjs 和 settings-ddns-regression.cjs，不作为项目新增构建脚本。
 
 发布版本 frontend-2026.11.04.1（源码 763bf34），匿名包逐字节比对通过，固定 SHA256 的生产镜像构建、镜像内 DDNS 浏览器检查与 build-info 通过。动态 DNS 分类隐藏通用配置保存栏，独立操作保存；分类切换保留凭证输入草稿。
+
+## 用户隔离与可选间隔（2026-11-04，方案已获确认）
+
+- [x] 1. 按真实登录用户 ID 隔离凭证与任务；旧配置一次迁移给首个管理员，跨用户记录冲突只返回通用提示。每人最多 20 条新任务，既有任务保留。
+- [x] 2. 每条任务支持 1/3/5/10/15/30/60 分钟，新增及旧任务默认 5 分钟；调度只执行到期任务，手动同步绕过间隔，重复请求合并。
+- [x] 3. 前台独立动态 DNS 页面与桌面/手机导航，复用现有组件；后台分类保留。
+- [ ] 4. 本地验证旧库迁移、跨用户全部操作和 worker 凭证隔离、到期与手动调度、浏览器前台导航/间隔/窄屏；通过后本机静态资源发布及 beta 推送。
+
+本地验证：Maven clean package 44 项通过（包含旧版 CHECK(id=1) 表迁移及重复迁移、跨用户查询/操作拒绝、凭证隔离、全局绑定唯一、间隔到期与手动绕过）。Node20 npm build 通过，浏览器后台和普通用户前台验证默认5分钟、选择15分钟、编辑回显及任务全流程，320px手机导航通过。复验沿用本文 Docker Maven 与前端发布流程；本机浏览器脚本 ddns-interval.cjs、ddns-user.cjs、ddns-mobile-nav.cjs 位于 /tmp/flux-browser-check。未连接真实 DNS。

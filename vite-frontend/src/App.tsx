@@ -11,6 +11,7 @@ import NodePage from "@/pages/node";
 import UserPage from "@/pages/user";
 import ProfilePage from "@/pages/profile";
 import LimitPage from "@/pages/limit";
+import DdnsPage from "@/pages/ddns";
 import ConfigPage from "@/pages/config";
 import PlanPage from "@/pages/plan";
 import RedeemPage from "@/pages/redeem";
@@ -200,6 +201,7 @@ function App() {
           </ProtectedRoute>
         } 
       />
+      <Route path="/ddns" element={<ProtectedRoute><DdnsPage /></ProtectedRoute>} />
       <Route 
         path="/node" 
         element={

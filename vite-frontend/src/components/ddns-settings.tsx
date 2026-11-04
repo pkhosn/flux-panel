@@ -10,11 +10,11 @@ import Network from '@/api/network';
 
 interface Task {
   id: number; name: string; source: string; record_id: string; record_name: string;
-  enabled: number; source_ip: string | null; target_ip: string | null;
+  enabled: number; interval_minutes: number; source_ip: string | null; target_ip: string | null;
   checked_at: number | null; updated_at: number | null; error: string; running: boolean;
 }
 interface RecordItem { id: string; name: string; content: string; proxied: boolean }
-const empty = { name: '', source: '', recordId: '', enabled: true };
+const empty = { name: '', source: '', recordId: '', enabled: true, intervalMinutes: 5 };
 const time = (value: number | null) => value ? new Date(value).toLocaleString() : '尚未同步';
 
 export default function DdnsSettings() {
@@ -51,13 +51,13 @@ export default function DdnsSettings() {
   };
   const open = (task?: Task) => act(async () => {
     const items = await call('records'); setRecords(items);
-    setEditing(task ? { id: task.id, name: task.name, source: task.source, recordId: task.record_id, enabled: task.enabled === 1 } : { ...empty });
+    setEditing(task ? { id: task.id, name: task.name, source: task.source, recordId: task.record_id, enabled: task.enabled === 1, intervalMinutes: task.interval_minutes || 5 } : { ...empty });
   });
   return <div className="space-y-3">
     <Card shadow="none" className="border border-divider rounded-xl">
       <CardHeader className="px-4 py-3 border-b border-divider font-semibold">Cloudflare 凭证</CardHeader>
       <CardBody className="gap-4 p-4">
-        <p className="text-sm text-default-500">将 DDNS 域名的 IPv4 同步到指定 A 记录，同名其他记录保持不变。每分钟检查一次，DNS 缓存可能延迟生效。</p>
+        <p className="text-sm text-default-500">将 DDNS 域名的 IPv4 同步到指定 A 记录，同名其他记录保持不变。按任务设置的间隔检查，默认 5 分钟；每人最多 20 条任务。DNS 缓存可能延迟生效。</p>
         <div className="grid gap-4 md:grid-cols-2">
           <Input label="Zone ID" value={zoneId} onValueChange={setZoneId} maxLength={32} />
           <Input label="API Token" type="password" autoComplete="new-password" value={token} onValueChange={setToken}
@@ -86,7 +86,7 @@ export default function DdnsSettings() {
           <div className="break-all"><p className="text-default-500 text-xs mb-1">来源 DDNS</p>{task.source}<p className="text-default-500 mt-1">{task.source_ip || '尚未获取'}</p></div>
           <div className="break-all"><p className="text-default-500 text-xs mb-1">目标 A 记录</p>{task.record_name}<p className="text-default-500 mt-1">{task.target_ip || '尚未获取'}</p><p className="text-default-400 text-xs mt-1">ID：{task.record_id}</p></div>
         </div>
-        <p className="text-xs text-default-500">检查：{time(task.checked_at)} · 更新：{time(task.updated_at)}</p>
+        <p className="text-xs text-default-500">每 {task.interval_minutes || 5} 分钟 · 检查：{time(task.checked_at)} · 更新：{time(task.updated_at)}</p>
         <p role="status" className={`text-sm ${task.error ? 'text-danger' : task.running ? 'text-primary' : 'text-success'}`}>
           {task.running ? '正在同步…' : task.enabled !== 1 ? '已暂停' : task.error || (task.checked_at ? '同步正常' : '等待首次检查')}
         </p>
@@ -110,6 +110,10 @@ export default function DdnsSettings() {
           </SelectItem>)}
         </Select>
         <p className="text-xs text-default-500 break-all">绑定记录 ID：{editing?.recordId || '未选择'}。请核实当前 IP 属于对应服务器；同名不同 IP 是不同记录。来源必须只解析到一个公网 IPv4。</p>
+        <Select label="同步间隔" selectedKeys={[String(editing?.intervalMinutes || 5)]}
+          onSelectionChange={keys => setEditing(e => e && { ...e, intervalMinutes: Number(Array.from(keys)[0] || 5) })}>
+          {[1,3,5,10,15,30,60].map(minutes => <SelectItem key={String(minutes)} textValue={`${minutes} 分钟`}>{`${minutes} 分钟`}</SelectItem>)}
+        </Select>
         <Switch aria-label="启用同步" isSelected={editing?.enabled ?? true} onValueChange={enabled => setEditing(e => e && { ...e, enabled })}>启用同步</Switch>
       </ModalBody><ModalFooter>
         <Button variant="flat" isDisabled={busy} onPress={() => setEditing(null)}>取消</Button>

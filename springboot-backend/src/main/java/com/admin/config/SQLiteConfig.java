@@ -128,10 +128,33 @@ public class SQLiteConfig implements ApplicationRunner {
             statement.execute("CREATE TABLE IF NOT EXISTS ddns_account (id INTEGER PRIMARY KEY CHECK(id=1),zone_id TEXT NOT NULL,token_cipher TEXT NOT NULL)");
             statement.execute("CREATE TABLE IF NOT EXISTS ddns_task (id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT NOT NULL,source TEXT NOT NULL,zone_id TEXT NOT NULL,record_id TEXT NOT NULL,record_name TEXT NOT NULL,enabled INTEGER NOT NULL DEFAULT 1,source_ip TEXT,target_ip TEXT,checked_at INTEGER,updated_at INTEGER,error TEXT NOT NULL DEFAULT '',UNIQUE(zone_id,record_id))");
         }
+        ensureDdnsOwnership(connection);
         ensureUserNodePermissionTable(connection);
         ensurePlanTable(connection);
         ensureOrderTable(connection);
         ensureRedeemCodeTable(connection);
+    }
+
+    private void ensureDdnsOwnership(Connection connection) throws Exception {
+        boolean autoCommit = connection.getAutoCommit();
+        connection.setAutoCommit(false);
+        try (Statement statement = connection.createStatement()) {
+            if (!hasColumn(connection, "ddns_account", "owner_user_id")) {
+                statement.execute("CREATE TABLE ddns_account_owned (owner_user_id INTEGER PRIMARY KEY,zone_id TEXT NOT NULL,token_cipher TEXT NOT NULL)");
+                statement.execute("INSERT INTO ddns_account_owned SELECT COALESCE((SELECT MIN(id) FROM user WHERE role_id=0),0),zone_id,token_cipher FROM ddns_account");
+                statement.execute("DROP TABLE ddns_account");
+                statement.execute("ALTER TABLE ddns_account_owned RENAME TO ddns_account");
+            }
+            if (!hasColumn(connection, "ddns_task", "owner_user_id")) {
+                ensureColumn(connection, "ddns_task", "owner_user_id", "INTEGER NOT NULL DEFAULT 0");
+                statement.execute("UPDATE ddns_task SET owner_user_id=COALESCE((SELECT MIN(id) FROM user WHERE role_id=0),0)");
+            }
+            ensureColumn(connection, "ddns_task", "interval_minutes", "INTEGER NOT NULL DEFAULT 5");
+            statement.execute("CREATE INDEX IF NOT EXISTS idx_ddns_task_owner ON ddns_task(owner_user_id)");
+            connection.commit();
+        } catch (Exception ex) {
+            connection.rollback(); throw ex;
+        } finally { connection.setAutoCommit(autoCommit); }
     }
 
     private void ensureForwardGroupTable(Connection connection) throws Exception {

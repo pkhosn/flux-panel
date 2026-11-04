@@ -100,6 +100,11 @@ export default function AdminLayout({
       )
     },
     {
+      path: '/ddns',
+      label: translate("动态 DNS"),
+      icon: <svg aria-hidden="true" className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18M3 12h18M12 3c4 5 4 13 0 18-4-5-4-13 0-18" /></svg>
+    },
+    {
       path: '/node',
       label: translate("节点监控"),
       icon: (
