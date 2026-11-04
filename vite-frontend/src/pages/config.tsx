@@ -782,7 +782,7 @@ export default function ConfigPage() {
             </Card>)}
           </section>
         </div>
-        <div className="sticky bottom-3 z-20 mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-divider bg-background/95 backdrop-blur px-4 py-3 shadow-sm" aria-label={translate('配置保存栏')}>
+        <div className={`${category === 'ddns' ? 'hidden' : 'flex'} sticky bottom-3 z-20 mt-4 flex-wrap items-center justify-between gap-3 rounded-xl border border-divider bg-background/95 backdrop-blur px-4 py-3 shadow-sm`} aria-label={translate('配置保存栏')}>
           <p className={`text-xs sm:text-sm ${hasChanges ? 'text-warning-600 dark:text-warning-400' : 'text-default-500'}`}>{hasChanges ? translate('有未保存的更改') : translate('所有更改已保存')}</p>
           <div className="flex gap-2 ml-auto">
             <Button size="sm" variant="flat" isDisabled={!hasChanges || saving} onPress={() => { setConfigs({ ...originalConfigs }); setHasChanges(false); }}>{translate('撤销更改')}</Button>
