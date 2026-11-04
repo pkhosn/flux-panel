@@ -1,4 +1,3 @@
-import DdnsSettings from '@/components/ddns-settings';
 import { translate } from '@/utils/locale';
 import { useState, useEffect, useContext } from 'react';
 import { useNavigate, UNSAFE_NavigationContext } from 'react-router-dom';
@@ -33,13 +32,12 @@ const SaveIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-type SettingsCategory = 'general' | 'announcement' | 'display' | 'security' | 'payment' | 'ddns';
+type SettingsCategory = 'general' | 'announcement' | 'display' | 'security' | 'payment';
 const SETTINGS_CATEGORIES: { id: SettingsCategory; label: string; description: string; icon: string }[] = [
   { id: 'general', label: '基础与品牌', description: '设置网站品牌与面板连接地址', icon: 'M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6M9 9h.01M15 9h.01' },
   { id: 'announcement', label: '公告', description: '管理顶部铃铛展示的公告内容', icon: 'm3 10 14-6v16L3 14v-4m2 5 2 6h3l-2-5M21 8v8' },
   { id: 'display', label: '显示设置', description: '统一管理页面显示与地址隐私', icon: 'M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12m13 0a3 3 0 1 1-6 0 3 3 0 0 1 6 0' },
   { id: 'security', label: '登录与验证', description: '配置登录验证方式', icon: 'M12 3 3 7v5c0 5 9 9 9 9s9-4 9-9V7l-9-4m-4 9 3 3 5-6' },
-  { id: 'ddns', label: '动态 DNS', description: '按记录同步 Cloudflare 动态地址', icon: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18M3 12h18M12 3c4 5 4 13 0 18-4-5-4-13 0-18' },
   { id: 'payment', label: '支付设置', description: '管理支付方式、通道和回调地址', icon: 'M3 5h18v14H3zM3 10h18M7 15h3' },
 ];
 const SETTINGS_SECTIONS = [
@@ -768,7 +766,6 @@ export default function ConfigPage() {
             </button>)}
           </nav>
           <section className="min-w-0 w-full space-y-3" aria-label={translate(SETTINGS_CATEGORIES.find(item => item.id === category)!.label)}>
-            <div className={category === 'ddns' ? '' : 'hidden'}><DdnsSettings /></div>
             {SETTINGS_SECTIONS.filter(section => section.category === category).map(section => <Card key={section.id} shadow="none" className="border border-divider rounded-xl">
               <CardHeader className="px-4 py-3 border-b border-divider flex-col items-start gap-1">
                 <h2 className="text-base font-semibold">{translate(section.title)}</h2>
@@ -782,7 +779,7 @@ export default function ConfigPage() {
             </Card>)}
           </section>
         </div>
-        <div className={`${category === 'ddns' ? 'hidden' : 'flex'} sticky bottom-3 z-20 mt-4 flex-wrap items-center justify-between gap-3 rounded-xl border border-divider bg-background/95 backdrop-blur px-4 py-3 shadow-sm`} aria-label={translate('配置保存栏')}>
+        <div className="flex sticky bottom-3 z-20 mt-4 flex-wrap items-center justify-between gap-3 rounded-xl border border-divider bg-background/95 backdrop-blur px-4 py-3 shadow-sm" aria-label={translate('配置保存栏')}>
           <p className={`text-xs sm:text-sm ${hasChanges ? 'text-warning-600 dark:text-warning-400' : 'text-default-500'}`}>{hasChanges ? translate('有未保存的更改') : translate('所有更改已保存')}</p>
           <div className="flex gap-2 ml-auto">
             <Button size="sm" variant="flat" isDisabled={!hasChanges || saving} onPress={() => { setConfigs({ ...originalConfigs }); setHasChanges(false); }}>{translate('撤销更改')}</Button>
