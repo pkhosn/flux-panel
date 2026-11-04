@@ -128,6 +128,10 @@ public class SQLiteConfig implements ApplicationRunner {
             statement.execute("CREATE TABLE IF NOT EXISTS ddns_account (id INTEGER PRIMARY KEY CHECK(id=1),zone_id TEXT NOT NULL,token_cipher TEXT NOT NULL)");
             statement.execute("CREATE TABLE IF NOT EXISTS ddns_task (id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT NOT NULL,source TEXT NOT NULL,zone_id TEXT NOT NULL,record_id TEXT NOT NULL,record_name TEXT NOT NULL,enabled INTEGER NOT NULL DEFAULT 1,source_ip TEXT,target_ip TEXT,checked_at INTEGER,updated_at INTEGER,error TEXT NOT NULL DEFAULT '',UNIQUE(zone_id,record_id))");
         }
+        try (Statement statement = connection.createStatement()) {
+            statement.execute("CREATE TRIGGER IF NOT EXISTS chain_requires_forwarding_insert BEFORE INSERT ON chain_tunnel WHEN EXISTS(SELECT 1 FROM node WHERE id=NEW.node_id AND probe_mode<>0) BEGIN SELECT RAISE(ABORT,'node is switching to probe mode'); END");
+            statement.execute("CREATE TRIGGER IF NOT EXISTS chain_requires_forwarding_update BEFORE UPDATE OF node_id ON chain_tunnel WHEN EXISTS(SELECT 1 FROM node WHERE id=NEW.node_id AND probe_mode<>0) BEGIN SELECT RAISE(ABORT,'node is switching to probe mode'); END");
+        }
         ensureDdnsOwnership(connection);
         ensureUserNodePermissionTable(connection);
         ensurePlanTable(connection);

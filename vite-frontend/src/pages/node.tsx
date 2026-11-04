@@ -1,6 +1,7 @@
 import { ServerTrafficSummary, type ServerTraffic } from '@/components/server-traffic-summary';
 import { ServerCard, serverCardGrid, type ServerCardNode } from '@/components/server-card';
 import ServerProbes from '@/components/server-probes';
+import { deactivateNode } from '@/api';
 import { NodeLatency } from '@/components/node-latency';
 import { Select, SelectItem } from '@/components/select';
 import { translate } from '@/utils/locale';
@@ -46,6 +47,9 @@ interface NodeForm {
 
 export default function NodePage() {
   const [probeTraffic, setProbeTraffic] = useState<ServerTraffic[]>([]);
+  const [convertNode, setConvertNode] = useState<Node | null>(null);
+  const [converting, setConverting] = useState(false);
+  const [convertError, setConvertError] = useState('');
   const [tab, setTab] = useState("nodes");
   const [nodeList, setNodeList] = useState<Node[]>([]);
   const [groupFilter, setGroupFilter] = useState("all");
@@ -706,12 +710,35 @@ export default function NodePage() {
                         className="flex-1 min-h-8"
                       >{translate("删除")}</Button>
                     </div>
+                    <Button size="sm" variant="light" className="w-full" isDisabled={node.manageable === false}
+                      onPress={() => { setConvertNode(node); setConvertError(''); }}>转为探针</Button>
                   </div></>}
               />
             ))}
           </div>
         )}
 
+        <Modal isOpen={convertNode !== null} isDismissable={!converting} onClose={() => { if (!converting) setConvertNode(null); }}>
+          <ModalContent><ModalHeader>转为服务器探针</ModalHeader><ModalBody>
+            <p>将“{convertNode?.name}”转为仅监控的探针，停止转发并保留名称、IP 和监控数据。之后可以再次启用转发。</p>
+            <p className="text-sm text-default-500">节点须在线且 Agent 版本不低于 2.0.18-beta。若被隧道使用，请先从隧道中移除；管理员公共节点转换后仅本人可见。</p>
+            {convertError && <p role="alert" className="text-danger text-sm break-words">{convertError}</p>}
+          </ModalBody><ModalFooter>
+            <Button variant="flat" isDisabled={converting} onPress={() => setConvertNode(null)}>取消</Button>
+            <Button color="primary" isLoading={converting} onPress={async () => {
+              if (!convertNode) return;
+              setConverting(true); setConvertError('');
+              try {
+                const result = await deactivateNode(convertNode.id);
+                if (result.code !== 0) { setConvertError(result.msg || '转换失败，请重试'); return; }
+                setNodeList(previous => previous.filter(node => node.id !== convertNode.id));
+                setSelectedNodes(previous => previous.filter(id => id !== convertNode.id));
+                setConvertNode(null); setTab('probes'); toast.success('已转为服务器探针');
+              } catch { setConvertError('网络请求失败，请重试转换'); }
+              finally { setConverting(false); }
+            }}>确认转换</Button>
+          </ModalFooter></ModalContent>
+        </Modal>
         {/* 新增/编辑节点对话框 */}
         <Modal
           isOpen={dialogVisible}

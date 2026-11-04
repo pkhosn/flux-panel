@@ -109,12 +109,12 @@ func main() {
 	// 加载配置文件
 	config, err := LoadConfig("config.json")
 	if err != nil {
-		fmt.Println("❌ 配置加载失败: %v\n", err)
+		fmt.Printf("❌ 配置加载失败: %v\n", err)
 		fmt.Println("请确保当前目录存在 config.json 文件")
 		os.Exit(1)
 	}
 
-	fmt.Println("✅ 配置加载成功 - addr: %s", config.Addr)
+	fmt.Printf("✅ 配置加载成功 - addr: %s\n", config.Addr)
 
 	log := xlogger.NewLogger()
 	logger.SetDefault(log)
@@ -125,8 +125,8 @@ func main() {
 	defer wsReporter.Stop()
 	service.SetHTTPReportURL(config.Addr, config.Secret)
 
-	socket.WaitForForwarding()
 	p := &program{}
+	socket.SetForwardingLifecycle(p.Start, p.Stop)
 	if err := svc.Run(p); err != nil {
 		logger.Default().Fatal(err)
 	}

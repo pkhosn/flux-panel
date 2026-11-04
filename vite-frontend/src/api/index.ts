@@ -150,3 +150,5 @@ export const issueProbeToken = () => Network.post("/probe/token");
 export const activateProbe = (data: {id: number; name: string; ports: string}) => Network.post("/probe/activate", data);
 
 export const deleteProbe = (id: number) => Network.post("/probe/delete", { id });
+
+export const deactivateNode = (id: number) => Network.post("/probe/deactivate", { id });

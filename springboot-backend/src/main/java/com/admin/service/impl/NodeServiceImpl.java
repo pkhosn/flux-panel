@@ -81,7 +81,7 @@ public class NodeServiceImpl extends ServiceImpl<NodeMapper, Node> implements No
         Map<Integer, UserNodePermission> permissionMap = java.util.Collections.emptyMap();
 
         if (roleId == 0) {
-            nodeList = this.list(new QueryWrapper<Node>().eq("probe_mode", 0).orderByDesc("status"));
+            nodeList = this.list(new QueryWrapper<Node>().in("probe_mode", 0, 2).orderByDesc("status"));
         } else {
             permissionMap = userNodePermissionService.getUserNodePermissionMap(userId);
             Set<Integer> permittedIds = permissionMap.keySet();
@@ -91,7 +91,7 @@ public class NodeServiceImpl extends ServiceImpl<NodeMapper, Node> implements No
             } else {
                 queryWrapper.and(w -> w.eq("owner_user_id", userId).or().in("id", permittedIds));
             }
-            queryWrapper.eq("probe_mode", 0).orderByDesc("status");
+            queryWrapper.in("probe_mode", 0, 2).orderByDesc("status");
             nodeList = this.list(queryWrapper);
         }
 

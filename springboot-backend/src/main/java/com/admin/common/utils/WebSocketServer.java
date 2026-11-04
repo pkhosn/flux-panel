@@ -526,7 +526,7 @@ public class WebSocketServer extends TextWebSocketHandler {
         catch (NumberFormatException invalid) { return false; }
         boolean owner = Objects.equals(node.getOwnerUserId(), userId);
         // 私有探针不接受管理员或转发授权绕过归属。
-        if (Integer.valueOf(1).equals(node.getProbeMode())) return owner;
+        if (node.getProbeMode()!=null && node.getProbeMode()!=0) return owner;
         if (owner || Integer.valueOf(0).equals(target.getAttributes().get("roleId"))) return true;
         return userNodePermissionService.getUserNodePermissionMap(userId).containsKey(node.getId().intValue());
     }

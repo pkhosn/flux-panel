@@ -22,6 +22,11 @@ public class ProbeController {
         return activation.activate(request.id,JwtUtil.getUserIdFromToken(),request.name,request.ports);
     }
 
+    @PostMapping("/deactivate")
+    public R deactivate(@Valid @RequestBody Deletion request) {
+        return activation.deactivate(request.id,JwtUtil.getUserIdFromToken(),JwtUtil.getRoleIdFromToken()==0);
+    }
+
     public static class Activation {
         @javax.validation.constraints.NotNull @javax.validation.constraints.Positive public Long id;
         @NotBlank @Size(max=100) public String name;

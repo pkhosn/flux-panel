@@ -86,3 +86,47 @@ func TestPanelWebSocketURL(t *testing.T) {
 		}
 	}
 }
+
+func TestDisablePersistsAndClosesBeforeAcknowledgement(t *testing.T) {
+	old, _ := os.Getwd()
+	if err := os.Chdir(t.TempDir()); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chdir(old)
+	defer SetProbeMode(false)
+	defer SetForwardingLifecycle(nil, nil)
+	SetProbeMode(false)
+	SetForwardingReady(true)
+	if err := os.WriteFile("config.json", []byte(`{"secret":"keep","probe_mode":false}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	closed, started := 0, 0
+	SetForwardingLifecycle(func() error { started++; SetForwardingReady(true); return nil }, func() error { closed++; return nil })
+	if err := disableForwarding(); err != nil {
+		t.Fatal(err)
+	}
+	if !ProbeMode() || forwardingReady.Load() || closed != 1 {
+		t.Fatal("not stopped")
+	}
+	raw, _ := os.ReadFile("config.json")
+	var saved map[string]interface{}
+	_ = json.Unmarshal(raw, &saved)
+	if saved["probe_mode"] != true || saved["secret"] != "keep" {
+		t.Fatal(saved)
+	}
+	if !probeCommandAllowed("DisableForwarding") || probeCommandAllowed("AddService") {
+		t.Fatal("wrong permissions")
+	}
+	if err := enableForwarding(); err != nil {
+		t.Fatal(err)
+	}
+	if ProbeMode() || !forwardingReady.Load() || started != 1 {
+		t.Fatal("not restarted")
+	}
+	if err := disableForwarding(); err != nil {
+		t.Fatal(err)
+	}
+	if closed != 2 {
+		t.Fatal("second conversion failed")
+	}
+}

@@ -19,7 +19,7 @@ get_architecture() {
 # 构建下载地址
 build_download_url() {
     local ARCH=$(get_architecture)
-    echo "https://github.com/pkhosn/flux-panel/releases/download/2.0.17-beta/gost-${ARCH}"
+    echo "https://github.com/pkhosn/flux-panel/releases/download/2.0.18-beta/gost-${ARCH}"
 }
 
 # 下载地址
@@ -149,7 +149,7 @@ fetch_flux_agent_binary() {
   local output_path="$1"
   local expected_sha256
   local built_from_source=0
-  local expected_version=2.0.17-beta
+  local expected_version=2.0.18-beta
   local checksums
   checksums=$(curl -fsSL --connect-timeout 5 --max-time 30 "https://github.com/pkhosn/flux-panel/releases/download/${expected_version}/SHA256SUMS") || return 1
   expected_sha256=$(printf '%s\n' "$checksums" | awk -v name="gost-$(get_architecture)" '$2==name {print $1}')
@@ -329,7 +329,7 @@ register_probe() {
   PROBE_NAME="${PROBE_NAME:-$(hostname)}"
   # Download and verify before consuming the one-use credential.
   PROBE_MODE=true
-  DOWNLOAD_URL="https://github.com/pkhosn/flux-panel/releases/download/2.0.17-beta/gost-$(get_architecture)"
+  DOWNLOAD_URL="https://github.com/pkhosn/flux-panel/releases/download/2.0.18-beta/gost-$(get_architecture)"
   mkdir -p "$INSTALL_DIR" || return 1
   fetch_flux_agent_binary "$INSTALL_DIR/flux_agent.new" || return 1
   local request response decoded
@@ -346,7 +346,7 @@ register_probe() {
   SERVER_ADDR="${PROBE_PANEL_URL%/}"
   PROBE_MODE=true
   # 探针必须使用支持监控模式的版本，不能回退旧版监听程序。
-  DOWNLOAD_URL="https://github.com/pkhosn/flux-panel/releases/download/2.0.17-beta/gost-$(get_architecture)"
+  DOWNLOAD_URL="https://github.com/pkhosn/flux-panel/releases/download/2.0.18-beta/gost-$(get_architecture)"
 }
 
 # 安装功能
@@ -368,7 +368,7 @@ install_flux_agent() {
     echo "❌ 安装失败：无法获取有效的 flux_agent 二进制。"
     exit 1
   fi
-  if [[ "${PROBE_MODE:-false}" == true ]] && ! "$INSTALL_DIR/flux_agent.new" -V 2>/dev/null | grep -Fq '2.0.17-beta'; then
+  if [[ "${PROBE_MODE:-false}" == true ]] && ! "$INSTALL_DIR/flux_agent.new" -V 2>/dev/null | grep -Fq '2.0.18-beta'; then
     rm -f "$INSTALL_DIR/flux_agent.new"
     echo "❌ 下载的 Agent 不支持探针模式，安装终止。"
     exit 1

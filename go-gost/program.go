@@ -22,11 +22,14 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 )
 
 type program struct {
+	lifecycle    sync.Mutex
+	active       bool
 	srvApi       service.Service
 	srvMetrics   service.Service
 	srvProfiling *http.Server
@@ -49,6 +52,11 @@ func (p *program) Init(env svc.Environment) error {
 }
 
 func (p *program) Start() error {
+	p.lifecycle.Lock()
+	defer p.lifecycle.Unlock()
+	if socket.ProbeMode() || p.active {
+		return nil
+	}
 	cfg, err := parser.Parse()
 	if err != nil {
 		return err
@@ -75,6 +83,7 @@ func (p *program) Start() error {
 	p.cancel = cancel
 	go p.reload(ctx)
 
+	p.active = true
 	socket.SetForwardingReady(true)
 	go func() {
 		select {
@@ -177,13 +186,19 @@ func (p *program) run(cfg *config.Config) error {
 }
 
 func (p *program) Stop() error {
+	p.lifecycle.Lock()
+	defer p.lifecycle.Unlock()
+	p.active = false
 	socket.SetForwardingReady(false)
 	if p.cancel != nil {
 		p.cancel()
 	}
 
 	for name, srv := range registry.ServiceRegistry().GetAll() {
-		srv.Close()
+		if err := srv.Close(); err != nil {
+			return err
+		}
+		registry.ServiceRegistry().Unregister(name)
 		logger.Default().Debugf("service %s shutdown", name)
 	}
 
@@ -200,11 +215,41 @@ func (p *program) Stop() error {
 		logger.Default().Debug("service @profiling shutdown")
 	}
 
+	if socket.ProbeMode() {
+		// Persist an empty forwarding configuration before acknowledging conversion.
+		file, err := os.CreateTemp(".", ".flux-gost-*")
+		if err != nil {
+			return err
+		}
+		defer os.Remove(file.Name())
+		if err = file.Chmod(0600); err == nil {
+			_, err = file.Write([]byte("{}\n"))
+		}
+		if err == nil {
+			err = file.Sync()
+		}
+		closeErr := file.Close()
+		if err != nil {
+			return err
+		}
+		if closeErr != nil {
+			return closeErr
+		}
+		path := cfgFile
+		if path == "" {
+			path = "gost.json"
+		}
+		if err := os.Rename(file.Name(), path); err != nil {
+			return err
+		}
+		config.Set(&config.Config{})
+	}
 	return nil
 }
 
 func (p *program) reload(ctx context.Context) {
 	c := make(chan os.Signal, 1)
+	defer signal.Stop(c)
 	signal.Notify(c, syscall.SIGHUP)
 
 	for {
@@ -223,6 +268,11 @@ func (p *program) reload(ctx context.Context) {
 }
 
 func (p *program) reloadConfig() error {
+	p.lifecycle.Lock()
+	defer p.lifecycle.Unlock()
+	if socket.ProbeMode() {
+		return nil
+	}
 	cfg, err := parser.Parse()
 	if err != nil {
 		return err

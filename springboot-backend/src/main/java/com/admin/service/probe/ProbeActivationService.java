@@ -26,6 +26,7 @@ public class ProbeActivationService {
         if (rows.isEmpty()) return R.err("探针不存在或无权限");
         var row=rows.getFirst();
         if (((Number)row.get("probe_mode")).intValue()==0) return R.ok();
+        if (((Number)row.get("probe_mode")).intValue()!=1) return R.err("节点正在转为探针，请先完成转换");
         if (((Number)row.get("status")).intValue()!=1) return R.err("探针不在线，请上线后重试");
         if (!supportsActivation((String)row.get("version"))) return R.err("请先升级探针 Agent 至 2.0.17-beta");
         GostDto enabled=send(id,"EnableForwarding");
@@ -48,6 +49,47 @@ public class ProbeActivationService {
             permissions.grantNodeOwnerPermissions(owner,id);
             return R.ok();
         });
+    }
+
+    // mode=2 reserves the node across network calls; retries complete interrupted conversions.
+    public synchronized R deactivate(long id, int user, boolean admin) {
+        var rows=jdbc.queryForList("SELECT probe_mode,status,version,owner_user_id FROM node WHERE id=?",id);
+        if(rows.isEmpty()) return R.err("节点不存在或无权限");
+        var row=rows.getFirst();
+        Number owner=(Number)row.get("owner_user_id");
+        if(owner==null ? !admin : owner.intValue()!=user) return R.err("仅可转换自己创建的节点或管理员公共节点");
+        int mode=((Number)row.get("probe_mode")).intValue();
+        if(mode==1) return R.ok();
+        if(((Number)row.get("status")).intValue()!=1) return R.err("节点不在线，请上线后重试");
+        if(!supportsDeactivation((String)row.get("version"))) return R.err("请先升级此节点 Agent 至 2.0.18-beta");
+        R reserved=transaction.execute(status -> {
+            jdbc.update("UPDATE node SET id=id WHERE id=?",id);
+            var tunnels=jdbc.queryForList("SELECT DISTINCT t.id,t.name FROM chain_tunnel c JOIN tunnel t ON t.id=c.tunnel_id WHERE c.node_id=?",id);
+            if(!tunnels.isEmpty()) return R.err("节点仍被隧道使用，请先移除："+tunnels.stream().map(t->t.get("name")+" (#"+t.get("id")+")").collect(java.util.stream.Collectors.joining("、")));
+            if(jdbc.queryForObject("SELECT COUNT(*) FROM chain_tunnel WHERE node_id=?",Integer.class,id)>0
+                    || jdbc.queryForObject("SELECT COUNT(*) FROM forward_port WHERE node_id=?",Integer.class,id)>0
+                    || jdbc.queryForObject("SELECT COUNT(*) FROM forward_recovery WHERE node_id=?",Integer.class,id)>0)
+                return R.err("节点仍有端口分配或恢复任务，请先完成清理再转换");
+            jdbc.update("UPDATE node SET probe_mode=2 WHERE id=? AND probe_mode IN (0,2)",id);
+            return R.ok();
+        });
+        if(reserved.getCode()!=0) return reserved;
+        GostDto disabled=send(id,"DisableForwarding");
+        if(!"OK".equals(disabled.getMsg())) return R.err("停止转发未确认，请重试转换："+disabled.getMsg());
+        GostDto state=send(id,"ForwardingStatus");
+        if(!"OK".equals(state.getMsg()) || !(state.getData() instanceof Map<?,?> data)
+                || !Boolean.TRUE.equals(data.get("probeMode")) || !Boolean.FALSE.equals(data.get("ready")))
+            return R.err("尚未确认探针模式，请重试转换");
+        return transaction.execute(status -> {
+            int changed=jdbc.update("UPDATE node SET probe_mode=1,owner_user_id=?,group_name='',updated_time=? WHERE id=? AND probe_mode=2",user,System.currentTimeMillis(),id);
+            if(changed!=1) return R.err("节点状态已变化，请刷新重试");
+            jdbc.update("DELETE FROM user_node_permission WHERE node_id=?",id);
+            return R.ok();
+        });
+    }
+
+    static boolean supportsDeactivation(String version) {
+        return version != null && !version.equals("2.0.17-beta") && supportsActivation(version);
     }
 
     protected GostDto send(long id,String command) { return WebSocketServer.send_msg(id,Map.of(),command); }
