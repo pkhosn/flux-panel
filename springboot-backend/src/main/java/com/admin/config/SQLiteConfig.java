@@ -154,6 +154,8 @@ public class SQLiteConfig implements ApplicationRunner {
                 statement.execute("UPDATE ddns_task SET owner_user_id=COALESCE((SELECT MIN(id) FROM user WHERE role_id=0),0)");
             }
             ensureColumn(connection, "ddns_task", "interval_minutes", "INTEGER NOT NULL DEFAULT 5");
+            ensureColumn(connection, "ddns_task", "mode", "TEXT NOT NULL DEFAULT 'single'");
+            statement.execute("CREATE TABLE IF NOT EXISTS ddns_managed (task_id INTEGER NOT NULL,record_id TEXT NOT NULL,ip TEXT NOT NULL,missing_count INTEGER NOT NULL DEFAULT 0,last_missing INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(task_id,record_id))");
             statement.execute("CREATE INDEX IF NOT EXISTS idx_ddns_task_owner ON ddns_task(owner_user_id)");
             connection.commit();
         } catch (Exception ex) {

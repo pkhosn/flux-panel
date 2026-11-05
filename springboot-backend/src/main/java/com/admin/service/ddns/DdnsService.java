@@ -82,10 +82,12 @@ public class DdnsService {
         source = hostname(source); recordId = DdnsRemote.id(recordId);
         enter();
         try {
-            if (id != null) task(owner, id);
+            if (id != null && !"single".equals(task(owner,id).getOrDefault("mode","single"))) throw new IllegalArgumentException("不能切换已保存任务的模式");
             else if (jdbc.queryForObject("SELECT COUNT(*) FROM ddns_task WHERE owner_user_id=?", Integer.class, owner) >= 20) throw new IllegalArgumentException("每人最多配置 20 条同步任务");
             Map<String,Object> a = account(owner); String zone = (String)a.get("zone_id");
             JsonNode record = remote.record(zone, recordId, token(a)); checkRecord(record, "");
+            if (jdbc.queryForObject("SELECT COUNT(*) FROM ddns_task WHERE zone_id=? AND record_name=? AND mode='pool'",Integer.class,zone,record.path("name").asText())>0)
+                throw new IllegalArgumentException("目标域名已被多IP任务管理");
             if (jdbc.queryForObject("SELECT COUNT(*) FROM ddns_task WHERE zone_id=? AND record_id=? AND id<>?", Integer.class, zone, recordId, id == null ? -1 : id) > 0)
                 throw new IllegalArgumentException("该记录已被其他任务绑定");
             if (id == null) jdbc.update("INSERT INTO ddns_task(name,source,zone_id,record_id,record_name,enabled,target_ip,owner_user_id,interval_minutes) VALUES(?,?,?,?,?,?,?,?,?)",
@@ -94,7 +96,83 @@ public class DdnsService {
                     name.trim(), source, zone, recordId, record.path("name").asText(), enabled ? 1 : 0, record.path("content").asText(), interval, id, owner);
         } finally { lock.unlock(); }
     }
-    public void delete(long owner, long id) { enter(); try { task(owner, id); jdbc.update("DELETE FROM ddns_task WHERE id=?", id); } finally { lock.unlock(); } }
+    public void savePool(long owner,Long id,String name,String sources,String target,boolean enabled,int interval) {
+        if(name==null || name.isBlank() || name.trim().length()>64) throw new IllegalArgumentException("名称须为1–64个字符");
+        if(!Set.of(1,3,5,10,15,30,60).contains(interval)) throw new IllegalArgumentException("同步间隔无效");
+        target=hostname(target);
+        String[] raw=sources.trim().split("[\\s,，]+");
+        Set<String> hosts=new LinkedHashSet<>();for(String host:raw)hosts.add(hostname(host));
+        if(hosts.isEmpty() || hosts.size()>10 || hosts.contains(target)) throw new IllegalArgumentException("填写1–10个来源域名，不能包含目标自身");
+        enter();
+        try {
+            if(id!=null) task(owner,id);
+            Map<String,Object> a=account(owner);String zone=(String)a.get("zone_id");String credential=token(a);
+            String zoneName=remote.zone(zone,credential);
+            if(!target.equals(zoneName) && !target.endsWith("."+zoneName)) throw new IllegalArgumentException("目标不属于当前Zone");
+            if(id!=null) {
+                var old=task(owner,id);
+                if(!"pool".equals(old.get("mode")) || !target.equals(old.get("record_name"))) throw new IllegalArgumentException("任务模式和目标保存后不能更改，请新建任务");
+            } else if(jdbc.queryForObject("SELECT COUNT(*) FROM ddns_task WHERE owner_user_id=?",Integer.class,owner)>=20) throw new IllegalArgumentException("每人最多20条任务");
+            if(jdbc.queryForObject("SELECT COUNT(*) FROM ddns_task WHERE zone_id=? AND record_name=? AND id<>?",Integer.class,zone,target,id==null?-1:id)>0)throw new IllegalArgumentException("目标域名已被其他任务绑定");
+            for(JsonNode r:remote.namedRecords(zone,credential,target))
+                if("CNAME".equals(r.path("type").asText()) || ("A".equals(r.path("type").asText()) && r.path("proxied").asBoolean())) throw new IllegalArgumentException("请先手动移除目标CNAME并关闭目标A记录代理");
+            String source=String.join("\n",hosts);
+            if(id==null)jdbc.update("INSERT INTO ddns_task(name,source,zone_id,record_id,record_name,enabled,owner_user_id,interval_minutes,mode) VALUES(?,?,?,?,?,?,?,?,'pool')",name.trim(),source,zone,java.util.UUID.randomUUID().toString().replace("-",""),target,enabled?1:0,owner,interval);
+            else {
+                jdbc.update("UPDATE ddns_task SET name=?,source=?,enabled=?,interval_minutes=?,checked_at=NULL,error='' WHERE id=?",name.trim(),source,enabled?1:0,interval,id);
+                jdbc.update("UPDATE ddns_managed SET missing_count=0,last_missing=0 WHERE task_id=?",id);
+            }
+        } finally { lock.unlock(); }
+    }
+
+    private void syncPool(Map<String,Object> task,String credential) {
+        long id=((Number)task.get("id")).longValue();String zone=(String)task.get("zone_id"),name=(String)task.get("record_name");
+        Set<String> desired=new TreeSet<>();
+        for(String source:((String)task.get("source")).split("\n"))desired.addAll(remote.resolveAll(source));
+        if(desired.isEmpty() || desired.size()>50)throw new IllegalStateException("来源合并后需有1–50个公网IPv4，保留原记录");
+        String marker="flux-ddns:"+task.get("record_id");
+        List<JsonNode> current=remote.namedRecords(zone,credential,name);
+        for(JsonNode r:current) {
+            if(!name.equals(r.path("name").asText()))throw new IllegalStateException("目标查询返回不匹配记录");
+            if("CNAME".equals(r.path("type").asText()) || ("A".equals(r.path("type").asText())&&r.path("proxied").asBoolean()))throw new IllegalStateException("目标存在CNAME或代理A记录，请先手动处理");
+        }
+        Map<String,JsonNode> byId=new HashMap<>();Set<String> existing=new HashSet<>();
+        for(JsonNode r:current) {
+            byId.put(r.path("id").asText(),r);
+            if("A".equals(r.path("type").asText()))existing.add(r.path("content").asText());
+            if(marker.equals(r.path("comment").asText()) && "A".equals(r.path("type").asText()))
+                jdbc.update("INSERT OR IGNORE INTO ddns_managed(task_id,record_id,ip) VALUES(?,?,?)",id,r.path("id").asText(),r.path("content").asText());
+        }
+        boolean changed=false;
+        for(String ip:desired)if(!existing.contains(ip)) {
+            JsonNode created=remote.create(zone,credential,name,ip,marker);
+            String record=DdnsRemote.id(created.path("id").asText());
+            jdbc.update("INSERT OR IGNORE INTO ddns_managed(task_id,record_id,ip) VALUES(?,?,?)",id,record,ip);
+            changed=true;existing.add(ip);
+        }
+        long now=System.currentTimeMillis(),spacing=((Number)task.get("interval_minutes")).longValue()*60000;
+        for(Map<String,Object> managed:jdbc.queryForList("SELECT * FROM ddns_managed WHERE task_id=?",id)) {
+            String record=(String)managed.get("record_id"),ip=(String)managed.get("ip");JsonNode r=byId.get(record);
+            if(desired.contains(ip)){jdbc.update("UPDATE ddns_managed SET missing_count=0,last_missing=0 WHERE task_id=? AND record_id=?",id,record);continue;}
+            if(r==null){jdbc.update("DELETE FROM ddns_managed WHERE task_id=? AND record_id=?",id,record);continue;}
+            if(!marker.equals(r.path("comment").asText()) || !ip.equals(r.path("content").asText()) || !"A".equals(r.path("type").asText()))throw new IllegalStateException("工具管理的记录已被手动修改，请恢复记录或删除任务重新配置");
+            int missing=((Number)managed.get("missing_count")).intValue();long last=((Number)managed.get("last_missing")).longValue();
+            if(now-last<spacing)continue;
+            missing++;
+            if(missing>=3) {
+                // Re-read immediately before deleting; never delete an altered or unmarked record.
+                JsonNode fresh=remote.record(zone,record,credential);checkRecord(fresh,name);
+                if(!marker.equals(fresh.path("comment").asText()) || !ip.equals(fresh.path("content").asText()))throw new IllegalStateException("记录已被修改，停止删除");
+                remote.remove(zone,credential,record);
+                existing.remove(ip);
+                jdbc.update("DELETE FROM ddns_managed WHERE task_id=? AND record_id=?",id,record);changed=true;
+            } else jdbc.update("UPDATE ddns_managed SET missing_count=?,last_missing=? WHERE task_id=? AND record_id=?",missing,now,id,record);
+        }
+        if(changed)jdbc.update("UPDATE ddns_task SET updated_at=? WHERE id=?",now,id);
+        jdbc.update("UPDATE ddns_task SET source_ip=?,target_ip=?,checked_at=?,error='' WHERE id=?",String.join(", ",desired),String.join(", ",new TreeSet<>(existing)),now,id);
+    }
+
+    public void delete(long owner, long id) { enter(); try { task(owner, id); jdbc.update("DELETE FROM ddns_managed WHERE task_id=?",id); jdbc.update("DELETE FROM ddns_task WHERE id=?", id); } finally { lock.unlock(); } }
     public void enable(long owner, long id, boolean enabled) { enter(); try { task(owner, id); jdbc.update("UPDATE ddns_task SET enabled=? WHERE id=?", enabled ? 1 : 0, id); } finally { lock.unlock(); } }
 
     public void sync(long owner, long id) {
@@ -108,6 +186,7 @@ public class DdnsService {
     private void syncNow(long owner, long id, boolean manual) {
         lock.lock();
         String sourceIp = null, targetIp = null;
+        boolean pool = false;
         try {
             Map<String,Object> t = task(owner, id);
             if (((Number)t.get("enabled")).intValue() != 1) return;
@@ -117,6 +196,11 @@ public class DdnsService {
             Map<String,Object> a = account(owner); String zone = (String)t.get("zone_id");
             if (!zone.equals(a.get("zone_id"))) throw new IllegalStateException("任务与凭证 Zone 不一致");
             String credential = token(a);
+            if ("pool".equals(t.get("mode"))) {
+                pool = true;
+                syncPool(t,credential);
+                return;
+            }
             sourceIp = remote.resolve((String)t.get("source"));
             JsonNode record = remote.record(zone, (String)t.get("record_id"), credential);
             checkRecord(record, (String)t.get("record_name"));
@@ -128,6 +212,7 @@ public class DdnsService {
             }
             jdbc.update("UPDATE ddns_task SET source_ip=?,target_ip=?,checked_at=?,error='' WHERE id=?", sourceIp, targetIp, System.currentTimeMillis(), id);
         } catch (Exception ex) {
+            if(pool) jdbc.update("UPDATE ddns_managed SET missing_count=0,last_missing=0 WHERE task_id=?",id);
             // Remote exceptions are deliberately sanitized; do not persist request headers or response bodies.
             String message = ex instanceof IllegalArgumentException || ex instanceof IllegalStateException ? ex.getMessage() : "同步失败，请稍后重试";
             jdbc.update("UPDATE ddns_task SET source_ip=COALESCE(?,source_ip),target_ip=COALESCE(?,target_ip),checked_at=?,error=? WHERE id=?",

@@ -24,7 +24,8 @@ class DdnsServiceTest {
     @BeforeEach void setup() {
         ds = new SingleConnectionDataSource("jdbc:sqlite::memory:", true); jdbc = new JdbcTemplate(ds);
         jdbc.execute("CREATE TABLE ddns_account(owner_user_id INTEGER PRIMARY KEY,zone_id TEXT,token_cipher TEXT)");
-        jdbc.execute("CREATE TABLE ddns_task(id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT,source TEXT,zone_id TEXT,record_id TEXT,record_name TEXT,enabled INTEGER,source_ip TEXT,target_ip TEXT,checked_at INTEGER,updated_at INTEGER,error TEXT DEFAULT '',owner_user_id INTEGER DEFAULT 1,interval_minutes INTEGER DEFAULT 5,UNIQUE(zone_id,record_id))");
+        jdbc.execute("CREATE TABLE ddns_task(id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT,source TEXT,zone_id TEXT,record_id TEXT,record_name TEXT,enabled INTEGER,source_ip TEXT,target_ip TEXT,checked_at INTEGER,updated_at INTEGER,error TEXT DEFAULT '',owner_user_id INTEGER DEFAULT 1,interval_minutes INTEGER DEFAULT 5,mode TEXT DEFAULT 'single',UNIQUE(zone_id,record_id))");
+        jdbc.execute("CREATE TABLE ddns_managed(task_id INTEGER,record_id TEXT,ip TEXT,missing_count INTEGER DEFAULT 0,last_missing INTEGER DEFAULT 0,PRIMARY KEY(task_id,record_id))");
         remote = mock(DdnsRemote.class); service = new DdnsService(jdbc, remote, new DdnsCrypto("test-panel-secret"));
         when(remote.zone(Z,TOKEN)).thenReturn("example.com");
         service.saveAccount(1, Z,TOKEN);
@@ -160,6 +161,52 @@ class DdnsServiceTest {
             migrate.invoke(config,old.getConnection());
             assertEquals(2,db.queryForObject("SELECT COUNT(*) FROM ddns_account",Integer.class));
         } finally { old.destroy(); }
+    }
+    @Test void poolCreatesDeduplicatesProtectsManualAndRemovesAfterThreeSpacedChecks() {
+        when(remote.namedRecords(Z,TOKEN,"in.example.com")).thenReturn(new ArrayList<>());
+        when(remote.resolveAll("a.example.com")).thenReturn(Set.of("1.1.1.1","8.8.8.8"));
+        when(remote.resolveAll("b.example.com")).thenReturn(Set.of("8.8.8.8"));
+        service.savePool(1,null,"pool","a.example.com\nb.example.com","in.example.com",true,5);
+        long id=jdbc.queryForObject("SELECT id FROM ddns_task",Long.class);
+        String marker="flux-ddns:"+jdbc.queryForObject("SELECT record_id FROM ddns_task",String.class);
+        var manual=mapper.valueToTree(Map.of("id",OTHER,"name","in.example.com","type","A","content","8.8.8.8","proxied",false));
+        var owned=mapper.valueToTree(Map.of("id",R,"name","in.example.com","type","A","content","1.1.1.1","proxied",false,"comment",marker));
+        when(remote.namedRecords(Z,TOKEN,"in.example.com")).thenReturn(List.of(manual));
+        when(remote.create(Z,TOKEN,"in.example.com","1.1.1.1",marker)).thenReturn(owned);
+        service.syncNow(1,id);verify(remote,times(1)).create(Z,TOKEN,"in.example.com","1.1.1.1",marker);
+        when(remote.namedRecords(Z,TOKEN,"in.example.com")).thenReturn(List.of(manual,owned));
+        when(remote.record(Z,R,TOKEN)).thenReturn(owned);
+        when(remote.resolveAll("a.example.com")).thenReturn(Set.of("8.8.8.8"));
+        service.syncNow(1,id);service.syncNow(1,id);
+        assertEquals(1,jdbc.queryForObject("SELECT missing_count FROM ddns_managed",Integer.class));
+        jdbc.update("UPDATE ddns_managed SET last_missing=0");service.syncNow(1,id);
+        verify(remote,never()).remove(anyString(),anyString(),anyString());
+        jdbc.update("UPDATE ddns_managed SET last_missing=0");service.syncNow(1,id);
+        verify(remote).remove(Z,TOKEN,R);verify(remote,never()).remove(Z,TOKEN,OTHER);
+        assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM ddns_managed",Integer.class));
+    }
+    @Test void poolAdoptsMarkedRecordAfterResponseLossAndFailureNeverDeletes() {
+        when(remote.namedRecords(Z,TOKEN,"in.example.com")).thenReturn(List.of());
+        service.savePool(1,null,"pool","a.example.com","in.example.com",true,5);
+        long id=jdbc.queryForObject("SELECT id FROM ddns_task",Long.class);
+        String marker="flux-ddns:"+jdbc.queryForObject("SELECT record_id FROM ddns_task",String.class);
+        var owned=mapper.valueToTree(Map.of("id",R,"name","in.example.com","type","A","content","1.1.1.1","proxied",false,"comment",marker));
+        when(remote.resolveAll("a.example.com")).thenReturn(Set.of("1.1.1.1"));
+        when(remote.namedRecords(Z,TOKEN,"in.example.com")).thenReturn(List.of(owned));service.syncNow(1,id);
+        verify(remote,never()).create(anyString(),anyString(),anyString(),anyString(),anyString());
+        assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM ddns_managed",Integer.class));
+        when(remote.resolveAll("a.example.com")).thenThrow(new IllegalStateException("DNS timeout"));service.syncNow(1,id);
+        verify(remote,never()).remove(anyString(),anyString(),anyString());
+        assertEquals("DNS timeout",jdbc.queryForObject("SELECT error FROM ddns_task",String.class));
+        assertThrows(IllegalArgumentException.class,()->service.savePool(2,id,"steal","a.example.com","in.example.com",true,5));
+        service.delete(1,id);verify(remote,never()).remove(anyString(),anyString(),anyString());
+    }
+    @Test void poolRejectsCnameAndSingleTaskConflicts() {
+        var cname=mapper.valueToTree(Map.of("type","CNAME","name","in.example.com"));
+        when(remote.namedRecords(Z,TOKEN,"in.example.com")).thenReturn(List.of(cname));
+        assertThrows(IllegalArgumentException.class,()->service.savePool(1,null,"pool","a.example.com","in.example.com",true,5));
+        create();when(remote.namedRecords(Z,TOKEN,"in.example.com")).thenReturn(List.of());
+        assertThrows(IllegalArgumentException.class,()->service.savePool(1,null,"pool","a.example.com","in.example.com",true,5));
     }
     @Test void dnsMustReturnExactlyOnePublicAddressAndPatchOnlyContent() throws Exception {
         class Fake extends DdnsRemote {

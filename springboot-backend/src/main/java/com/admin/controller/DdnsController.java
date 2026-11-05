@@ -41,7 +41,9 @@ public class DdnsController {
     }
     @PostMapping("/records") public R records() { return result(() -> service.records(owner())); }
     @PostMapping("/save") public R save(@RequestBody Map<String,Object> p) {
-        return result(() -> { service.saveTask(owner(), p.get("id") == null ? null : id(p), str(p,"name"), str(p,"source"), str(p,"recordId"), Boolean.TRUE.equals(p.get("enabled")), interval(p)); return null; });
+        return result(() -> {
+            if("pool".equals(str(p,"mode"))) { service.savePool(owner(),p.get("id")==null?null:id(p),str(p,"name"),str(p,"source"),str(p,"targetName"),Boolean.TRUE.equals(p.get("enabled")),interval(p));return null; }
+            service.saveTask(owner(), p.get("id") == null ? null : id(p), str(p,"name"), str(p,"source"), str(p,"recordId"), Boolean.TRUE.equals(p.get("enabled")), interval(p)); return null; });
     }
     @PostMapping("/enable") public R enable(@RequestBody Map<String,Object> p) {
         return result(() -> { service.enable(owner(), id(p), Boolean.TRUE.equals(p.get("enabled"))); return null; });

@@ -16,12 +16,16 @@ public class DdnsRemote {
             .followRedirects(HttpClient.Redirect.NEVER).build();
 
     protected JsonNode request(String url, String token, Map<String, Object> patch) {
+        return exchange(url, token, patch == null ? "GET" : "PATCH", patch);
+    }
+    protected JsonNode exchange(String url, String token, String method, Map<String,Object> payload) {
         try {
             HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(5))
                     .header("Accept", "application/json");
             if (token != null) builder.header("Authorization", "Bearer " + token);
-            if (patch != null) builder.header("Content-Type", "application/json")
-                    .method("PATCH", HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(patch)));
+            if (payload != null) builder.header("Content-Type", "application/json")
+                    .method(method, HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(payload)));
+            else builder.method(method, HttpRequest.BodyPublishers.noBody());
             HttpResponse<String> response = client.send(builder.build(), HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() < 200 || response.statusCode() >= 300)
                 throw new IllegalStateException("远程服务返回 HTTP " + response.statusCode());
@@ -58,7 +62,27 @@ public class DdnsRemote {
         return Map.of("id", record.path("id").asText(), "name", record.path("name").asText(),
                 "content", record.path("content").asText(), "proxied", record.path("proxied").asBoolean());
     }
+    public List<JsonNode> namedRecords(String zone, String token, String name) {
+        List<JsonNode> records = new ArrayList<>();
+        for(int page=1;page<=10;page++) {
+            JsonNode body=request(base(zone)+"/dns_records?name="+name+"&per_page=100&page="+page,token,null);
+            body.path("result").forEach(records::add);
+            if(page>=body.path("result_info").path("total_pages").asInt(1)) return records;
+        }
+        throw new IllegalStateException("目标记录过多，暂停同步");
+    }
+    public JsonNode create(String zone,String token,String name,String ip,String marker) {
+        return exchange(base(zone)+"/dns_records",token,"POST",Map.of("type","A","name",name,"content",ip,"ttl",60,"proxied",false,"comment",marker)).path("result");
+    }
+    public void remove(String zone,String token,String record) {
+        exchange(base(zone)+"/dns_records/"+id(record),token,"DELETE",null);
+    }
     public String resolve(String hostname) {
+        Set<String> ips=resolveAll(hostname);
+        if (ips.size()!=1) throw new IllegalStateException("来源需解析到唯一公网 IPv4，保留原记录");
+        return ips.iterator().next();
+    }
+    public Set<String> resolveAll(String hostname) {
         JsonNode body = request("https://dns.google/resolve?type=A&name=" + hostname, null, null);
         if (body.path("Status").asInt(-1) != 0) throw new IllegalStateException("来源域名解析失败，保留原记录");
         Set<String> ips = new HashSet<>();
@@ -69,8 +93,8 @@ public class DdnsRemote {
                 ips.add(ip);
             }
         }
-        if (ips.size() != 1) throw new IllegalStateException("来源需解析到唯一公网 IPv4，保留原记录");
-        return ips.iterator().next();
+        if (ips.isEmpty() || ips.size()>50) throw new IllegalStateException("来源无有效地址或超过50个地址，保留原记录");
+        return ips;
     }
     public static boolean publicIpv4(String ip) {
         if (ip == null || !ip.matches("(?:[0-9]{1,3}\\.){3}[0-9]{1,3}")) return false;
