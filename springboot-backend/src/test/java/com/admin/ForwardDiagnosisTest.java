@@ -16,6 +16,21 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 class ForwardDiagnosisTest {
+    @Test void udpSkipsAllTcpProbesWithoutClaimingSuccess() {
+        var service=spy(new ForwardServiceImpl());
+        Forward rule=new Forward();rule.setId(1L);rule.setUserId(1);rule.setTunnelId(26);rule.setName("udp-rule");rule.setProtocol("udp");
+        doReturn(rule).when(service).getById(1L);
+        var tunnels=mock(TunnelService.class);var tunnel=new Tunnel();tunnel.setId(26L);tunnel.setType(1);
+        when(tunnels.getById(26)).thenReturn(tunnel);ReflectionTestUtils.setField(service,"tunnelService",tunnels);
+        var chains=mock(ChainTunnelService.class);ReflectionTestUtils.setField(service,"chainTunnelService",chains);
+        var request=new MockHttpServletRequest();request.addHeader("Authorization","h."+Base64.getUrlEncoder().withoutPadding().encodeToString("{\"sub\":1,\"role_id\":0,\"name\":\"admin\"}".getBytes())+".s");
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+        try {
+            var response=service.diagnoseForward(1L);assertEquals(0,response.getCode());
+            var data=(Map<?,?>)response.getData();assertEquals("udp",data.get("protocol"));assertTrue(((List<?>)data.get("results")).isEmpty());
+            assertTrue(data.get("notice").toString().contains("未验证"));verifyNoInteractions(chains);
+        } finally {RequestContextHolder.resetRequestAttributes();}
+    }
     @Test void probesRunConcurrentlyAndPreserveFailedResultsAndOrder() {
         CountDownLatch concurrent = new CountDownLatch(2);
         var service = spy(new ForwardServiceImpl() {

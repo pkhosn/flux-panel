@@ -133,6 +133,7 @@ interface AddressItem {
 }
 
 interface DiagnosisResult {
+  notice?: string;
   forwardName: string;
   timestamp: number;
   results: Array<{
@@ -2026,8 +2027,9 @@ export default function ForwardPage() {
                     </div>
                   ) : diagnosisResult ? (
                     <div className="space-y-4">
+                      {diagnosisResult.notice && <Alert color="primary" variant="flat" title="UDP 规则诊断说明" description={diagnosisResult.notice} />}
                       {/* 统计摘要 */}
-                      <div className="grid grid-cols-3 gap-3">
+                      <div className={`grid grid-cols-3 gap-3 ${diagnosisResult.notice && !diagnosisResult.results.length ? 'hidden' : ''}`}>
                         <div className="text-center p-3 bg-default-100 dark:bg-gray-800 rounded-lg border border-divider">
                           <div className="text-2xl font-bold text-foreground">{diagnosisResult.results.length}</div>
                           <div className="text-xs text-default-500 mt-1">{translate("总测试数")}</div>

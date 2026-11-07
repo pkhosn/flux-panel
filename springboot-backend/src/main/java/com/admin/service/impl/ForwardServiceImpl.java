@@ -747,6 +747,12 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
             return R.err("隧道不存在");
         }
 
+        if ("udp".equals(GostUtil.normalizeForwardProtocol(forward.getProtocol()))) {
+            return R.ok(Map.of("forwardId",id,"forwardName",forward.getName(),
+                    "protocol","udp","timestamp",System.currentTimeMillis(),"results",List.of(),
+                    "notice","此规则仅使用 UDP，已跳过 TCP 连接测试。UDP 无通用握手，未验证转发连通性；请使用对应的 UDP 客户端测试，并确认目标端口提供 UDP 服务。"));
+        }
+
         // 4. 获取隧道的ChainTunnel信息
         List<ChainTunnel> chainTunnels = chainTunnelService.list(
                 new QueryWrapper<ChainTunnel>().eq("tunnel_id", tunnel.getId())
