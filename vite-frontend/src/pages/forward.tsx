@@ -909,6 +909,18 @@ export default function ForwardPage() {
     setExportModalOpen(true);
   };
 
+  const copySelectedRules = async () => {
+    const rows = tableRules.filter(row => tableSelectedIds.includes(row.id));
+    if (!rows.length) return;
+    try {
+      const text = rows.map(row => `${row.remoteAddr}|${row.name}|${row.inPort}`).join('\n');
+      if (await copyText(text)) toast.success(translate("已导出"));
+      else toast.error(translate("复制失败"));
+    } catch {
+      toast.error(translate("复制失败"));
+    }
+  };
+
   // 执行导出
   const executeExport = () => {
     if (!selectedTunnelForExport) {
@@ -1204,6 +1216,7 @@ export default function ForwardPage() {
             <Button className="rules-text-action" title={translate("添加规则")} aria-label={translate("添加规则")} size="sm" color="primary" isDisabled={!!inspectedUserId} onPress={handleAdd}><RuleIcon name="add" />{translate("添加规则")}</Button>
             <Button className="rules-text-action" title={translate("批量导入")} aria-label={translate("批量导入")} size="sm" variant="flat" isDisabled={!!inspectedUserId} onPress={handleImport}><RuleIcon name="import" />{translate("批量导入")}</Button>
             <Button className="rules-text-action" title={translate("批量导出")} aria-label={translate("批量导出")} size="sm" variant="flat" onPress={handleExport}><RuleIcon name="export" />{translate("批量导出")}</Button>
+            <Button className="rules-text-action" title={translate("复制规则")} aria-label={translate("复制规则")} size="sm" variant="flat" isDisabled={!tableSelectedIds.length} onPress={copySelectedRules}><RuleIcon name="export" />{translate("复制规则")}</Button>
             <Button className="rules-text-action" size="sm" variant="flat" isDisabled={!tableSelectedIds.length} onPress={() => {
               const rows = tableRules.filter(row => tableSelectedIds.includes(row.id));
               if (rows.some(row => row.name.includes('|') || /[\r\n]/.test(row.name) || !row.inPort)) return toast.error(translate('部分规则名称或入口端口无法用文本表示，请逐条编辑'));

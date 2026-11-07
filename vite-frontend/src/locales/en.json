@@ -225,6 +225,8 @@
   "今日重置": "Reset today",
   "明日重置": "Reset tomorrow",
   "复制失败": "Copy failed",
+  "复制规则": "Copy rules",
+  "已导出": "Exported",
   "正在加载数据...": "Loading data...",
   "总流量": "total traffic",
   "已用流量": "Used traffic",
