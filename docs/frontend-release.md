@@ -92,3 +92,5 @@ SHA256：`dc2031203c2084d7efce6e201d17499df84c1a552e2d73ca7dbcf96fdcfa7763`。
 版本 `frontend-2026.11.05.1`：源码 `7b4f08a`，多来源多IP自动管理A记录，保护手动记录及延迟删除。51项本地Maven测试、Node20构建和浏览器单记录/多IP模式验证通过；匿名包比对、生产镜像构建与镜像回归通过。SHA256：`978d28a622d627ff23f2e34d707cb804b1a47d8c4ea8d9514d312d2888bd1ce4`。限制及复验见dynamic-dns-plan.md。
 
 版本 `frontend-2026.11.07.1`：源码 `02b2ad6`，纯UDP规则跳过TCP诊断，显示未验证UDP连通性说明并隐藏测试统计。52项本地Maven测试（ForwardDiagnosisTest覆盖UDP不发送探测及原TCP并发回归）、Node20构建和桌面/320/390浏览器通过；匿名资源比对、生产镜像构建与镜像浏览器检查通过。SHA256：`b7f7a9cbf7cb5cb62c3a265759f3363ee3b610dc92a992ba4b2d9a1d94561484`。复验沿用本文构建和docs/tunnel-service-rebuild.md Maven流程；本机浏览器脚本/tmp/flux-browser-check/udp-diagnosis.cjs。此次修复诊断误报，不代表已验证用户目标UDP服务。
+
+版本 `frontend-2026.11.07.2`：源码 `b925c25`，多选操作新增“复制规则”，仅导出选中项为目标地址|规则名称|监听端口，每行一条，直接复制并提示“已导出”。Node20本地构建、浏览器单选/多选实际剪贴板、无选中禁用、不弹窗、降级复制及失败提示、390px适配通过；匿名包比对及SHA256、生产镜像构建与镜像浏览器回归通过。SHA256：`1418b34112b17d86f2fe8cd5000994f93b688376c9a992e73688d1dcf323b531`。复验沿用本文构建与镜像流程，规则页分别选中一条和多条后点击复制规则，粘贴检查逐行格式与选中范围；本机验证脚本 `/tmp/flux-browser-check/copy-selected-rules.cjs`（支持BASE_URL）。
