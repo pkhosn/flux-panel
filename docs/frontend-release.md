@@ -90,3 +90,5 @@ SHA256：`dc2031203c2084d7efce6e201d17499df84c1a552e2d73ca7dbcf96fdcfa7763`。
 版本 `frontend-2026.11.04.4`：源码 `637a0f3`，删除网站配置中重复的动态DNS分类，仅保留侧栏独立入口。Node20本地构建、五分类/保存/支付/暗色窄屏及独立DDNS任务浏览器验证通过；匿名包逐字节校验、生产镜像构建及镜像浏览器回归通过。SHA256：`ea2b87e08a037341a9a9ce265833f33e266d3d1427e49a765bece9874d41c2fe`。复验沿用本文构建流程，网站配置应仅有五分类，侧栏动态DNS仍可操作；本机浏览器脚本 /tmp/flux-browser-check/settings-single-entry.cjs、ddns-entry-user.cjs。
 
 版本 `frontend-2026.11.05.1`：源码 `7b4f08a`，多来源多IP自动管理A记录，保护手动记录及延迟删除。51项本地Maven测试、Node20构建和浏览器单记录/多IP模式验证通过；匿名包比对、生产镜像构建与镜像回归通过。SHA256：`978d28a622d627ff23f2e34d707cb804b1a47d8c4ea8d9514d312d2888bd1ce4`。限制及复验见dynamic-dns-plan.md。
+
+版本 `frontend-2026.11.07.1`：源码 `02b2ad6`，纯UDP规则跳过TCP诊断，显示未验证UDP连通性说明并隐藏测试统计。52项本地Maven测试（ForwardDiagnosisTest覆盖UDP不发送探测及原TCP并发回归）、Node20构建和桌面/320/390浏览器通过；匿名资源比对、生产镜像构建与镜像浏览器检查通过。SHA256：`b7f7a9cbf7cb5cb62c3a265759f3363ee3b610dc92a992ba4b2d9a1d94561484`。复验沿用本文构建和docs/tunnel-service-rebuild.md Maven流程；本机浏览器脚本/tmp/flux-browser-check/udp-diagnosis.cjs。此次修复诊断误报，不代表已验证用户目标UDP服务。
