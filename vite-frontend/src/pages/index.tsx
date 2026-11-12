@@ -52,6 +52,8 @@ export default function IndexPage() {
     captchaId: "",
   });
   const [loading, setLoading] = useState(false);
+  const submittingRef = useRef(false);
+  const pendingAuthRef = useRef<{ mode: 'login' | 'register'; username: string; password: string } | null>(null);
   const [errors, setErrors] = useState<Partial<LoginForm>>({});
   const [showCaptcha, setShowCaptcha] = useState(false);
   const navigate = useNavigate();
@@ -61,6 +63,7 @@ export default function IndexPage() {
   // 清理验证码实例
   useEffect(() => {
     return () => {
+      pendingAuthRef.current = null;
       if (tacInstanceRef.current) {
         tacInstanceRef.current.destroyWindow();
         tacInstanceRef.current = null;
@@ -106,82 +109,92 @@ export default function IndexPage() {
     }
   };
 
-  // 初始化验证码
-  const initCaptcha = async () => {
-    if (!window.TAC || !captchaContainerRef.current) {
-      return;
-    }
-
-    try {
-      // 清理之前的验证码实例
-      if (tacInstanceRef.current) {
-        tacInstanceRef.current.destroyWindow();
-        tacInstanceRef.current = null;
-      }
-
-      // 使用axios的baseURL，确保在WebView中使用正确的面板地址
-      const baseURL = axios.defaults.baseURL || (import.meta.env.VITE_API_BASE ? `${import.meta.env.VITE_API_BASE}/api/v1/` : '/api/v1/');
-
-      const config: CaptchaConfig = {
-        requestCaptchaDataUrl: `${baseURL}captcha/generate`,
-        validCaptchaUrl: `${baseURL}captcha/verify`,
-        bindEl: "#captcha-container",
-        validSuccess: (res: any, _: any, tac: any) => {
-
-
-          form.captchaId = res.data.validToken
-
-          setShowCaptcha(false);
-          tac.destroyWindow();
-          performAuth();
-        },
-        validFail: (_: any, _captcha: any, tac: any) => {
-          tac.reloadCaptcha();
-        },
-        btnCloseFun: (_event: any, tac: any) => {
-          setShowCaptcha(false);
-          tac.destroyWindow();
-          setLoading(false);
-        },
-        btnRefreshFun: (_event: any, tac: any) => {
-          tac.reloadCaptcha();
-        }
-      };
-
-      // 检测暗黑模式
-      const isDarkMode = document.documentElement.classList.contains('dark') ||
-                        document.documentElement.getAttribute('data-theme') === 'dark';
-
-      // 根据主题调整颜色
-      const trackColor = isDarkMode ? "#4a5568" : "#7db0be"; // 暗黑模式使用更深的灰蓝色
-
-      const style: CaptchaStyle = {
-        bgUrl: bgImage,
-        logoUrl: null,
-        moveTrackMaskBgColor: trackColor,
-        moveTrackMaskBorderColor: trackColor
-      };
-
-      tacInstanceRef.current = new window.TAC(config, style);
-      tacInstanceRef.current.init();
-
-    } catch (error) {
-      console.error('初始化验证码失败:', error);
-      toast.error(translate("验证码初始化失败，请刷新页面重试"));
-      setShowCaptcha(false);
-      setLoading(false);
-    }
+  const cancelCaptcha = () => {
+    pendingAuthRef.current = null;
+    submittingRef.current = false;
+    setShowCaptcha(false);
+    setLoading(false);
   };
 
+  // Wait for React to mount the container instead of guessing with a timeout.
+  useEffect(() => {
+    if (!showCaptcha) return;
+    let active = true;
+    const attempt = pendingAuthRef.current;
+    const initCaptcha = async () => {
+      try {
+        if (!window.TAC || !captchaContainerRef.current || !attempt) {
+          throw new Error('Captcha is unavailable');
+        }
+        // 使用axios的baseURL，确保在WebView中使用正确的面板地址
+        const baseURL = axios.defaults.baseURL || (import.meta.env.VITE_API_BASE ? `${import.meta.env.VITE_API_BASE}/api/v1/` : '/api/v1/');
+
+        const config: CaptchaConfig = {
+          requestCaptchaDataUrl: `${baseURL}captcha/generate`,
+          validCaptchaUrl: `${baseURL}captcha/verify`,
+          bindEl: "#captcha-container",
+          validSuccess: (res: any) => {
+            if (!active || pendingAuthRef.current !== attempt) return;
+            const token = res?.data?.validToken;
+            if (typeof token !== 'string' || !token.trim()) {
+              toast.error(translate("验证码校验失败"));
+              tacInstanceRef.current?.reloadCaptcha();
+              return;
+            }
+            pendingAuthRef.current = null;
+            setShowCaptcha(false);
+            void performAuth(attempt, token);
+          },
+          validFail: (_: any, _captcha: any, tac: any) => {
+            if (active && pendingAuthRef.current === attempt) tac.reloadCaptcha();
+          },
+          btnCloseFun: () => {
+            if (active && pendingAuthRef.current === attempt) cancelCaptcha();
+          },
+          btnRefreshFun: (_event: any, tac: any) => {
+            tac.reloadCaptcha();
+          }
+        };
+
+        // 检测暗黑模式
+        const isDarkMode = document.documentElement.classList.contains('dark') ||
+                          document.documentElement.getAttribute('data-theme') === 'dark';
+
+        // 根据主题调整颜色
+        const trackColor = isDarkMode ? "#4a5568" : "#7db0be"; // 暗黑模式使用更深的灰蓝色
+
+        const style: CaptchaStyle = {
+          bgUrl: bgImage,
+          logoUrl: null,
+          moveTrackMaskBgColor: trackColor,
+          moveTrackMaskBorderColor: trackColor
+        };
+
+        tacInstanceRef.current = new window.TAC(config, style);
+        await tacInstanceRef.current.init();
+
+      } catch (error) {
+        if (!active) return;
+        console.error('初始化验证码失败:', error);
+        toast.error(translate("验证码初始化失败，请刷新页面重试"));
+        cancelCaptcha();
+      }
+    };
+    void initCaptcha();
+    return () => {
+      active = false;
+      tacInstanceRef.current?.destroyWindow();
+      tacInstanceRef.current = null;
+    };
+  }, [showCaptcha]);
+
   // 执行登录请求
-  const performAuth = async () => {
+  const performAuth = async (attempt: { mode: 'login' | 'register'; username: string; password: string }, captchaId: string) => {
 
 
+    const authMode = attempt.mode;
     try {
-      const username = form.username.trim();
-      const password = form.password;
-      const captchaId = form.captchaId;
-      const payload = { username, password, captchaId };
+      const payload = { username: attempt.username, password: attempt.password, captchaId };
       const response = authMode === 'login'
         ? await login(payload as LoginData)
         : await register(payload as RegisterData);
@@ -223,13 +236,16 @@ export default function IndexPage() {
       console.error(authMode === 'login' ? translate("登录错误:") : translate("注册错误:"), error);
       toast.error(authMode === 'login' ? translate("网络错误，请稍后重试") : translate("注册失败，请稍后重试"));
     } finally {
+      submittingRef.current = false;
       setLoading(false);
     }
   };
 
   const handleSubmit = async () => {
-    if (!validateForm()) return;
-
+    if (submittingRef.current || !validateForm()) return;
+    submittingRef.current = true;
+    const attempt = { mode: authMode, username: form.username.trim(), password: form.password };
+    pendingAuthRef.current = attempt;
     setLoading(true);
 
     try {
@@ -238,26 +254,24 @@ export default function IndexPage() {
 
       if (checkResponse.code !== 0) {
         toast.error("检查验证码状态失败，请重试" + checkResponse.msg);
-        setLoading(false);
+        cancelCaptcha();
         return;
       }
+      if (pendingAuthRef.current !== attempt) return;
 
       // 根据返回值决定是否显示验证码
       if (checkResponse.data === 0) {
         // 不需要验证码，直接执行
-        await performAuth();
+        pendingAuthRef.current = null;
+        await performAuth(attempt, "");
       } else {
         // 需要验证码，显示验证码弹层
         setShowCaptcha(true);
-        // 延时初始化验证码，确保DOM已渲染
-        setTimeout(() => {
-          initCaptcha();
-        }, 100);
       }
     } catch (error) {
       console.error('检查验证码状态错误:', error);
       toast.error("网络错误，请稍后重试" + error);
-      setLoading(false);
+      cancelCaptcha();
     }
   };
 
@@ -377,7 +391,7 @@ export default function IndexPage() {
             {/* 背景遮罩层 - 模糊效果，暗黑模式下更深 */}
             <div className="absolute inset-0 bg-black/60 dark:bg-black/80 backdrop-blur-sm captcha-backdrop-enter" />
            {/* 验证码容器 */}
-           <div className="mb-4">
+           <div role="dialog" aria-modal="true" aria-label={translate("登录验证")} className="relative z-10 mb-4 flex flex-col items-center gap-3">
                 <div
                   id="captcha-container"
                   ref={captchaContainerRef}
@@ -388,6 +402,7 @@ export default function IndexPage() {
                            ? 'brightness(0.8) contrast(0.9)' : 'none'
                   }}
                 />
+                <Button size="sm" variant="flat" onPress={cancelCaptcha}>{translate("取消")}</Button>
               </div>
           </div>
         )}

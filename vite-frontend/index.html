@@ -4,7 +4,16 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     
-    <title>flux-panel</title>
+    <title></title>
+    <script>
+      // Restore the configured title before loading the application bundle.
+      try {
+        const cachedTitle = localStorage.getItem('vite_config_app_name');
+        if (cachedTitle) document.title = cachedTitle;
+      } catch (_) {
+        // Storage can be unavailable; the application will load the title from the API.
+      }
+    </script>
     <script>
       // 防止暗黑模式闪烁：在页面加载前立即应用用户主题（无配置时跟随系统）
       (function() {

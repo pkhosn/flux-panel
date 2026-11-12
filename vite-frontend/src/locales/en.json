@@ -892,6 +892,7 @@
   "地址显示": "Address display",
   "对后台与用户前台统一生效": "Applies to admin and user pages",
   "登录验证": "Login verification",
+  "验证码校验失败": "Captcha verification failed",
   "开启后可选择验证码类型": "Enable to choose a CAPTCHA type",
   "添加或编辑支付方式时配置对应通道参数": "Configure gateway details when adding or editing a payment method",
   "按分类管理网站设置，切换分类不会丢失修改": "Manage settings by category. Switching categories keeps your changes.",

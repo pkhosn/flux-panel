@@ -23,7 +23,6 @@ import H5SimpleLayout from "@/layouts/h5-simple";
 
 import { isAdminWorkspace } from "@/utils/workspace";
 import { isLoggedIn } from "@/utils/auth";
-import { siteConfig } from "@/config/site";
 
 // 检测是否为H5模式
 const useH5Mode = () => {
@@ -134,10 +133,8 @@ const LoginRoute = () => {
 };
 
 function App() {
-  // 立即设置页面标题（使用已从缓存读取的配置）
+  // HTML restores cached titles; load the configured title without a placeholder flash.
   useEffect(() => {
-    document.title = siteConfig.name;
-    
     // 异步检查是否有配置更新
     const checkTitleUpdate = async () => {
       try {
